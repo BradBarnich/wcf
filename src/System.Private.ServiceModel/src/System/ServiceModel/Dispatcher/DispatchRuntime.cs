@@ -1,37 +1,76 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.IdentityModel.Policy;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.ServiceModel.Diagnostics;
-using System.Threading;
-using System.Runtime.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Threading.Tasks;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.IdentityModel.Policy;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Diagnostics;
+    using System.Threading;
+    using System.Web.Security;
+    using System.Runtime.Diagnostics;
+
     public sealed class DispatchRuntime
     {
-        private ConcurrencyMode _concurrencyMode;
-        private bool _ensureOrderedDispatch;
-        private bool _automaticInputSessionShutdown;
-        private ChannelDispatcher _channelDispatcher;
-        private EndpointDispatcher _endpointDispatcher = null;
-        private IInstanceProvider _instanceProvider;
-        private IInstanceContextProvider _instanceContextProvider;
-        private OperationCollection _operations;
-        private ClientRuntime _proxyRuntime;
-        private ImmutableDispatchRuntime _runtime;
-        private SynchronizationContext _synchronizationContext;
-        private Type _type;
-        private DispatchOperation _unhandled;
-        private SharedRuntimeState _shared;
+        ServiceAuthenticationManager serviceAuthenticationManager;
+        ServiceAuthorizationManager serviceAuthorizationManager;
+        ReadOnlyCollection<IAuthorizationPolicy> externalAuthorizationPolicies;
+        AuditLogLocation securityAuditLogLocation;
+        ConcurrencyMode concurrencyMode;
+        bool ensureOrderedDispatch;
+        bool suppressAuditFailure;
+        AuditLevel serviceAuthorizationAuditLevel;
+        AuditLevel messageAuthenticationAuditLevel;
+        bool automaticInputSessionShutdown;
+        ChannelDispatcher channelDispatcher;
+        SynchronizedCollection<IInputSessionShutdown> inputSessionShutdownHandlers;
+        EndpointDispatcher endpointDispatcher;
+        IInstanceProvider instanceProvider;
+        IInstanceContextProvider instanceContextProvider;
+        InstanceContext singleton;
+        bool ignoreTransactionMessageProperty;
+        SynchronizedCollection<IDispatchMessageInspector> messageInspectors;
+        OperationCollection operations;
+        IDispatchOperationSelector operationSelector;
+        ClientRuntime proxyRuntime;
+        ImmutableDispatchRuntime runtime;
+        SynchronizedCollection<IInstanceContextInitializer> instanceContextInitializers;
+        bool isExternalPoliciesSet;
+        bool isAuthenticationManagerSet;
+        bool isAuthorizationManagerSet;
+        SynchronizationContext synchronizationContext;
+        PrincipalPermissionMode principalPermissionMode;
+        object roleProvider;
+        Type type;
+        DispatchOperation unhandled;
+        bool transactionAutoCompleteOnSessionClose;
+        bool impersonateCallerForAllOperations;
+        bool impersonateOnSerializingReply;
+        bool releaseServiceInstanceOnTransactionComplete;
+        SharedRuntimeState shared;
+        bool preserveMessage;
+        bool requireClaimsPrincipalOnOperationContext;
+
+        internal DispatchRuntime(EndpointDispatcher endpointDispatcher)
+            : this(new SharedRuntimeState(true))
+        {
+            if (endpointDispatcher == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("endpointDispatcher");
+            }
+
+            this.endpointDispatcher = endpointDispatcher;
+
+            Fx.Assert(shared.IsOnServer, "Server constructor called on client?");
+        }
 
         internal DispatchRuntime(ClientRuntime proxyRuntime, SharedRuntimeState shared)
             : this(shared)
@@ -41,31 +80,43 @@ namespace System.ServiceModel.Dispatcher
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("proxyRuntime");
             }
 
-            _proxyRuntime = proxyRuntime;
-            _instanceProvider = new CallbackInstanceProvider();
-            _channelDispatcher = new ChannelDispatcher(shared);
-            _instanceContextProvider = InstanceContextProviderBase.GetProviderForMode(InstanceContextMode.PerSession, this);
+            this.proxyRuntime = proxyRuntime;
+            this.instanceProvider = new CallbackInstanceProvider();
+            this.channelDispatcher = new ChannelDispatcher(shared);
+            this.instanceContextProvider = InstanceContextProviderBase.GetProviderForMode(InstanceContextMode.PerSession, this);
+
             Fx.Assert(!shared.IsOnServer, "Client constructor called on server?");
         }
 
-        private DispatchRuntime(SharedRuntimeState shared)
+        DispatchRuntime(SharedRuntimeState shared)
         {
-            _shared = shared;
+            this.shared = shared;
 
-            _operations = new OperationCollection(this);
-            _synchronizationContext = ThreadBehavior.GetCurrentSynchronizationContext();
-            _automaticInputSessionShutdown = true;
+            this.operations = new OperationCollection(this);
 
-            _unhandled = new DispatchOperation(this, "*", MessageHeaders.WildcardAction, MessageHeaders.WildcardAction);
-            _unhandled.InternalFormatter = MessageOperationFormatter.Instance;
-            _unhandled.InternalInvoker = new UnhandledActionInvoker(this);
+            this.inputSessionShutdownHandlers = this.NewBehaviorCollection<IInputSessionShutdown>();
+            this.messageInspectors = this.NewBehaviorCollection<IDispatchMessageInspector>();
+            this.instanceContextInitializers = this.NewBehaviorCollection<IInstanceContextInitializer>();
+            this.synchronizationContext = ThreadBehavior.GetCurrentSynchronizationContext();
+
+            this.automaticInputSessionShutdown = true;
+            this.principalPermissionMode = ServiceAuthorizationBehavior.DefaultPrincipalPermissionMode;
+
+            this.securityAuditLogLocation = ServiceSecurityAuditBehavior.defaultAuditLogLocation;
+            this.suppressAuditFailure = ServiceSecurityAuditBehavior.defaultSuppressAuditFailure;
+            this.serviceAuthorizationAuditLevel = ServiceSecurityAuditBehavior.defaultServiceAuthorizationAuditLevel;
+            this.messageAuthenticationAuditLevel = ServiceSecurityAuditBehavior.defaultMessageAuthenticationAuditLevel;
+
+            this.unhandled = new DispatchOperation(this, "*", MessageHeaders.WildcardAction, MessageHeaders.WildcardAction);
+            this.unhandled.InternalFormatter = MessageOperationFormatter.Instance;
+            this.unhandled.InternalInvoker = new UnhandledActionInvoker(this);
         }
 
         public IInstanceContextProvider InstanceContextProvider
         {
             get
             {
-                return _instanceContextProvider;
+                return this.instanceContextProvider;
             }
 
             set
@@ -78,7 +129,25 @@ namespace System.ServiceModel.Dispatcher
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _instanceContextProvider = value;
+                    this.instanceContextProvider = value;
+                }
+            }
+        }
+
+        public InstanceContext SingletonInstanceContext
+        {
+            get { return this.singleton; }
+            set
+            {
+                if (value == null)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
+                }
+
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.singleton = value;
                 }
             }
         }
@@ -87,124 +156,402 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                return _concurrencyMode;
+                return this.concurrencyMode;
             }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _concurrencyMode = value;
+                    this.concurrencyMode = value;
                 }
             }
         }
-
 
         public bool EnsureOrderedDispatch
         {
             get
             {
-                return _ensureOrderedDispatch;
+                return this.ensureOrderedDispatch;
             }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _ensureOrderedDispatch = value;
+                    this.ensureOrderedDispatch = value;
+                }
+            }
+        }
+
+        public AuditLogLocation SecurityAuditLogLocation
+        {
+            get
+            {
+                return this.securityAuditLogLocation;
+            }
+            set
+            {
+                if (!AuditLogLocationHelper.IsDefined(value))
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                }
+
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.securityAuditLogLocation = value;
+                }
+            }
+        }
+
+        public bool SuppressAuditFailure
+        {
+            get
+            {
+                return this.suppressAuditFailure;
+            }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.suppressAuditFailure = value;
+                }
+            }
+        }
+
+        public AuditLevel ServiceAuthorizationAuditLevel
+        {
+            get
+            {
+                return this.serviceAuthorizationAuditLevel;
+            }
+            set
+            {
+                if (!AuditLevelHelper.IsDefined(value))
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                }
+
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.serviceAuthorizationAuditLevel = value;
+                }
+            }
+        }
+
+        public AuditLevel MessageAuthenticationAuditLevel
+        {
+            get
+            {
+                return this.messageAuthenticationAuditLevel;
+            }
+            set
+            {
+                if (!AuditLevelHelper.IsDefined(value))
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                }
+
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.messageAuthenticationAuditLevel = value;
+                }
+            }
+        }
+
+        public ReadOnlyCollection<IAuthorizationPolicy> ExternalAuthorizationPolicies
+        {
+            get
+            {
+                return this.externalAuthorizationPolicies;
+            }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.externalAuthorizationPolicies = value;
+                    this.isExternalPoliciesSet = true;
+                }
+            }
+        }
+
+        public ServiceAuthenticationManager ServiceAuthenticationManager
+        {
+            get
+            {
+                return this.serviceAuthenticationManager;
+            }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.serviceAuthenticationManager = value;
+                    this.isAuthenticationManagerSet = true;
+                }
+            }
+        }
+
+        public ServiceAuthorizationManager ServiceAuthorizationManager
+        {
+            get
+            {
+                return this.serviceAuthorizationManager;
+            }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.serviceAuthorizationManager = value;
+                    this.isAuthorizationManagerSet = true;
                 }
             }
         }
 
         public bool AutomaticInputSessionShutdown
         {
-            get { return _automaticInputSessionShutdown; }
+            get { return this.automaticInputSessionShutdown; }        
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _automaticInputSessionShutdown = value;
+                    this.automaticInputSessionShutdown = value;
                 }
             }
         }
 
         public ChannelDispatcher ChannelDispatcher
         {
-            get { return _channelDispatcher ?? _endpointDispatcher.ChannelDispatcher; }
+            get { return this.channelDispatcher ?? this.endpointDispatcher.ChannelDispatcher; }
         }
 
         public ClientRuntime CallbackClientRuntime
         {
             get
             {
-                if (_proxyRuntime == null)
+                if (this.proxyRuntime == null)
                 {
                     lock (this.ThisLock)
                     {
-                        if (_proxyRuntime == null)
+                        if (this.proxyRuntime == null)
                         {
-                            _proxyRuntime = new ClientRuntime(this, _shared);
+                            this.proxyRuntime = new ClientRuntime(this, this.shared);
                         }
                     }
                 }
 
-                return _proxyRuntime;
+                return this.proxyRuntime;
             }
         }
 
         public EndpointDispatcher EndpointDispatcher
         {
-            get { return _endpointDispatcher; }
+            get { return this.endpointDispatcher; }
         }
 
-        public IInstanceProvider InstanceProvider
+        public bool ImpersonateCallerForAllOperations
         {
-            get { return _instanceProvider; }
+            get
+            {
+                return this.impersonateCallerForAllOperations;
+            }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _instanceProvider = value;
+                    this.impersonateCallerForAllOperations = value;
                 }
             }
         }
 
-        public SynchronizedKeyedCollection<string, DispatchOperation> Operations
+        public bool ImpersonateOnSerializingReply
         {
-            get { return _operations; }
-        }
-
-        public SynchronizationContext SynchronizationContext
-        {
-            get { return _synchronizationContext; }
+            get
+            {
+                return this.impersonateOnSerializingReply;
+            }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _synchronizationContext = value;
+                    this.impersonateOnSerializingReply = value;
+                }
+            }
+        }
+
+        internal bool RequireClaimsPrincipalOnOperationContext
+        {
+            get
+            {
+                return this.requireClaimsPrincipalOnOperationContext;
+            }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.requireClaimsPrincipalOnOperationContext = value;
+                }
+            }
+        }
+
+        public SynchronizedCollection<IInputSessionShutdown> InputSessionShutdownHandlers
+        {
+            get { return this.inputSessionShutdownHandlers; }
+        }
+
+        public bool IgnoreTransactionMessageProperty
+        {
+            get { return this.ignoreTransactionMessageProperty; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.ignoreTransactionMessageProperty = value;
+                }
+            }
+        }
+
+        public IInstanceProvider InstanceProvider
+        {
+            get { return this.instanceProvider; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.instanceProvider = value;
+                }
+            }
+        }
+
+        public SynchronizedCollection<IDispatchMessageInspector> MessageInspectors
+        {
+            get { return this.messageInspectors; }
+        }
+
+        public SynchronizedKeyedCollection<string, DispatchOperation> Operations
+        {
+            get { return this.operations; }
+        }
+
+        public IDispatchOperationSelector OperationSelector
+        {
+            get { return this.operationSelector; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.operationSelector = value;
+                }
+            }
+        }
+
+        public bool ReleaseServiceInstanceOnTransactionComplete
+        {
+            get { return this.releaseServiceInstanceOnTransactionComplete; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.releaseServiceInstanceOnTransactionComplete = value;
+                }
+            }
+        }       
+
+        public SynchronizedCollection<IInstanceContextInitializer> InstanceContextInitializers
+        {
+            get { return this.instanceContextInitializers; }
+        }
+
+        public SynchronizationContext SynchronizationContext
+        {
+            get { return this.synchronizationContext; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.synchronizationContext = value;
+                }
+            }
+        }
+
+        public PrincipalPermissionMode PrincipalPermissionMode
+        {
+            get
+            {
+                return this.principalPermissionMode;
+            }
+            set
+            {
+                if (!PrincipalPermissionModeHelper.IsDefined(value))
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                }
+
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.principalPermissionMode = value;
+                }
+            }
+        }
+
+        public RoleProvider RoleProvider
+        {
+            get { return (RoleProvider)this.roleProvider; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.roleProvider = value;
+                }
+            }
+        }
+
+        public bool TransactionAutoCompleteOnSessionClose
+        {
+            get { return this.transactionAutoCompleteOnSessionClose; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.transactionAutoCompleteOnSessionClose = value;
                 }
             }
         }
 
         public Type Type
         {
-            get { return _type; }
+            get { return this.type; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _type = value;
+                    this.type = value;
                 }
             }
         }
 
         public DispatchOperation UnhandledDispatchOperation
         {
-            get { return _unhandled; }
+            get { return this.unhandled; }
             set
             {
                 if (value == null)
@@ -215,8 +562,51 @@ namespace System.ServiceModel.Dispatcher
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _unhandled = value;
+                    this.unhandled = value;
                 }
+            }
+        }
+
+        public bool ValidateMustUnderstand
+        {
+            get { return this.shared.ValidateMustUnderstand; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.shared.ValidateMustUnderstand = value;
+                }
+            }
+        }
+
+        public bool PreserveMessage
+        {
+            get { return this.preserveMessage; }
+            set
+            {
+                lock (this.ThisLock)
+                {
+                    this.InvalidateRuntime();
+                    this.preserveMessage = value;
+                }
+            }
+        }
+
+        internal bool RequiresAuthentication
+        {
+            get
+            {
+                return this.isAuthenticationManagerSet;
+            }
+        }
+
+        internal bool RequiresAuthorization
+        {
+            get
+            {
+                return (this.isAuthorizationManagerSet || this.isExternalPoliciesSet ||
+                    AuditLevel.Success == (this.serviceAuthorizationAuditLevel & AuditLevel.Success));
             }
         }
 
@@ -224,7 +614,10 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                return false;
+                lock (this.ThisLock)
+                {
+                    return !(this.unhandled.Invoker is UnhandledActionInvoker);
+                }
             }
         }
 
@@ -239,14 +632,14 @@ namespace System.ServiceModel.Dispatcher
                 }
                 else
                 {
-                    return _shared.EnableFaults;
+                    return this.shared.EnableFaults;
                 }
             }
         }
 
         internal bool IsOnServer
         {
-            get { return _shared.IsOnServer; }
+            get { return this.shared.IsOnServer; }
         }
 
         internal bool ManualAddressing
@@ -260,7 +653,25 @@ namespace System.ServiceModel.Dispatcher
                 }
                 else
                 {
-                    return _shared.ManualAddressing;
+                    return this.shared.ManualAddressing;
+                }
+            }
+        }
+
+        internal int MaxCallContextInitializers
+        {
+            get
+            {
+                lock (this.ThisLock)
+                {
+                    int max = 0;
+
+                    for (int i = 0; i < this.operations.Count; i++)
+                    {
+                        max = System.Math.Max(max, this.operations[i].CallContextInitializers.Count);
+                    }
+                    max = System.Math.Max(max, this.unhandled.CallContextInitializers.Count);
+                    return max;
                 }
             }
         }
@@ -273,11 +684,11 @@ namespace System.ServiceModel.Dispatcher
                 {
                     int max = 0;
 
-                    for (int i = 0; i < _operations.Count; i++)
+                    for (int i = 0; i < this.operations.Count; i++)
                     {
-                        max = System.Math.Max(max, _operations[i].ParameterInspectors.Count);
+                        max = System.Math.Max(max, this.operations[i].ParameterInspectors.Count);
                     }
-                    max = System.Math.Max(max, _unhandled.ParameterInspectors.Count);
+                    max = System.Math.Max(max, this.unhandled.ParameterInspectors.Count);
                     return max;
                 }
             }
@@ -286,12 +697,17 @@ namespace System.ServiceModel.Dispatcher
         // Internal access to CallbackClientRuntime, but this one doesn't create on demand
         internal ClientRuntime ClientRuntime
         {
-            get { return _proxyRuntime; }
+            get { return this.proxyRuntime; }
         }
 
         internal object ThisLock
         {
-            get { return _shared; }
+            get { return this.shared; }
+        }
+
+        internal bool IsRoleProviderSet
+        {
+            get { return this.roleProvider != null; }
         }
 
         internal DispatchOperationRuntime GetOperation(ref Message message)
@@ -302,7 +718,7 @@ namespace System.ServiceModel.Dispatcher
 
         internal ImmutableDispatchRuntime GetRuntime()
         {
-            ImmutableDispatchRuntime runtime = _runtime;
+            ImmutableDispatchRuntime runtime = this.runtime;
             if (runtime != null)
             {
                 return runtime;
@@ -317,12 +733,12 @@ namespace System.ServiceModel.Dispatcher
         {
             lock (this.ThisLock)
             {
-                if (_runtime == null)
+                if (this.runtime == null)
                 {
-                    _runtime = new ImmutableDispatchRuntime(this);
+                    this.runtime = new ImmutableDispatchRuntime(this);
                 }
 
-                return _runtime;
+                return this.runtime;
             }
         }
 
@@ -330,14 +746,18 @@ namespace System.ServiceModel.Dispatcher
         {
             lock (this.ThisLock)
             {
-                _shared.ThrowIfImmutable();
-                _runtime = null;
+                this.shared.ThrowIfImmutable();
+                this.runtime = null;
             }
         }
 
         internal void LockDownProperties()
         {
-            _shared.LockDownProperties();
+            this.shared.LockDownProperties();
+            if (this.concurrencyMode != ConcurrencyMode.Single && this.ensureOrderedDispatch)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SfxDispatchRuntimeNonConcurrentOrEnsureOrderedDispatch)));
+            }
         }
 
         internal SynchronizedCollection<T> NewBehaviorCollection<T>()
@@ -345,13 +765,26 @@ namespace System.ServiceModel.Dispatcher
             return new DispatchBehaviorCollection<T>(this);
         }
 
+        internal void SetDebugFlagInDispatchOperations(bool includeExceptionDetailInFaults)
+        {
+            foreach (DispatchOperation dispatchOperation in this.operations)
+            {
+                dispatchOperation.IncludeExceptionDetailInFaults = includeExceptionDetailInFaults;
+            }
+        }
+
         internal class UnhandledActionInvoker : IOperationInvoker
         {
-            readonly DispatchRuntime _dispatchRuntime;
+            DispatchRuntime dispatchRuntime;
 
             public UnhandledActionInvoker(DispatchRuntime dispatchRuntime)
             {
-                _dispatchRuntime = dispatchRuntime;
+                this.dispatchRuntime = dispatchRuntime;
+            }
+
+            public bool IsSynchronous
+            {
+                get { return true; }
             }
 
             public object[] AllocateInputs()
@@ -359,7 +792,7 @@ namespace System.ServiceModel.Dispatcher
                 return new object[1];
             }
 
-            public Task<object> InvokeAsync(object instance, object[] inputs, out object[] outputs)
+            public object Invoke(object instance, object[] inputs, out object[] outputs)
             {
                 outputs = EmptyArray<object>.Allocate(0);
 
@@ -371,46 +804,54 @@ namespace System.ServiceModel.Dispatcher
 
                 string action = message.Headers.Action;
 
+                if (DiagnosticUtility.ShouldTraceInformation)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.UnhandledAction,
+                        SR.GetString(SR.TraceCodeUnhandledAction),
+                        new StringTraceRecord("Action", action),
+                        this, null, message);
+                }
+
                 FaultCode code = FaultCode.CreateSenderFaultCode(AddressingStrings.ActionNotSupported,
                     message.Version.Addressing.Namespace);
-                string reasonText = SR.Format(SR.SFxNoEndpointMatchingContract, action);
+                string reasonText = SR.GetString(SR.SFxNoEndpointMatchingContract, action);
                 FaultReason reason = new FaultReason(reasonText);
 
                 FaultException exception = new FaultException(reason, code);
                 ErrorBehavior.ThrowAndCatch(exception);
 
                 ServiceChannel serviceChannel = OperationContext.Current.InternalServiceChannel;
-                OperationContext.Current.OperationCompleted +=
-                    delegate (object sender, EventArgs e)
+                OperationContext.Current.OperationCompleted += 
+                    delegate(object sender, EventArgs e) 
+                {
+                    ChannelDispatcher channelDispatcher = this.dispatchRuntime.ChannelDispatcher;
+                    if (!channelDispatcher.HandleError(exception) && serviceChannel.HasSession)
                     {
-                        ChannelDispatcher channelDispatcher = _dispatchRuntime.ChannelDispatcher;
-                        if (!channelDispatcher.HandleError(exception) && serviceChannel.HasSession)
+                        try
                         {
-                            try
-                            {
-                                serviceChannel.Close(ChannelHandler.CloseAfterFaultTimeout);
-                            }
-                            catch (Exception ex)
-                            {
-                                if (Fx.IsFatal(ex))
-                                {
-                                    throw;
-                                }
-                                channelDispatcher.HandleError(ex);
-                            }
+                            serviceChannel.Close(ChannelHandler.CloseAfterFaultTimeout); 
                         }
-                    };
+                        catch (Exception ex)
+                        {
+                            if (Fx.IsFatal(ex))
+                            {
+                                throw;
+                            }
+                            channelDispatcher.HandleError(ex);
+                        }
+                    }
+                };
 
-                if (_dispatchRuntime._shared.EnableFaults)
+                if (this.dispatchRuntime.shared.EnableFaults)
                 {
                     MessageFault fault = MessageFault.CreateFault(code, reason, action);
-                    return Task.FromResult((object)Message.CreateMessage(message.Version, fault, message.Version.Addressing.DefaultFaultAction));
+                    return Message.CreateMessage(message.Version, fault, message.Version.Addressing.DefaultFaultAction);
                 }
                 else
                 {
                     OperationContext.Current.RequestContext.Close();
                     OperationContext.Current.RequestContext = null;
-                    return Task.FromResult((object)null);
+                    return null;
                 }
             }
 
@@ -425,19 +866,19 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        internal class DispatchBehaviorCollection<T> : SynchronizedCollection<T>
+        class DispatchBehaviorCollection<T> : SynchronizedCollection<T>
         {
-            private DispatchRuntime _outer;
+            DispatchRuntime outer;
 
             internal DispatchBehaviorCollection(DispatchRuntime outer)
                 : base(outer.ThisLock)
             {
-                _outer = outer;
+                this.outer = outer;
             }
 
             protected override void ClearItems()
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.ClearItems();
             }
 
@@ -448,13 +889,13 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.InsertItem(index, item);
             }
 
             protected override void RemoveItem(int index)
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.RemoveItem(index);
             }
 
@@ -465,24 +906,24 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.SetItem(index, item);
             }
         }
 
-        internal class OperationCollection : SynchronizedKeyedCollection<string, DispatchOperation>
+        class OperationCollection : SynchronizedKeyedCollection<string, DispatchOperation>
         {
-            private DispatchRuntime _outer;
+            DispatchRuntime outer;
 
             internal OperationCollection(DispatchRuntime outer)
                 : base(outer.ThisLock)
             {
-                _outer = outer;
+                this.outer = outer;
             }
 
             protected override void ClearItems()
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.ClearItems();
             }
 
@@ -497,18 +938,18 @@ namespace System.ServiceModel.Dispatcher
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
-                if (item.Parent != _outer)
+                if (item.Parent != this.outer)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.SFxMismatchedOperationParent);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxMismatchedOperationParent));
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.InsertItem(index, item);
             }
 
             protected override void RemoveItem(int index)
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.RemoveItem(index);
             }
 
@@ -518,12 +959,12 @@ namespace System.ServiceModel.Dispatcher
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
-                if (item.Parent != _outer)
+                if (item.Parent != this.outer)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.SFxMismatchedOperationParent);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxMismatchedOperationParent));
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.SetItem(index, item);
             }
         }
@@ -532,17 +973,17 @@ namespace System.ServiceModel.Dispatcher
         {
             object IInstanceProvider.GetInstance(InstanceContext instanceContext)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCannotActivateCallbackInstace));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCannotActivateCallbackInstace)));
             }
 
             object IInstanceProvider.GetInstance(InstanceContext instanceContext, Message message)
             {
-                throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCannotActivateCallbackInstace), message);
+                throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCannotActivateCallbackInstace)), message);
             }
 
             void IInstanceProvider.ReleaseInstance(InstanceContext instanceContext, object instance)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCannotActivateCallbackInstace));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCannotActivateCallbackInstace)));
             }
         }
     }

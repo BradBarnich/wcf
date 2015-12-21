@@ -1,53 +1,55 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Security;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Security;
+
     public sealed class LocalClientSecuritySettings
     {
-        private bool _detectReplays;
-        private int _replayCacheSize;
-        private TimeSpan _replayWindow;
-        private TimeSpan _maxClockSkew;
-        private bool _cacheCookies;
-        private TimeSpan _maxCookieCachingTime;
-        private TimeSpan _sessionKeyRenewalInterval;
-        private TimeSpan _sessionKeyRolloverInterval;
-        private bool _reconnectTransportOnFailure;
-        private TimeSpan _timestampValidityDuration;
-        private IdentityVerifier _identityVerifier;
-        private int _cookieRenewalThresholdPercentage;
-        private NonceCache _nonceCache = null;
+        bool detectReplays;
+        int replayCacheSize;
+        TimeSpan replayWindow;
+        TimeSpan maxClockSkew;
+        bool cacheCookies;
+        TimeSpan maxCookieCachingTime;
+        TimeSpan sessionKeyRenewalInterval;
+        TimeSpan sessionKeyRolloverInterval;
+        bool reconnectTransportOnFailure;
+        TimeSpan timestampValidityDuration;
+        IdentityVerifier identityVerifier;
+        int cookieRenewalThresholdPercentage;
+        NonceCache nonceCache = null;
 
-        private LocalClientSecuritySettings(LocalClientSecuritySettings other)
+        LocalClientSecuritySettings(LocalClientSecuritySettings other)
         {
-            _detectReplays = other._detectReplays;
-            _replayCacheSize = other._replayCacheSize;
-            _replayWindow = other._replayWindow;
-            _maxClockSkew = other._maxClockSkew;
-            _cacheCookies = other._cacheCookies;
-            _maxCookieCachingTime = other._maxCookieCachingTime;
-            _sessionKeyRenewalInterval = other._sessionKeyRenewalInterval;
-            _sessionKeyRolloverInterval = other._sessionKeyRolloverInterval;
-            _reconnectTransportOnFailure = other._reconnectTransportOnFailure;
-            _timestampValidityDuration = other._timestampValidityDuration;
-            _identityVerifier = other._identityVerifier;
-            _cookieRenewalThresholdPercentage = other._cookieRenewalThresholdPercentage;
-            _nonceCache = other._nonceCache;
+            this.detectReplays = other.detectReplays;
+            this.replayCacheSize = other.replayCacheSize;
+            this.replayWindow = other.replayWindow;
+            this.maxClockSkew = other.maxClockSkew;
+            this.cacheCookies = other.cacheCookies;
+            this.maxCookieCachingTime = other.maxCookieCachingTime;
+            this.sessionKeyRenewalInterval = other.sessionKeyRenewalInterval;
+            this.sessionKeyRolloverInterval = other.sessionKeyRolloverInterval;
+            this.reconnectTransportOnFailure = other.reconnectTransportOnFailure;
+            this.timestampValidityDuration = other.timestampValidityDuration;
+            this.identityVerifier = other.identityVerifier;
+            this.cookieRenewalThresholdPercentage = other.cookieRenewalThresholdPercentage;
+            this.nonceCache = other.nonceCache;
         }
 
         public bool DetectReplays
         {
             get
             {
-                return _detectReplays;
+                return this.detectReplays;
             }
             set
             {
-                _detectReplays = value;
+                this.detectReplays = value;
             }
         }
 
@@ -55,16 +57,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _replayCacheSize;
+                return this.replayCacheSize;
             }
             set
             {
                 if (value < 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.ValueMustBeNonNegative));
+                                                    SR.GetString(SR.ValueMustBeNonNegative)));
                 }
-                _replayCacheSize = value;
+                this.replayCacheSize = value;
             }
         }
 
@@ -72,23 +74,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _replayWindow;
+                return this.replayWindow;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _replayWindow = value;
+                this.replayWindow = value;
             }
         }
 
@@ -96,23 +98,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxClockSkew;
+                return this.maxClockSkew;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _maxClockSkew = value;
+                this.maxClockSkew = value;
             }
         }
 
@@ -120,11 +122,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _nonceCache;
+                return this.nonceCache;
             }
             set
             {
-                _nonceCache = value;
+                this.nonceCache = value;
             }
         }
 
@@ -132,23 +134,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _timestampValidityDuration;
+                return this.timestampValidityDuration;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _timestampValidityDuration = value;
+                this.timestampValidityDuration = value;
             }
         }
 
@@ -156,11 +158,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _cacheCookies;
+                return this.cacheCookies;
             }
             set
             {
-                _cacheCookies = value;
+                this.cacheCookies = value;
             }
         }
 
@@ -168,23 +170,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxCookieCachingTime;
+                return this.maxCookieCachingTime;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _maxCookieCachingTime = value;
+                this.maxCookieCachingTime = value;
             }
         }
 
@@ -192,16 +194,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _cookieRenewalThresholdPercentage;
+                return this.cookieRenewalThresholdPercentage;
             }
             set
             {
                 if (value < 0 || value > 100)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.Format(SR.ValueMustBeInRange, 0, 100)));
+                                                    SR.GetString(SR.ValueMustBeInRange, 0, 100)));
                 }
-                _cookieRenewalThresholdPercentage = value;
+                this.cookieRenewalThresholdPercentage = value;
             }
         }
 
@@ -209,23 +211,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _sessionKeyRenewalInterval;
+                return this.sessionKeyRenewalInterval;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _sessionKeyRenewalInterval = value;
+                this.sessionKeyRenewalInterval = value;
             }
         }
 
@@ -233,23 +235,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _sessionKeyRolloverInterval;
+                return this.sessionKeyRolloverInterval;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _sessionKeyRolloverInterval = value;
+                this.sessionKeyRolloverInterval = value;
             }
         }
 
@@ -257,11 +259,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _reconnectTransportOnFailure;
+                return this.reconnectTransportOnFailure;
             }
             set
             {
-                _reconnectTransportOnFailure = value;
+                this.reconnectTransportOnFailure = value;
             }
         }
 
@@ -269,11 +271,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _identityVerifier;
+                return this.identityVerifier;
             }
             set
             {
-                _identityVerifier = value;
+                this.identityVerifier = value;
             }
         }
 
@@ -284,6 +286,14 @@ namespace System.ServiceModel.Channels
             this.ReplayWindow = SecurityProtocolFactory.defaultReplayWindow;
             this.MaxClockSkew = SecurityProtocolFactory.defaultMaxClockSkew;
             this.TimestampValidityDuration = SecurityProtocolFactory.defaultTimestampValidityDuration;
+            this.CacheCookies = IssuanceTokenProviderBase<IssuanceTokenProviderState>.defaultClientCacheTokens;
+            this.MaxCookieCachingTime = IssuanceTokenProviderBase<IssuanceTokenProviderState>.DefaultClientMaxTokenCachingTime;
+            this.SessionKeyRenewalInterval = SecuritySessionClientSettings.defaultKeyRenewalInterval;
+            this.SessionKeyRolloverInterval = SecuritySessionClientSettings.defaultKeyRolloverInterval;
+            this.ReconnectTransportOnFailure = SecuritySessionClientSettings.defaultTolerateTransportFailures;
+            this.CookieRenewalThresholdPercentage = SpnegoTokenProvider.defaultServiceTokenValidityThresholdPercentage;
+            this.IdentityVerifier = IdentityVerifier.CreateDefault();
+            this.nonceCache = null;
         }
 
         public LocalClientSecuritySettings Clone()

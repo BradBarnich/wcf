@@ -1,29 +1,147 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics.Contracts;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
+﻿// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Net;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
+    using System.Runtime;
+    using System.Security.Principal;
+    using System.Threading.Tasks;
+
     public static class HttpRequestMessageExtensionMethods
     {
-        private const string MessageHeadersPropertyKey = "System.ServiceModel.Channels.MessageHeaders";
+        const string MessageHeadersPropertyKey = "System.ServiceModel.Channels.MessageHeaders";
+        const string PrincipalKey = "MS_UserPrincipal";
 
-        internal static HashSet<string> WellKnownContentHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                { "Content-Disposition", "Content-Encoding", "Content-Language", "Content-Length", "Content-Location",
-                  "Content-MD5", "Content-Range", "Content-Type", "Expires", "Last-Modified" };
+        public static void SetUserPrincipal(this HttpRequestMessage httpRequestMessage, IPrincipal user)
+        {
+            if (httpRequestMessage == null)
+            {
+                throw FxTrace.Exception.AsError(new ArgumentNullException("httpRequestMessage"));
+            }
 
+            httpRequestMessage.Properties[PrincipalKey] = user;
+        }
+
+        public static IPrincipal GetUserPrincipal(this HttpRequestMessage httpRequestMessage)
+        {
+            if (httpRequestMessage == null)
+            {
+                throw FxTrace.Exception.AsError(new ArgumentNullException("httpRequestMessage"));
+            }
+
+            object user;
+            if (httpRequestMessage.Properties.TryGetValue(PrincipalKey, out user))
+            {
+                return user as IPrincipal;
+            }
+
+            return null;
+        }
+        
+        internal static void AddHeader(this HttpRequestMessage httpRequestMessage, string header, string value)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(!string.IsNullOrWhiteSpace(header), "The 'header' parameter should never be null or whitespace.");
+
+            HttpHeaderInfo headerInfo = HttpHeaderInfo.Create(header);
+            EnsureNotResponseHeader(headerInfo);
+            AddHeader(httpRequestMessage, headerInfo, value);
+        }
+
+        internal static void SetHeader(this HttpRequestMessage httpRequestMessage, string header, string value)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(!string.IsNullOrWhiteSpace(header), "The 'header' parameter should never be null or whitespace.");
+
+            HttpHeaderInfo headerInfo = HttpHeaderInfo.Create(header);
+            EnsureNotResponseHeader(headerInfo);
+            RemoveHeader(httpRequestMessage, headerInfo);
+            AddHeader(httpRequestMessage, headerInfo, value);
+        }
+
+        internal static IEnumerable<string> GetHeader(this HttpRequestMessage httpRequestMessage, string header)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(!string.IsNullOrWhiteSpace(header), "The 'header' parameter should never be null or whitespace.");
+
+            HttpHeaderInfo headerInfo = HttpHeaderInfo.Create(header);
+            EnsureNotResponseHeader(headerInfo);
+            return GetHeader(httpRequestMessage, headerInfo);
+        }
+
+        internal static void RemoveHeader(this HttpRequestMessage httpRequestMessage, string header)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(!string.IsNullOrWhiteSpace(header), "The 'header' parameter should never be null or whitespace.");
+
+            HttpHeaderInfo headerInfo = HttpHeaderInfo.Create(header);
+            EnsureNotResponseHeader(headerInfo);
+            RemoveHeader(httpRequestMessage, headerInfo);
+        }
+
+        internal static HttpRequestMessage CreateBufferedCopy(this HttpRequestMessage httpRequestMessage)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+
+            HttpRequestMessage bufferedHttpRequestMessage = new HttpRequestMessage();
+            bufferedHttpRequestMessage.RequestUri = httpRequestMessage.RequestUri != null ? new Uri(httpRequestMessage.RequestUri, string.Empty) : null;
+            bufferedHttpRequestMessage.Method = httpRequestMessage.Method != null ? new HttpMethod(httpRequestMessage.Method.Method) : null;
+            bufferedHttpRequestMessage.Version = (Version)(httpRequestMessage.Version != null ? httpRequestMessage.Version.Clone() : null);
+
+            foreach (KeyValuePair<string, IEnumerable<string>> header in httpRequestMessage.Headers)
+            {
+                bufferedHttpRequestMessage.Headers.AddHeaderWithoutValidation(header);
+            }
+
+            foreach (KeyValuePair<string, object> header in httpRequestMessage.Properties)
+            {
+                IMessageProperty messageProperty = header.Value as IMessageProperty;
+                object value = messageProperty != null ?
+                    messageProperty.CreateCopy() :
+                    header.Value;
+
+                bufferedHttpRequestMessage.Properties.Add(header.Key, value); 
+            }
+
+            bufferedHttpRequestMessage.Content = CreateBufferedCopyOfContent(httpRequestMessage.Content);
+
+            return bufferedHttpRequestMessage;
+        }
+
+        internal static HttpContent CreateBufferedCopyOfContent(HttpContent content)
+        {
+            if (content != null)
+            {
+                SharedByteArrayContent shareableContent = content as SharedByteArrayContent;
+                byte[] contentBytes = shareableContent == null ?
+                    content.ReadAsByteArrayAsync().Result :
+                    shareableContent.ContentBytes;
+
+                HttpContent bufferedContent = new SharedByteArrayContent(contentBytes);
+
+                foreach (KeyValuePair<string, IEnumerable<string>> header in content.Headers)
+                {
+                    bufferedContent.Headers.AddHeaderWithoutValidation(header);
+                }
+
+                return bufferedContent;
+            }
+
+            return null;
+        }
 
         internal static void CopyPropertiesFromMessage(this HttpRequestMessage httpRequestMessage, Message message)
         {
-            Contract.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should not be null.");
-            Contract.Assert(message != null, "The 'message' parameter should not be null.");
-
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should not be null.");
+            Fx.Assert(message != null, "The 'message' parameter should not be null.");
+            
             IDictionary<string, object> properties = httpRequestMessage.Properties;
             CopyProperties(message.Properties, properties);
             properties[MessageHeadersPropertyKey] = message.Headers;
@@ -31,10 +149,10 @@ namespace System.ServiceModel.Channels
 
         internal static void AddHeaderWithoutValidation(this HttpHeaders httpHeaders, KeyValuePair<string, IEnumerable<string>> header)
         {
-            Contract.Assert(httpHeaders != null, "httpHeaders should not be null.");
+            Fx.Assert(httpHeaders != null, "httpHeaders should not be null.");
             if (!httpHeaders.TryAddWithoutValidation(header.Key, header.Value))
             {
-                throw FxTrace.Exception.AsError(new InvalidOperationException(SR.Format(
+                throw FxTrace.Exception.AsError(new InvalidOperationException(SR.GetString(
                                 SR.CopyHttpHeaderFailed,
                                 header.Key,
                                 header.Value,
@@ -44,8 +162,8 @@ namespace System.ServiceModel.Channels
 
         private static void CopyProperties(MessageProperties messageProperties, IDictionary<string, object> properties)
         {
-            Contract.Assert(messageProperties != null, "The 'messageProperties' parameter should not be null.");
-            Contract.Assert(properties != null, "The 'properties' parameter should not be null.");
+            Fx.Assert(messageProperties != null, "The 'messageProperties' parameter should not be null.");
+            Fx.Assert(properties != null, "The 'properties' parameter should not be null.");
 
             foreach (KeyValuePair<string, object> property in messageProperties)
             {
@@ -62,60 +180,99 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        // We could potentially be passed an HttpRequestMessage without Content set. We presume that we have an HttpContent
-        // in many places so this ensures we have one and removes the need for special casing in many places.
-        public static bool CreateContentIfNull(this HttpRequestMessage httpRequestMessage)
+        private static void EnsureNotResponseHeader(HttpHeaderInfo headerInfo)
         {
-            Contract.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            if (!headerInfo.IsRequestHeader && !headerInfo.IsContentHeader && headerInfo.IsResponseHeader)
+            {
+                throw FxTrace.Exception.AsError(
+                    new InvalidOperationException(
+                        SR.GetString(SR.ResponseHeaderWithRequestHeadersCollection, headerInfo.Name)));
+            }
+        }
+
+        private static IEnumerable<string> GetHeader(HttpRequestMessage httpRequestMessage, HttpHeaderInfo headerInfo)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(headerInfo != null, "The 'headerInfo' parameter should never be null.");
+            Fx.Assert(headerInfo.IsRequestHeader || headerInfo.IsContentHeader, "The 'headerInfo' parameter should be either a request or content header.");
+
+            IEnumerable<string> values = null;
+
+            if (headerInfo.IsRequestHeader)
+            {
+                values = headerInfo.TryGetHeader(httpRequestMessage.Headers);
+            }
+
+            if (values == null && 
+                headerInfo.IsContentHeader && 
+                httpRequestMessage.Content != null)
+            {
+                values = headerInfo.TryGetHeader(httpRequestMessage.Content.Headers);
+            }
+
+            return values;
+        }
+
+        private static void RemoveHeader(HttpRequestMessage httpRequestMessage, HttpHeaderInfo headerInfo)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(headerInfo != null, "The 'headerInfo' parameter should never be null.");
+            Fx.Assert(headerInfo.IsRequestHeader || headerInfo.IsContentHeader, "The 'headerInfo' parameter should be either a request or content header.");
+
+            if (headerInfo.IsRequestHeader)
+            {
+                headerInfo.TryRemoveHeader(httpRequestMessage.Headers);
+            }
+
+            if (headerInfo.IsContentHeader && httpRequestMessage.Content != null)
+            {
+                headerInfo.TryRemoveHeader(httpRequestMessage.Content.Headers);
+            }
+        }
+
+        private static void AddHeader(HttpRequestMessage httpRequestMessage, HttpHeaderInfo headerInfo, string value)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
+            Fx.Assert(headerInfo != null, "The 'headerInfo' parameter should never be null.");
+            Fx.Assert(headerInfo.IsRequestHeader || headerInfo.IsContentHeader, "The 'headerInfo' parameter should be either a request or content header.");
+
+            if (headerInfo.IsRequestHeader)
+            {
+                if (headerInfo.TryAddHeader(httpRequestMessage.Headers, value))
+                {
+                    return;
+                }
+            }
+            
+            if (headerInfo.IsContentHeader)
+            {
+                CreateContentIfNull(httpRequestMessage);
+                headerInfo.TryAddHeader(httpRequestMessage.Content.Headers, value);
+            }  
+        }
+
+        private static bool CreateContentIfNull(HttpRequestMessage httpRequestMessage)
+        {
+            Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' parameter should never be null.");
 
             if (httpRequestMessage.Content == null)
             {
-                httpRequestMessage.Content = new ByteArrayContent(Array.Empty<byte>());
+                httpRequestMessage.Content = new ByteArrayContent(EmptyArray<byte>.Instance);
                 return true;
             }
 
             return false;
         }
 
-        internal static void MergeWebHeaderCollection(this HttpRequestMessage requestMessage, WebHeaderCollection headersToMerge)
+        class SharedByteArrayContent : ByteArrayContent
         {
-            requestMessage.CreateContentIfNull();
-            MergeWebHeaderCollectionWithHttpHeaders(headersToMerge, requestMessage.Headers, requestMessage.Content.Headers);
-        }
-
-        internal static void MergeWebHeaderCollectionWithHttpHeaders(WebHeaderCollection headersToMerge, HttpHeaders mainHeaders, HttpHeaders contentHeaders)
-        {
-            foreach (string headerKey in headersToMerge.AllKeys)
+            public SharedByteArrayContent(byte[] content)
+                : base(content)
             {
-                if (WellKnownContentHeaders.Contains(headerKey))
-                {
-                    contentHeaders.TryAddWithoutValidation(headerKey, headersToMerge[headerKey]);
-                }
-                else
-                {
-                    mainHeaders.TryAddWithoutValidation(headerKey, headersToMerge[headerKey]);
-                }
+                this.ContentBytes = content;
             }
-        }
 
-        internal static WebHeaderCollection ToWebHeaderCollection(this HttpRequestMessage httpRequest)
-        {
-            IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers = httpRequest.Headers;
-            if (httpRequest.Content != null)
-            {
-                headers = headers.Concat(httpRequest.Content.Headers);
-            }
-            return headers.ToWebHeaderCollection();
-        }
-
-        internal static WebHeaderCollection ToWebHeaderCollection(this IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers)
-        {
-            var webHeaders = new WebHeaderCollection();
-            foreach (var header in headers)
-            {
-                webHeaders[header.Key] = String.Join(",", header.Value);
-            }
-            return webHeaders;
+            public byte[] ContentBytes { get; private set; }
         }
     }
 }

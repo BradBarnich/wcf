@@ -1,39 +1,43 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+
     internal struct ErrorHandlerFaultInfo
     {
-        private Message _fault;   // if this is null, then we aren't interested in sending back a fault
-        private bool _isConsideredUnhandled;  // if this is true, it means Fault is the 'internal server error' fault
-        private string _defaultFaultAction;
+        Message fault;   // if this is null, then we aren't interested in sending back a fault
+        bool isConsideredUnhandled;  // if this is true, it means Fault is the 'internal server error' fault
+        string defaultFaultAction;
 
         public ErrorHandlerFaultInfo(string defaultFaultAction)
         {
-            _defaultFaultAction = defaultFaultAction;
-            _fault = null;
-            _isConsideredUnhandled = false;
+            this.defaultFaultAction = defaultFaultAction;
+            this.fault = null;
+            this.isConsideredUnhandled = false;
         }
 
         public Message Fault
         {
-            get { return _fault; }
-            set { _fault = value; }
+            get { return this.fault; }
+            set { this.fault = value; }
         }
 
         public string DefaultFaultAction
         {
-            get { return _defaultFaultAction; }
-            set { _defaultFaultAction = value; }
+            get { return this.defaultFaultAction; }
+            set { this.defaultFaultAction = value; }
         }
 
         public bool IsConsideredUnhandled
         {
-            get { return _isConsideredUnhandled; }
-            set { _isConsideredUnhandled = value; }
+            get { return this.isConsideredUnhandled; }
+            set { this.isConsideredUnhandled = value; }
         }
     }
 }

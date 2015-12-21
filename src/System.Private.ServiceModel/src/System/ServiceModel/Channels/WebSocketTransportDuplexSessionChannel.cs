@@ -1,83 +1,94 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.IO;
-using System.Net.Http;
-using System.Net.WebSockets;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.Security.Principal;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-using System.ServiceModel.Security;
-using System.Threading;
-using System.Threading.Tasks;
+// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Net.Http;
+    using System.Net.WebSockets;
+    using System.Runtime;
+    using System.Runtime.Diagnostics;
+    using System.Security.Principal;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.ServiceModel.Security;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     abstract class WebSocketTransportDuplexSessionChannel : TransportDuplexSessionChannel
     {
-        static readonly AsyncCallback s_streamedWriteCallback = Fx.ThunkCallback(StreamWriteCallback);
-        readonly WebSocketTransportSettings _webSocketSettings;
-        readonly TransferMode _transferMode;
-        readonly int _maxBufferSize;
-        readonly ConnectionBufferPool _bufferPool;
-        readonly ITransportFactorySettings _transportFactorySettings;
-        readonly WebSocketCloseDetails _webSocketCloseDetails = new WebSocketCloseDetails();
-        Action<object> _waitCallback;
-        WebSocket _webSocket;
-        WebSocketStream _webSocketStream;
-        object _state;
-        byte[] _internalBuffer;
-        int _cleanupStatus = WebSocketHelper.OperationNotStarted;
-        bool _shouldDisposeWebSocketAfterClosed = true;
-        Exception _pendingWritingMessageException;
+        static AsyncCallback streamedWriteCallback = Fx.ThunkCallback(StreamWriteCallback);
+        WebSocket webSocket = null;
+        WebSocketTransportSettings webSocketSettings;
+        TransferMode transferMode;
+        int maxBufferSize;
+        WaitCallback waitCallback;
+        object state;
+        WebSocketStream webSocketStream;
+        byte[] internalBuffer;
+        ConnectionBufferPool bufferPool;
+        int cleanupStatus = WebSocketHelper.OperationNotStarted;
+        ITransportFactorySettings transportFactorySettings;
+        WebSocketCloseDetails webSocketCloseDetails = new WebSocketCloseDetails();
+        bool shouldDisposeWebSocketAfterClosed = true;
+        Exception pendingWritingMessageException;
+        
+        public WebSocketTransportDuplexSessionChannel(HttpChannelListener channelListener, EndpointAddress localAddress, Uri localVia, ConnectionBufferPool bufferPool)
+            : base(channelListener, channelListener, localAddress, localVia, EndpointAddress.AnonymousAddress, channelListener.MessageVersion.Addressing.AnonymousUri)
+        {
+            Fx.Assert(channelListener.WebSocketSettings != null, "channelListener.WebSocketTransportSettings should not be null.");
+            this.webSocketSettings = channelListener.WebSocketSettings;
+            this.transferMode = channelListener.TransferMode;
+            this.maxBufferSize = channelListener.MaxBufferSize;
+            this.bufferPool = bufferPool;
+            this.transportFactorySettings = channelListener;
+        }
 
         public WebSocketTransportDuplexSessionChannel(HttpChannelFactory<IDuplexSessionChannel> channelFactory, EndpointAddress remoteAddresss, Uri via, ConnectionBufferPool bufferPool)
             : base(channelFactory, channelFactory, EndpointAddress.AnonymousAddress, channelFactory.MessageVersion.Addressing.AnonymousUri, remoteAddresss, via)
         {
             Fx.Assert(channelFactory.WebSocketSettings != null, "channelFactory.WebSocketTransportSettings should not be null.");
-            _webSocketSettings = channelFactory.WebSocketSettings;
-            _transferMode = channelFactory.TransferMode;
-            _maxBufferSize = channelFactory.MaxBufferSize;
-            _bufferPool = bufferPool;
-            _transportFactorySettings = channelFactory;
+            this.webSocketSettings = channelFactory.WebSocketSettings;
+            this.transferMode = channelFactory.TransferMode;
+            this.maxBufferSize = channelFactory.MaxBufferSize;
+            this.bufferPool = bufferPool;
+            this.transportFactorySettings = channelFactory;
         }
 
         protected WebSocket WebSocket
         {
             get
             {
-                return _webSocket;
+                return this.webSocket;
             }
 
             set
             {
                 Fx.Assert(value != null, "value should not be null.");
-                Fx.Assert(_webSocket == null, "webSocket should not be set before this set call.");
-                _webSocket = value;
+                Fx.Assert(this.webSocket == null, "webSocket should not be set before this set call.");
+                this.webSocket = value;
             }
         }
 
         protected WebSocketTransportSettings WebSocketSettings
         {
-            get { return _webSocketSettings; }
+            get { return this.webSocketSettings; }
         }
 
         protected TransferMode TransferMode
         {
-            get { return _transferMode; }
+            get { return this.transferMode; }
         }
 
         protected int MaxBufferSize
         {
             get
             {
-                return _maxBufferSize;
+                return this.maxBufferSize;
             }
         }
 
@@ -85,7 +96,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _transportFactorySettings;
+                return this.transportFactorySettings;
             }
         }
 
@@ -93,15 +104,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _internalBuffer;
+                return this.internalBuffer;
             }
 
             set
             {
                 // We allow setting the property to null as long as we don't overwrite an existing non-null 'internalBuffer'. Because otherwise 
                 // we get NullRefs in other places. So if you change/remove the assert below, make sure we still assert for this case.
-                Fx.Assert(_internalBuffer == null, "internalBuffer should not be set twice.");
-                _internalBuffer = value;
+                Fx.Assert(this.internalBuffer == null, "internalBuffer should not be set twice.");
+                this.internalBuffer = value;
+            }
+        }
+
+        protected bool ShouldDisposeWebSocketAfterClosed
+        {
+            set
+            {
+                this.shouldDisposeWebSocketAfterClosed = value;
             }
         }
 
@@ -110,11 +129,21 @@ namespace System.ServiceModel.Channels
             if (TD.WebSocketConnectionAbortedIsEnabled())
             {
                 TD.WebSocketConnectionAborted(
-                    EventTraceActivity,
-                    WebSocket != null ? WebSocket.GetHashCode() : -1);
+                    this.EventTraceActivity,
+                    this.WebSocket != null ? this.WebSocket.GetHashCode() : -1);
             }
 
-            Cleanup();
+            this.Cleanup();
+        }
+
+        public override T GetProperty<T>()
+        {
+            if (typeof(T) == typeof(IWebSocketCloseDetails))
+            {
+                return this.webSocketCloseDetails as T;
+            }
+
+            return base.GetProperty<T>();
         }
 
         protected override void CompleteClose(TimeSpan timeout)
@@ -122,24 +151,24 @@ namespace System.ServiceModel.Channels
             if (TD.WebSocketCloseSentIsEnabled())
             {
                 TD.WebSocketCloseSent(
-                    WebSocket.GetHashCode(),
-                    _webSocketCloseDetails.OutputCloseStatus.ToString(),
-                    RemoteAddress != null ? RemoteAddress.ToString() : string.Empty);
+                    this.WebSocket.GetHashCode(),
+                    this.webSocketCloseDetails.OutputCloseStatus.ToString(),
+                    this.RemoteAddress != null ? this.RemoteAddress.ToString() : string.Empty);
             }
 
-            Task closeTask = CloseAsync();
+            Task closeTask = this.CloseAsync(); 
             closeTask.Wait(timeout, WebSocketHelper.ThrowCorrectException, WebSocketHelper.CloseOperation);
 
             if (TD.WebSocketConnectionClosedIsEnabled())
             {
-                TD.WebSocketConnectionClosed(WebSocket.GetHashCode());
+                TD.WebSocketConnectionClosed(this.WebSocket.GetHashCode());
             }
         }
 
         protected byte[] TakeBuffer()
         {
-            Fx.Assert(_bufferPool != null, "'bufferPool' MUST NOT be NULL.");
-            return _bufferPool.Take();
+            Fx.Assert(this.bufferPool != null, "'bufferPool' MUST NOT be NULL.");
+            return this.bufferPool.Take();
         }
 
         protected override void CloseOutputSessionCore(TimeSpan timeout)
@@ -147,45 +176,13 @@ namespace System.ServiceModel.Channels
             if (TD.WebSocketCloseOutputSentIsEnabled())
             {
                 TD.WebSocketCloseOutputSent(
-                    WebSocket.GetHashCode(),
-                    _webSocketCloseDetails.OutputCloseStatus.ToString(),
-                    RemoteAddress != null ? RemoteAddress.ToString() : string.Empty);
+                    this.WebSocket.GetHashCode(),
+                    this.webSocketCloseDetails.OutputCloseStatus.ToString(),
+                    this.RemoteAddress != null ? this.RemoteAddress.ToString() : string.Empty);
             }
 
-            Task task = CloseOutputAsync(CancellationToken.None);
+            Task task = this.CloseOutputAsync(CancellationToken.None);
             task.Wait(timeout, WebSocketHelper.ThrowCorrectException, WebSocketHelper.CloseOperation);
-        }
-
-        protected override async Task CloseOutputSessionCoreAsync(TimeSpan timeout)
-        {
-            if (TD.WebSocketCloseOutputSentIsEnabled())
-            {
-                TD.WebSocketCloseOutputSent(
-                    WebSocket.GetHashCode(),
-                    _webSocketCloseDetails.OutputCloseStatus.ToString(),
-                    RemoteAddress != null ? RemoteAddress.ToString() : string.Empty);
-            }
-
-            var helper = new TimeoutHelper(timeout);
-            var cancelToken = await helper.GetCancellationTokenAsync();
-            try
-            {
-                await CloseOutputAsync(cancelToken);
-            }
-            catch (Exception ex)
-            {
-                if (Fx.IsFatal(ex))
-                {
-                    throw;
-                }
-
-                if (cancelToken.IsCancellationRequested)
-                {
-                    throw Fx.Exception.AsError(new TimeoutException(InternalSR.TaskTimedOutError(timeout)));
-                }
-
-                throw WebSocketHelper.ConvertAndTraceException(ex, timeout, WebSocketHelper.ReceiveOperation);
-            }
         }
 
         protected override void OnClose(TimeSpan timeout)
@@ -196,19 +193,7 @@ namespace System.ServiceModel.Channels
             }
             finally
             {
-                Cleanup();
-            }
-        }
-
-        protected internal override async Task OnCloseAsync(TimeSpan timeout)
-        {
-            try
-            {
-                await base.OnCloseAsync(timeout);
-            }
-            finally
-            {
-                Cleanup();
+                this.Cleanup();
             }
         }
 
@@ -216,83 +201,113 @@ namespace System.ServiceModel.Channels
         {
         }
 
-        protected override AsyncCompletionResult StartWritingBufferedMessage(Message message, ArraySegment<byte> messageData, bool allowOutputBatching, TimeSpan timeout, Action<object> callback, object state)
+        protected override AsyncCompletionResult StartWritingBufferedMessage(Message message, ArraySegment<byte> messageData, bool allowOutputBatching, TimeSpan timeout, Threading.WaitCallback callback, object state)
         {
-            Contract.Assert(callback != null, "callback should not be null.");
-            ConnectionUtilities.ValidateBufferBounds(messageData);
+            Fx.Assert(callback != null, "callback should not be null.");
 
             TimeoutHelper helper = new TimeoutHelper(timeout);
             WebSocketMessageType outgoingMessageType = GetWebSocketMessageType(message);
+            IOThreadCancellationTokenSource cancellationTokenSource = new IOThreadCancellationTokenSource(helper.RemainingTime());
 
             if (TD.WebSocketAsyncWriteStartIsEnabled())
             {
                 TD.WebSocketAsyncWriteStart(
-                    WebSocket.GetHashCode(),
+                    this.WebSocket.GetHashCode(),
                     messageData.Count,
-                    RemoteAddress != null ? RemoteAddress.ToString() : string.Empty);
+                    this.RemoteAddress != null ? this.RemoteAddress.ToString() : string.Empty);
             }
 
-            Task task = WebSocket.SendAsync(messageData, outgoingMessageType, true, helper.GetCancellationToken());
-            Contract.Assert(_pendingWritingMessageException == null, "'pendingWritingMessageException' MUST be NULL at this point.");
+            Task task = this.WebSocket.SendAsync(messageData, outgoingMessageType, true, cancellationTokenSource.Token);
+            Fx.Assert(this.pendingWritingMessageException == null, "'pendingWritingMessageException' MUST be NULL at this point.");
 
-            if (task.IsCompleted)
+            task.ContinueWith(t =>
             {
-                if (TD.WebSocketAsyncWriteStopIsEnabled())
+                try
                 {
-                    TD.WebSocketAsyncWriteStop(WebSocket.GetHashCode());
+                    if (TD.WebSocketAsyncWriteStopIsEnabled())
+                    {
+                        TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
+                    }
+
+                    cancellationTokenSource.Dispose();
+                    WebSocketHelper.ThrowExceptionOnTaskFailure(t, timeout, WebSocketHelper.SendOperation);
                 }
+                catch (Exception error)
+                {
+                    // Intentionally not following the usual pattern to rethrow fatal exceptions.
+                    // Any rethrown exception would just be ----ed, because nobody awaits the
+                    // Task returned from ContinueWith in this case.
 
-                _pendingWritingMessageException = WebSocketHelper.CreateExceptionOnTaskFailure(task, timeout, WebSocketHelper.SendOperation);
-                return AsyncCompletionResult.Completed;
-            }
+                    FxTrace.Exception.TraceHandledException(error, TraceEventType.Information);
+                    this.pendingWritingMessageException = error;
+                }
+                finally
+                {
+                    callback.Invoke(state);
+                }
+            }, CancellationToken.None);
 
-            HandleSendAsyncCompletion(task, timeout, callback, state);
             return AsyncCompletionResult.Queued;
         }
 
         protected override void FinishWritingMessage()
         {
-            ThrowOnPendingException(ref _pendingWritingMessageException);
+            ThrowOnPendingException(ref this.pendingWritingMessageException);
             base.FinishWritingMessage();
         }
 
-        protected override AsyncCompletionResult StartWritingStreamedMessage(Message message, TimeSpan timeout, Action<object> callback, object state)
+        protected override AsyncCompletionResult StartWritingStreamedMessage(Message message, TimeSpan timeout, WaitCallback callback, object state)
         {
+            TimeoutHelper helper = new TimeoutHelper(timeout);
             WebSocketMessageType outgoingMessageType = GetWebSocketMessageType(message);
-            WebSocketStream webSocketStream = new WebSocketStream(WebSocket, outgoingMessageType, ((IDefaultCommunicationTimeouts)this).CloseTimeout);
+            WebSocketStream webSocketStream = new WebSocketStream(this.WebSocket, outgoingMessageType, helper.RemainingTime());
 
-            _waitCallback = callback;
-            _state = state;
-            _webSocketStream = webSocketStream;
-            IAsyncResult result = MessageEncoder.BeginWriteMessage(message, new TimeoutStream(webSocketStream, timeout), s_streamedWriteCallback, this);
+            this.waitCallback = callback;
+            this.state = state;
+            this.webSocketStream = webSocketStream;
+            IAsyncResult result = this.MessageEncoder.BeginWriteMessage(message, new TimeoutStream(webSocketStream, ref helper), streamedWriteCallback, this);
 
             if (!result.CompletedSynchronously)
             {
                 return AsyncCompletionResult.Queued;
             }
 
-            MessageEncoder.EndWriteMessage(result);
+            this.MessageEncoder.EndWriteMessage(result);
 
-            webSocketStream.WriteEndOfMessageAsync(callback, state);
+            webSocketStream.WriteEndOfMessageAsync(helper.RemainingTime(), callback, state);
             return AsyncCompletionResult.Queued;
         }
 
-        // TODO: Make TimeoutHelper disposeable which disposes it's cancellation token source
-        protected override AsyncCompletionResult BeginCloseOutput(TimeSpan timeout, Action<object> callback, object state)
+        protected override AsyncCompletionResult BeginCloseOutput(TimeSpan timeout, Threading.WaitCallback callback, object state)
         {
             Fx.Assert(callback != null, "callback should not be null.");
 
-            var helper = new TimeoutHelper(timeout);
-            Task task = CloseOutputAsync(helper.GetCancellationToken());
-            Fx.Assert(_pendingWritingMessageException == null, "'pendingWritingMessageException' MUST be NULL at this point.");
+            IOThreadCancellationTokenSource cancellationTokenSource = new IOThreadCancellationTokenSource(timeout);
+            Task task = this.CloseOutputAsync(cancellationTokenSource.Token);
+            Fx.Assert(this.pendingWritingMessageException == null, "'pendingWritingMessageException' MUST be NULL at this point.");
 
-            if (task.IsCompleted)
+            task.ContinueWith(t =>
             {
-                _pendingWritingMessageException = WebSocketHelper.CreateExceptionOnTaskFailure(task, timeout, WebSocketHelper.CloseOperation);
-                return AsyncCompletionResult.Completed;
-            }
+                try
+                {
+                    cancellationTokenSource.Dispose();
+                    WebSocketHelper.ThrowExceptionOnTaskFailure(t, timeout, WebSocketHelper.CloseOperation);
+                }
+                catch (Exception error)
+                {
+                    // Intentionally not following the usual pattern to rethrow fatal exceptions.
+                    // Any rethrown exception would just be ----ed, because nobody awaits the
+                    // Task returned from ContinueWith in this case.
 
-            HandleCloseOutputAsyncCompletion(task, timeout, callback, state);
+                    FxTrace.Exception.TraceHandledException(error, TraceEventType.Information);
+                    this.pendingWritingMessageException = error;
+                }
+                finally
+                {
+                    callback.Invoke(state);
+                }
+            });
+
             return AsyncCompletionResult.Queued;
         }
 
@@ -303,33 +318,33 @@ namespace System.ServiceModel.Channels
             TimeoutHelper helper = new TimeoutHelper(timeout);
             WebSocketMessageType outgoingMessageType = GetWebSocketMessageType(message);
 
-            if (IsStreamedOutput)
+            if (this.IsStreamedOutput)
             {
-                WebSocketStream webSocketStream = new WebSocketStream(WebSocket, outgoingMessageType, ((IDefaultCommunicationTimeouts)this).CloseTimeout);
-                TimeoutStream timeoutStream = new TimeoutStream(webSocketStream, timeout);
-                MessageEncoder.WriteMessage(message, timeoutStream);
-                webSocketStream.WriteEndOfMessage();
+                WebSocketStream webSocketStream = new WebSocketStream(this.WebSocket, outgoingMessageType, helper.RemainingTime());
+                TimeoutStream timeoutStream = new TimeoutStream(webSocketStream, ref helper);
+                this.MessageEncoder.WriteMessage(message, timeoutStream);
+                webSocketStream.WriteEndOfMessage(helper.RemainingTime());
             }
             else
             {
-                ArraySegment<byte> messageData = EncodeMessage(message);
+                ArraySegment<byte> messageData = this.EncodeMessage(message);
                 bool success = false;
                 try
                 {
                     if (TD.WebSocketAsyncWriteStartIsEnabled())
                     {
                         TD.WebSocketAsyncWriteStart(
-                            WebSocket.GetHashCode(),
+                            this.WebSocket.GetHashCode(),
                             messageData.Count,
-                            RemoteAddress != null ? RemoteAddress.ToString() : string.Empty);
+                            this.RemoteAddress != null ? this.RemoteAddress.ToString() : string.Empty);
                     }
 
-                    Task task = WebSocket.SendAsync(messageData, outgoingMessageType, true, helper.GetCancellationToken());
+                    Task task = this.WebSocket.SendAsync(messageData, outgoingMessageType, true, CancellationToken.None);
                     task.Wait(helper.RemainingTime(), WebSocketHelper.ThrowCorrectException, WebSocketHelper.SendOperation);
 
                     if (TD.WebSocketAsyncWriteStopIsEnabled())
                     {
-                        TD.WebSocketAsyncWriteStop(_webSocket.GetHashCode());
+                        TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
                     }
 
                     success = true;
@@ -338,7 +353,7 @@ namespace System.ServiceModel.Channels
                 {
                     try
                     {
-                        BufferManager.ReturnBuffer(messageData.Array);
+                        this.BufferManager.ReturnBuffer(messageData.Array);
                     }
                     catch (Exception ex)
                     {
@@ -355,30 +370,30 @@ namespace System.ServiceModel.Channels
 
         protected override ArraySegment<byte> EncodeMessage(Message message)
         {
-            return MessageEncoder.WriteMessage(message, int.MaxValue, BufferManager, 0);
+            return MessageEncoder.WriteMessage(message, int.MaxValue, this.BufferManager, 0);
         }
 
         protected void Cleanup()
         {
-            if (Interlocked.CompareExchange(ref _cleanupStatus, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
+            if (Interlocked.CompareExchange(ref this.cleanupStatus, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
             {
-                OnCleanup();
+                this.OnCleanup();
             }
         }
 
         protected virtual void OnCleanup()
         {
-            Fx.Assert(_cleanupStatus == WebSocketHelper.OperationFinished,
+            Fx.Assert(this.cleanupStatus == WebSocketHelper.OperationFinished, 
                 "This method should only be called by this.Cleanup(). Make sure that you never call overriden OnCleanup()-methods directly in subclasses");
-            if (_shouldDisposeWebSocketAfterClosed && _webSocket != null)
+            if (this.shouldDisposeWebSocketAfterClosed && this.webSocket != null)
             {
-                _webSocket.Dispose();
+                this.webSocket.Dispose();
             }
 
-            if (_internalBuffer != null)
+            if (this.internalBuffer != null)
             {
-                _bufferPool.Return(_internalBuffer);
-                _internalBuffer = null;
+                this.bufferPool.Return(this.internalBuffer);
+                this.internalBuffer = null;
             }
         }
 
@@ -393,11 +408,12 @@ namespace System.ServiceModel.Channels
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, FxCop.Rule.WrapExceptionsRule, Justification = "The exceptions thrown here are already wrapped.")]
         private Task CloseAsync()
         {
             try
             {
-                return WebSocket.CloseAsync(_webSocketCloseDetails.OutputCloseStatus, _webSocketCloseDetails.OutputCloseStatusDescription, CancellationToken.None);
+                return this.WebSocket.CloseAsync(this.webSocketCloseDetails.OutputCloseStatus, this.webSocketCloseDetails.OutputCloseStatusDescription, CancellationToken.None);
             }
             catch (Exception e)
             {
@@ -410,11 +426,12 @@ namespace System.ServiceModel.Channels
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, FxCop.Rule.WrapExceptionsRule, Justification = "The exceptions thrown here are already wrapped.")]
         private Task CloseOutputAsync(CancellationToken cancellationToken)
         {
             try
             {
-                return WebSocket.CloseOutputAsync(_webSocketCloseDetails.OutputCloseStatus, _webSocketCloseDetails.OutputCloseStatusDescription, cancellationToken);
+                return this.WebSocket.CloseOutputAsync(this.webSocketCloseDetails.OutputCloseStatus, this.webSocketCloseDetails.OutputCloseStatusDescription, cancellationToken);
             }
             catch (Exception e)
             {
@@ -429,45 +446,13 @@ namespace System.ServiceModel.Channels
 
         static WebSocketMessageType GetWebSocketMessageType(Message message)
         {
-            return WebSocketDefaults.DefaultWebSocketMessageType;
-        }
-
-        private async void HandleCloseOutputAsyncCompletion(Task task, TimeSpan timeout, Action<object> callback, object state)
-        {
-            try
+            WebSocketMessageType outgoingMessageType = WebSocketDefaults.DefaultWebSocketMessageType;
+            WebSocketMessageProperty webSocketMessageProperty;
+            if (message.Properties.TryGetValue<WebSocketMessageProperty>(WebSocketMessageProperty.Name, out webSocketMessageProperty))
             {
-                await task;
+                outgoingMessageType = webSocketMessageProperty.MessageType;
             }
-            catch (Exception)
-            {
-                _pendingWritingMessageException = WebSocketHelper.CreateExceptionOnTaskFailure(task, timeout, WebSocketHelper.CloseOperation);
-            }
-            finally
-            {
-                callback.Invoke(state);
-            }
-        }
-
-        private async void HandleSendAsyncCompletion(Task task, TimeSpan timeout, Action<object> callback, object state)
-        {
-            try
-            {
-                await task;
-            }
-            catch (Exception)
-            {
-                _pendingWritingMessageException = WebSocketHelper.CreateExceptionOnTaskFailure(task, timeout,
-                    WebSocketHelper.SendOperation);
-            }
-            finally
-            {
-                if (TD.WebSocketAsyncWriteStopIsEnabled())
-                {
-                    TD.WebSocketAsyncWriteStop(WebSocket.GetHashCode());
-                }
-
-                callback.Invoke(state);
-            }
+            return outgoingMessageType;
         }
 
         static void StreamWriteCallback(IAsyncResult ar)
@@ -482,8 +467,11 @@ namespace System.ServiceModel.Channels
             try
             {
                 thisPtr.MessageEncoder.EndWriteMessage(ar);
-                thisPtr._webSocketStream.WriteEndOfMessage();
-                thisPtr._waitCallback.Invoke(thisPtr._state);
+
+                // We are goverend here by the TimeoutStream, no need to pass a CancellationToken here. 
+                thisPtr.webSocketStream.WriteEndOfMessage(TimeSpan.MaxValue);
+
+                thisPtr.waitCallback.Invoke(thisPtr.state);
             }
             catch (Exception ex)
             {
@@ -491,51 +479,77 @@ namespace System.ServiceModel.Channels
                 {
                     throw;
                 }
+                thisPtr.AddPendingException(ex);
             }
         }
 
         protected class WebSocketMessageSource : IMessageSource
         {
-            MessageEncoder _encoder;
-            BufferManager _bufferManager;
-            EndpointAddress _localAddress;
-            Message _pendingMessage;
-            Exception _pendingException;
-            WebSocket _webSocket;
-            bool _closureReceived;
-            bool _useStreaming;
-            int _receiveBufferSize;
-            int _maxBufferSize;
-            long _maxReceivedMessageSize;
-            TaskCompletionSource<object> _streamWaitTask;
-            IDefaultCommunicationTimeouts _defaultTimeouts;
-            WebSocketCloseDetails _closeDetails;
-            TimeSpan _asyncReceiveTimeout;
-            TaskCompletionSource<object> _receiveTask;
-            int _asyncReceiveState;
+            static readonly Action<object> onAsyncReceiveCancelled = Fx.ThunkCallback<object>(OnAsyncReceiveCancelled);
+            MessageEncoder encoder;
+            BufferManager bufferManager;
+            EndpointAddress localAddress;
+            Message pendingMessage;
+            Exception pendingException;
+            WebSocketContext context;
+            WebSocket webSocket;
+            bool closureReceived = false;
+            bool useStreaming;
+            int receiveBufferSize;
+            int maxBufferSize;
+            long maxReceivedMessageSize;
+            TaskCompletionSource<object> streamWaitTask;
+            IDefaultCommunicationTimeouts defaultTimeouts;
+            RemoteEndpointMessageProperty remoteEndpointMessageProperty;
+            SecurityMessageProperty handshakeSecurityMessageProperty;
+            WebSocketCloseDetails closeDetails;
+            ReadOnlyDictionary<string, object> properties;
+            TimeSpan asyncReceiveTimeout;
+            TaskCompletionSource<object> receiveTask;
+            IOThreadTimer receiveTimer;
+            int asyncReceiveState;
 
             public WebSocketMessageSource(WebSocketTransportDuplexSessionChannel webSocketTransportDuplexSessionChannel, WebSocket webSocket,
                     bool useStreaming, IDefaultCommunicationTimeouts defaultTimeouts)
             {
-                Initialize(webSocketTransportDuplexSessionChannel, webSocket, useStreaming, defaultTimeouts);
+                this.Initialize(webSocketTransportDuplexSessionChannel, webSocket, useStreaming, defaultTimeouts);
 
-                StartNextReceiveAsync();
+                this.StartNextReceiveAsync();
+            }
+
+            public WebSocketMessageSource(WebSocketTransportDuplexSessionChannel webSocketTransportDuplexSessionChannel, WebSocketContext context,
+                bool isStreamed, RemoteEndpointMessageProperty remoteEndpointMessageProperty, IDefaultCommunicationTimeouts defaultTimeouts, HttpRequestMessage requestMessage)
+            {
+                this.Initialize(webSocketTransportDuplexSessionChannel, context.WebSocket, isStreamed, defaultTimeouts);
+
+                IPrincipal user = requestMessage == null ? null : requestMessage.GetUserPrincipal();
+                this.context = new ServiceWebSocketContext(context, user);
+                this.remoteEndpointMessageProperty = remoteEndpointMessageProperty;
+                this.properties = requestMessage == null? null : new ReadOnlyDictionary<string, object>(requestMessage.Properties);
+
+                this.StartNextReceiveAsync();
             }
 
             void Initialize(WebSocketTransportDuplexSessionChannel webSocketTransportDuplexSessionChannel, WebSocket webSocket, bool useStreaming, IDefaultCommunicationTimeouts defaultTimeouts)
             {
-                _webSocket = webSocket;
-                _encoder = webSocketTransportDuplexSessionChannel.MessageEncoder;
-                _bufferManager = webSocketTransportDuplexSessionChannel.BufferManager;
-                _localAddress = webSocketTransportDuplexSessionChannel.LocalAddress;
-                _maxBufferSize = webSocketTransportDuplexSessionChannel.MaxBufferSize;
-                _maxReceivedMessageSize = webSocketTransportDuplexSessionChannel.TransportFactorySettings.MaxReceivedMessageSize;
-                _receiveBufferSize = Math.Min(WebSocketHelper.GetReceiveBufferSize(_maxReceivedMessageSize), _maxBufferSize);
-                _useStreaming = useStreaming;
-                _defaultTimeouts = defaultTimeouts;
-                _closeDetails = webSocketTransportDuplexSessionChannel._webSocketCloseDetails;
-                _asyncReceiveTimeout = _defaultTimeouts.ReceiveTimeout; 
-                _asyncReceiveState = AsyncReceiveState.Finished;
+                this.webSocket = webSocket;
+                this.encoder = webSocketTransportDuplexSessionChannel.MessageEncoder;
+                this.bufferManager = webSocketTransportDuplexSessionChannel.BufferManager;
+                this.localAddress = webSocketTransportDuplexSessionChannel.LocalAddress;
+                this.maxBufferSize = webSocketTransportDuplexSessionChannel.MaxBufferSize;
+                this.handshakeSecurityMessageProperty = webSocketTransportDuplexSessionChannel.RemoteSecurity;
+                this.maxReceivedMessageSize = webSocketTransportDuplexSessionChannel.TransportFactorySettings.MaxReceivedMessageSize;
+                this.receiveBufferSize = Math.Min(WebSocketHelper.GetReceiveBufferSize(this.maxReceivedMessageSize), this.maxBufferSize);
+                this.useStreaming = useStreaming;
+                this.defaultTimeouts = defaultTimeouts;
+                this.closeDetails = webSocketTransportDuplexSessionChannel.webSocketCloseDetails;
+                this.receiveTimer = new IOThreadTimer(onAsyncReceiveCancelled, this, true);
+                this.asyncReceiveState = AsyncReceiveState.Finished;
+            }
+
+            internal RemoteEndpointMessageProperty RemoteEndpointMessageProperty
+            {
+                get { return this.remoteEndpointMessageProperty; }
             }
 
             static void OnAsyncReceiveCancelled(object target)
@@ -546,64 +560,92 @@ namespace System.ServiceModel.Channels
 
             void AsyncReceiveCancelled()
             {
-                if (Interlocked.CompareExchange(ref _asyncReceiveState, AsyncReceiveState.Cancelled, AsyncReceiveState.Started) == AsyncReceiveState.Started)
+                if (Interlocked.CompareExchange(ref this.asyncReceiveState, AsyncReceiveState.Cancelled, AsyncReceiveState.Started) == AsyncReceiveState.Started)
                 {
-                    _receiveTask.SetResult(null);
+                    this.receiveTask.SetResult(null);
                 }
             }
 
-            public async Task<Message> ReceiveAsync(TimeSpan timeout)
+            public AsyncReceiveResult BeginReceive(TimeSpan timeout, WaitCallback callback, object state)
             {
-                bool waitingResult = await _receiveTask.Task.AwaitWithTimeout(timeout);
-                ThrowOnPendingException(ref _pendingException);
+                Fx.Assert(callback != null, "callback should not be null.");
 
-                if (!waitingResult)
+                if (this.receiveTask.Task.IsCompleted)
                 {
-                    throw FxTrace.Exception.AsError(new TimeoutException(
-                               SR.Format(SR.WaitForMessageTimedOut, timeout),
-                               TimeoutHelper.CreateEnterTimedOutException(timeout)));
+                    return AsyncReceiveResult.Completed;
                 }
-
-                Message message = GetPendingMessage();
-
-                if (message != null)
+                else
                 {
-                    StartNextReceiveAsync();
+                    this.asyncReceiveTimeout = timeout;
+                    this.receiveTimer.Set(timeout);
+                    this.receiveTask.Task.ContinueWith(t =>
+                        {
+                            callback.Invoke(state);
+                        });
+
+                    return AsyncReceiveResult.Pending;
                 }
-
-                return message;
-
             }
 
-            // TODO: As we're waiting blocking on a task anyway, should just call ReceiveAsync and block on that task.
+            public Message EndReceive()
+            {
+                if (this.asyncReceiveState == AsyncReceiveState.Cancelled)
+                {
+                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null, this.asyncReceiveTimeout, WebSocketHelper.ReceiveOperation));
+                }
+                else
+                {
+                    // IOThreadTimer.Cancel() will return false if we called IOThreadTimer.Set(Timespan.MaxValue) here, so we cannot reply on the return value of Cancel()
+                    // call to see if Cancel() is fired or not. CSDMain 262179 filed for this.
+                    this.receiveTimer.Cancel();
+                    Fx.Assert(this.asyncReceiveState == AsyncReceiveState.Finished, "this.asyncReceiveState is not AsyncReceiveState.Finished: " + this.asyncReceiveState);
+                    Message message = this.GetPendingMessage();
+
+                    if (message != null)
+                    {
+                        // If we get any exception thrown out before that, the channel will be aborted thus no need to maintain the receive loop here.
+                        this.StartNextReceiveAsync();
+                    }
+
+                    return message;
+                }
+            }
+
             public Message Receive(TimeSpan timeout)
             {
-                bool waitingResult = _receiveTask.Task.WaitWithTimeSpan(timeout);
-                ThrowOnPendingException(ref _pendingException);
+                bool waitingResult = this.receiveTask.Task.Wait(timeout);
+                ThrowOnPendingException(ref this.pendingException);
 
                 if (!waitingResult)
                 {
                     throw FxTrace.Exception.AsError(new TimeoutException(
-                               SR.Format(SR.WaitForMessageTimedOut, timeout),
-                               TimeoutHelper.CreateEnterTimedOutException(timeout)));
+                               SR.GetString(SR.WaitForMessageTimedOut, timeout),
+                               ThreadNeutralSemaphore.CreateEnterTimedOutException(timeout)));
                 }
 
-                Message message = GetPendingMessage();
+                Message message = this.GetPendingMessage();
 
                 if (message != null)
                 {
-                    StartNextReceiveAsync();
+                    this.StartNextReceiveAsync();
                 }
 
                 return message;
             }
 
+            public void UpdateOpenNotificationMessageProperties(MessageProperties messageProperties)
+            {
+                this.AddMessageProperties(messageProperties, WebSocketDefaults.DefaultWebSocketMessageType);
+            }
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, "Reliability103",
+                            Justification = "The exceptions are wrapped already.")]
             async Task ReadBufferedMessageAsync()
             {
                 byte[] internalBuffer = null;
                 try
                 {
-                    internalBuffer = _bufferManager.TakeBuffer(_receiveBufferSize);
+                    internalBuffer = this.bufferManager.TakeBuffer(this.receiveBufferSize);
 
                     int receivedByteCount = 0;
                     bool endOfMessage = false;
@@ -615,39 +657,42 @@ namespace System.ServiceModel.Channels
 
                             if (TD.WebSocketAsyncReadStartIsEnabled())
                             {
-                                TD.WebSocketAsyncReadStart(_webSocket.GetHashCode());
+                                TD.WebSocketAsyncReadStart(this.webSocket.GetHashCode());
                             }
 
-                            result = await _webSocket.ReceiveAsync(
-                                                new ArraySegment<byte>(internalBuffer, receivedByteCount, internalBuffer.Length - receivedByteCount),
-                                                CancellationToken.None);
+                            Task<WebSocketReceiveResult> receiveTask = this.webSocket.ReceiveAsync(
+                                                            new ArraySegment<byte>(internalBuffer, receivedByteCount, internalBuffer.Length - receivedByteCount),
+                                                            CancellationToken.None);
 
-                            CheckCloseStatus(result);
+                            await receiveTask.ConfigureAwait(false);
+
+                            result = receiveTask.Result;
+                            this.CheckCloseStatus(result);
                             endOfMessage = result.EndOfMessage;
 
                             receivedByteCount += result.Count;
                             if (receivedByteCount >= internalBuffer.Length && !result.EndOfMessage)
                             {
-                                if (internalBuffer.Length >= _maxBufferSize)
+                                if (internalBuffer.Length >= this.maxBufferSize)
                                 {
-                                    _pendingException = FxTrace.Exception.AsError(new QuotaExceededException(SR.Format(SR.MaxReceivedMessageSizeExceeded, _maxBufferSize)));
+                                    this.pendingException = FxTrace.Exception.AsError(new QuotaExceededException(SR.GetString(SR.MaxReceivedMessageSizeExceeded, this.maxBufferSize)));
                                     return;
                                 }
 
-                                int newSize = (int)Math.Min(((double)internalBuffer.Length) * 2, _maxBufferSize);
+                                int newSize = (int)Math.Min(((double)internalBuffer.Length) * 2, this.maxBufferSize);
                                 Fx.Assert(newSize > 0, "buffer size should be larger than zero.");
-                                byte[] newBuffer = _bufferManager.TakeBuffer(newSize);
+                                byte[] newBuffer = this.bufferManager.TakeBuffer(newSize);
                                 Buffer.BlockCopy(internalBuffer, 0, newBuffer, 0, receivedByteCount);
-                                _bufferManager.ReturnBuffer(internalBuffer);
+                                this.bufferManager.ReturnBuffer(internalBuffer);
                                 internalBuffer = newBuffer;
                             }
 
                             if (TD.WebSocketAsyncReadStopIsEnabled())
                             {
                                 TD.WebSocketAsyncReadStop(
-                                    _webSocket.GetHashCode(),
+                                    this.webSocket.GetHashCode(),
                                     receivedByteCount,
-                                    string.Empty);
+                                    TraceUtility.GetRemoteEndpointAddressPort(this.RemoteEndpointMessageProperty));
                             }
                         }
                         catch (AggregateException ex)
@@ -656,23 +701,23 @@ namespace System.ServiceModel.Channels
                         }
 
                     }
-                    while (!endOfMessage && !_closureReceived);
+                    while (!endOfMessage && !this.closureReceived);
 
                     byte[] buffer = null;
                     bool success = false;
                     try
                     {
-                        buffer = _bufferManager.TakeBuffer(receivedByteCount);
+                        buffer = this.bufferManager.TakeBuffer(receivedByteCount);
                         Buffer.BlockCopy(internalBuffer, 0, buffer, 0, receivedByteCount);
                         Fx.Assert(result != null, "Result should not be null");
-                        _pendingMessage = PrepareMessage(result, buffer, receivedByteCount);
+                        this.pendingMessage = this.PrepareMessage(result, buffer, receivedByteCount);
                         success = true;
                     }
                     finally
                     {
-                        if (buffer != null && (!success || _pendingMessage == null))
+                        if (buffer != null && (!success || this.pendingMessage == null))
                         {
-                            _bufferManager.ReturnBuffer(buffer);
+                            this.bufferManager.ReturnBuffer(buffer);
                         }
                     }
                 }
@@ -683,14 +728,52 @@ namespace System.ServiceModel.Channels
                         throw;
                     }
 
-                    _pendingException = WebSocketHelper.ConvertAndTraceException(ex, TimeSpan.MaxValue, WebSocketHelper.ReceiveOperation);
+                    this.pendingException = WebSocketHelper.ConvertAndTraceException(ex, TimeSpan.MaxValue, WebSocketHelper.ReceiveOperation);
                 }
                 finally
                 {
                     if (internalBuffer != null)
                     {
-                        _bufferManager.ReturnBuffer(internalBuffer);
+                        this.bufferManager.ReturnBuffer(internalBuffer);
                     }
+                }
+            }
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, "Reliability103",
+                            Justification = "The exceptions are wrapped already.")]
+            [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, "Reliability104",
+                            Justification = "The exceptions are traced already.")]
+            public AsyncReceiveResult BeginWaitForMessage(TimeSpan timeout, Threading.WaitCallback callback, object state)
+            {
+                try
+                {
+                    return this.BeginReceive(timeout, callback, state);
+                }
+                catch (TimeoutException ex)
+                {
+                    this.pendingException = FxTrace.Exception.AsError(ex);
+                    return AsyncReceiveResult.Completed;
+                }
+            }
+
+            public bool EndWaitForMessage()
+            {
+                try
+                {
+                    Message message = this.EndReceive();
+                    this.pendingMessage = message;
+                    return true;
+                }
+                catch (TimeoutException ex)
+                {
+                    if (TD.ReceiveTimeoutIsEnabled())
+                    {
+                        TD.ReceiveTimeout(ex.Message);
+                    }
+
+                    DiagnosticUtility.TraceHandledException(ex, TraceEventType.Information);
+
+                    return false;
                 }
             }
 
@@ -698,8 +781,8 @@ namespace System.ServiceModel.Channels
             {
                 try
                 {
-                    Message message = Receive(timeout);
-                    _pendingMessage = message;
+                    Message message = this.Receive(timeout);
+                    this.pendingMessage = message;
                     return true;
                 }
                 catch (TimeoutException exception)
@@ -709,24 +792,10 @@ namespace System.ServiceModel.Channels
                         TD.ReceiveTimeout(exception.Message);
                     }
 
+                    DiagnosticUtility.TraceHandledException(exception, TraceEventType.Information);
+
                     return false;
                 }
-            }
-
-            public async Task<bool> WaitForMessageAsync(TimeSpan timeout)
-            {
-                bool waitingResult = await _receiveTask.Task.AwaitWithTimeout(timeout);
-                if (waitingResult)
-                {
-                    Message message = await ReceiveAsync(timeout);
-                    _pendingMessage = message;
-                    return true;
-                }
-                if (TD.ReceiveTimeoutIsEnabled())
-                {
-                    TD.ReceiveTimeout(SR.Format(SR.WaitForMessageTimedOut, timeout));
-                }
-                return false;
             }
 
             internal void FinishUsingMessageStream(Exception ex)
@@ -735,12 +804,12 @@ namespace System.ServiceModel.Channels
                 //// 1) Only one thread can get the stream and consume the stream. A new task will be created at the moment it takes the stream
                 //// 2) Only one another thread can enter the lock and wait on the task
                 //// 3) The cleanup on the stream will return the stream to message source. And the cleanup call is limited to be called only once.
-                if (ex != null && _pendingException == null)
+                if (ex != null && this.pendingException == null)
                 {
-                    _pendingException = ex;
+                    this.pendingException = ex;
                 }
 
-                _streamWaitTask.SetResult(null);
+                this.streamWaitTask.SetResult(null);
             }
 
             internal void CheckCloseStatus(WebSocketReceiveResult result)
@@ -750,21 +819,21 @@ namespace System.ServiceModel.Channels
                     if (TD.WebSocketCloseStatusReceivedIsEnabled())
                     {
                         TD.WebSocketCloseStatusReceived(
-                            _webSocket.GetHashCode(),
+                            this.webSocket.GetHashCode(),
                             result.CloseStatus.ToString());
                     }
 
-                    _closureReceived = true;
-                    _closeDetails.InputCloseStatus = result.CloseStatus;
-                    _closeDetails.InputCloseStatusDescription = result.CloseStatusDescription;
+                    this.closureReceived = true;
+                    this.closeDetails.InputCloseStatus = result.CloseStatus;
+                    this.closeDetails.InputCloseStatusDescription = result.CloseStatusDescription;
                 }
             }
 
             async void StartNextReceiveAsync()
             {
-                Fx.Assert(_receiveTask == null || _receiveTask.Task.IsCompleted, "this.receiveTask is not completed.");
-                _receiveTask = new TaskCompletionSource<object>();
-                int currentState = Interlocked.CompareExchange(ref _asyncReceiveState, AsyncReceiveState.Started, AsyncReceiveState.Finished);
+                Fx.Assert(this.receiveTask == null || this.receiveTask.Task.IsCompleted, "this.receiveTask is not completed.");
+                this.receiveTask = new TaskCompletionSource<object>();
+                int currentState = Interlocked.CompareExchange(ref this.asyncReceiveState, AsyncReceiveState.Started, AsyncReceiveState.Finished);
                 Fx.Assert(currentState == AsyncReceiveState.Finished, "currentState is not AsyncReceiveState.Finished: " + currentState);
                 if (currentState != AsyncReceiveState.Finished)
                 {
@@ -773,54 +842,58 @@ namespace System.ServiceModel.Channels
 
                 try
                 {
-                    if (_useStreaming)
+                    if (this.useStreaming)
                     {
-                        if (_streamWaitTask != null)
+                        if (this.streamWaitTask != null)
                         {
                             //// Wait until the previous stream message finished.
-                            await _streamWaitTask.Task;
+
+                            await this.streamWaitTask.Task.ConfigureAwait(false);
                         }
 
-                        _streamWaitTask = new TaskCompletionSource<object>();
+                        this.streamWaitTask = new TaskCompletionSource<object>();
                     }
 
-                    if (_pendingException == null)
+                    if (this.pendingException == null)
                     {
-                        if (!_useStreaming)
+                        if (!this.useStreaming)
                         {
-                            await ReadBufferedMessageAsync();
+                            await this.ReadBufferedMessageAsync().ConfigureAwait(false);
                         }
                         else
                         {
-                            byte[] buffer = _bufferManager.TakeBuffer(_receiveBufferSize);
+                            byte[] buffer = this.bufferManager.TakeBuffer(this.receiveBufferSize);
                             bool success = false;
                             try
                             {
                                 if (TD.WebSocketAsyncReadStartIsEnabled())
                                 {
-                                    TD.WebSocketAsyncReadStart(_webSocket.GetHashCode());
+                                    TD.WebSocketAsyncReadStart(this.webSocket.GetHashCode());
                                 }
 
                                 try
                                 {
-                                    WebSocketReceiveResult result;
-                                    TimeoutHelper helper = new TimeoutHelper(_asyncReceiveTimeout);
-                                    var cancelToken = await helper.GetCancellationTokenAsync();
-                                    result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer, 0, _receiveBufferSize), cancelToken);
-                                    CheckCloseStatus(result);
-                                    _pendingMessage = PrepareMessage(result, buffer, result.Count);
+                                    Task<WebSocketReceiveResult> receiveTask = this.webSocket.ReceiveAsync(
+                                                        new ArraySegment<byte>(buffer, 0, this.receiveBufferSize),
+                                                        CancellationToken.None);
+
+                                    await receiveTask.ConfigureAwait(false);
+
+                                    WebSocketReceiveResult result = receiveTask.Result;
+                                    this.CheckCloseStatus(result);
+                                    this.pendingMessage = this.PrepareMessage(result, buffer, result.Count);
 
                                     if (TD.WebSocketAsyncReadStopIsEnabled())
                                     {
                                         TD.WebSocketAsyncReadStop(
-                                            _webSocket.GetHashCode(),
+                                            this.webSocket.GetHashCode(),
                                             result.Count,
-                                            String.Empty);
+                                            TraceUtility.GetRemoteEndpointAddressPort(this.remoteEndpointMessageProperty));
                                     }
                                 }
                                 catch (AggregateException ex)
                                 {
-                                    WebSocketHelper.ThrowCorrectException(ex, _asyncReceiveTimeout, WebSocketHelper.ReceiveOperation);
+                                    WebSocketHelper.ThrowCorrectException(ex, this.asyncReceiveTimeout, WebSocketHelper.ReceiveOperation);
                                 }
                                 success = true;
                             }
@@ -831,13 +904,13 @@ namespace System.ServiceModel.Channels
                                     throw;
                                 }
 
-                                _pendingException = WebSocketHelper.ConvertAndTraceException(ex, _asyncReceiveTimeout, WebSocketHelper.ReceiveOperation);
+                                this.pendingException = WebSocketHelper.ConvertAndTraceException(ex, this.asyncReceiveTimeout, WebSocketHelper.ReceiveOperation);
                             }
                             finally
                             {
                                 if (!success)
                                 {
-                                    _bufferManager.ReturnBuffer(buffer);
+                                    this.bufferManager.ReturnBuffer(buffer);
                                 }
                             }
                         }
@@ -845,21 +918,42 @@ namespace System.ServiceModel.Channels
                 }
                 finally
                 {
-                    if (Interlocked.CompareExchange(ref _asyncReceiveState, AsyncReceiveState.Finished, AsyncReceiveState.Started) == AsyncReceiveState.Started)
+                    if (Interlocked.CompareExchange(ref this.asyncReceiveState, AsyncReceiveState.Finished, AsyncReceiveState.Started) == AsyncReceiveState.Started)
                     {
-                        _receiveTask.SetResult(null);
+                        this.receiveTask.SetResult(null);
                     }
+                }
+            }
+
+            void AddMessageProperties(MessageProperties messageProperties, WebSocketMessageType incomingMessageType)
+            {
+                Fx.Assert(messageProperties != null, "messageProperties should not be null.");
+                WebSocketMessageProperty messageProperty = new WebSocketMessageProperty(
+                                                                this.context,
+                                                                this.webSocket.SubProtocol,
+                                                                incomingMessageType,
+                                                                this.properties);
+                messageProperties.Add(WebSocketMessageProperty.Name, messageProperty);
+
+                if (this.remoteEndpointMessageProperty != null)
+                {
+                    messageProperties.Add(RemoteEndpointMessageProperty.Name, this.remoteEndpointMessageProperty);
+                }
+
+                if (this.handshakeSecurityMessageProperty != null)
+                {
+                    messageProperties.Security = (SecurityMessageProperty)this.handshakeSecurityMessageProperty.CreateCopy();
                 }
             }
 
             Message GetPendingMessage()
             {
-                ThrowOnPendingException(ref _pendingException);
+                ThrowOnPendingException(ref this.pendingException);
 
-                if (_pendingMessage != null)
+                if (this.pendingMessage != null)
                 {
-                    Message pendingMessage = _pendingMessage;
-                    _pendingMessage = null;
+                    Message pendingMessage = this.pendingMessage;
+                    this.pendingMessage = null;
                     return pendingMessage;
                 }
 
@@ -871,30 +965,32 @@ namespace System.ServiceModel.Channels
                 if (result.MessageType != WebSocketMessageType.Close)
                 {
                     Message message;
-                    if (_useStreaming)
+                    if (this.useStreaming)
                     {
-                        var wrappedStream = new MaxMessageSizeStream(
-                            new TimeoutStream(
-                                new WebSocketStream(
-                                    this,
-                                    new ArraySegment<byte>(buffer, 0, count),
-                                    _webSocket,
-                                    result.EndOfMessage,
-                                    _bufferManager,
-                                    _defaultTimeouts.CloseTimeout),
-                                _defaultTimeouts.ReceiveTimeout),
-                            _maxReceivedMessageSize);
-                        message = _encoder.ReadMessage(wrappedStream, _maxBufferSize);
+                        TimeoutHelper readTimeoutHelper = new TimeoutHelper(this.defaultTimeouts.ReceiveTimeout);
+                        message = this.encoder.ReadMessage(
+                            new MaxMessageSizeStream(
+                                new TimeoutStream(
+                                    new WebSocketStream(
+                                        this,
+                                        new ArraySegment<byte>(buffer, 0, count),
+                                        this.webSocket,
+                                        result.EndOfMessage,
+                                        this.bufferManager,
+                                        this.defaultTimeouts.CloseTimeout),
+                                    ref readTimeoutHelper),
+                                this.maxReceivedMessageSize),
+                            this.maxBufferSize);
                     }
                     else
                     {
                         ArraySegment<byte> bytes = new ArraySegment<byte>(buffer, 0, count);
-                        message = _encoder.ReadMessage(bytes, _bufferManager);
+                        message = this.encoder.ReadMessage(bytes, this.bufferManager);
                     }
 
-                    if (message.Version.Addressing != AddressingVersion.None || !_localAddress.IsAnonymous)
+                    if (message.Version.Addressing != AddressingVersion.None || !this.localAddress.IsAnonymous)
                     {
-                        _localAddress.ApplyTo(message);
+                        this.localAddress.ApplyTo(message);
                     }
 
                     if (message.Version.Addressing == AddressingVersion.None && message.Headers.Action == null)
@@ -909,6 +1005,11 @@ namespace System.ServiceModel.Channels
                             Fx.Assert(result.MessageType == WebSocketMessageType.Text, "result.MessageType must be WebSocketMessageType.Text.");
                             message.Headers.Action = WebSocketTransportSettings.TextMessageReceivedAction;
                         }
+                    }
+
+                    if (message != null)
+                    {
+                        this.AddMessageProperties(message.Properties, result.MessageType);
                     }
 
                     return message;
@@ -927,21 +1028,19 @@ namespace System.ServiceModel.Channels
 
         class WebSocketStream : Stream
         {
-            readonly WebSocket _webSocket;
-            readonly WebSocketMessageSource _messageSource;
-            readonly TimeSpan _closeTimeout;
-            ArraySegment<byte> _initialReadBuffer;
-            bool _endOfMessageReached;
-            readonly bool _isForRead;
-            bool _endofMessageReceived;
-            readonly WebSocketMessageType _outgoingMessageType;
-            readonly BufferManager _bufferManager;
-            int _messageSourceCleanState;
-            int _endOfMessageWritten;
-            int _readTimeout;
-            int _writeTimeout;
-            TimeoutHelper _readTimeoutHelper;
-            TimeoutHelper _writeTimeoutHelper;
+            WebSocket webSocket;
+            WebSocketMessageSource messageSource;
+            TimeSpan closeTimeout;
+            ArraySegment<byte> initialReadBuffer;
+            bool endOfMessageReached = false;
+            bool isForRead;
+            bool endofMessageReceived;
+            WebSocketMessageType outgoingMessageType;
+            BufferManager bufferManager;
+            int messageSourceCleanState;
+            int endOfMessageWritten;
+            int readTimeout;
+            int writeTimeout;
 
             public WebSocketStream(
                         WebSocketMessageSource messageSource,
@@ -953,13 +1052,13 @@ namespace System.ServiceModel.Channels
                 : this(webSocket, WebSocketDefaults.DefaultWebSocketMessageType, closeTimeout)
             {
                 Fx.Assert(messageSource != null, "messageSource should not be null.");
-                _messageSource = messageSource;
-                _initialReadBuffer = initialBuffer;
-                _isForRead = true;
-                _endofMessageReceived = endofMessageReceived;
-                _bufferManager = bufferManager;
-                _messageSourceCleanState = WebSocketHelper.OperationNotStarted;
-                _endOfMessageWritten = WebSocketHelper.OperationNotStarted;
+                this.messageSource = messageSource;
+                this.initialReadBuffer = initialBuffer;
+                this.isForRead = true;
+                this.endofMessageReceived = endofMessageReceived;
+                this.bufferManager = bufferManager;
+                this.messageSourceCleanState = WebSocketHelper.OperationNotStarted;
+                this.endOfMessageWritten = WebSocketHelper.OperationNotStarted;
             }
 
             public WebSocketStream(
@@ -968,16 +1067,16 @@ namespace System.ServiceModel.Channels
                     TimeSpan closeTimeout)
             {
                 Fx.Assert(webSocket != null, "webSocket should not be null.");
-                _webSocket = webSocket;
-                _isForRead = false;
-                _outgoingMessageType = outgoingMessageType;
-                _messageSourceCleanState = WebSocketHelper.OperationFinished;
-                _closeTimeout = closeTimeout;
+                this.webSocket = webSocket;
+                this.isForRead = false;
+                this.outgoingMessageType = outgoingMessageType;
+                this.messageSourceCleanState = WebSocketHelper.OperationFinished;
+                this.closeTimeout = closeTimeout;
             }
 
             public override bool CanRead
             {
-                get { return _isForRead; }
+                get { return this.isForRead; }
             }
 
             public override bool CanSeek
@@ -995,24 +1094,24 @@ namespace System.ServiceModel.Channels
 
             public override bool CanWrite
             {
-                get { return !_isForRead; }
+                get { return !this.isForRead; }
             }
 
             public override long Length
             {
-                get { throw FxTrace.Exception.AsError(new NotSupportedException(InternalSR.SeekNotSupported)); }
+                get { throw FxTrace.Exception.AsError(new NotSupportedException(SR.GetString(SR.SeekNotSupported))); }
             }
 
             public override long Position
             {
                 get
                 {
-                    throw FxTrace.Exception.AsError(new NotSupportedException(InternalSR.SeekNotSupported));
+                    throw FxTrace.Exception.AsError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
                 }
 
                 set
                 {
-                    throw FxTrace.Exception.AsError(new NotSupportedException(InternalSR.SeekNotSupported));
+                    throw FxTrace.Exception.AsError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
                 }
             }
 
@@ -1020,14 +1119,13 @@ namespace System.ServiceModel.Channels
             {
                 get
                 {
-                    return _readTimeout;
+                    return this.readTimeout;
                 }
 
                 set
                 {
-                    Contract.Assert(value >= -1, "ReadTimeout should not be negative.");
-                    _readTimeout = value;
-                    _readTimeoutHelper = new TimeoutHelper(TimeoutHelper.FromMilliseconds(_readTimeout));
+                    Fx.Assert(value >= 0, "ReadTimeout should not be negative.");
+                    this.readTimeout = value;
                 }
             }
 
@@ -1035,114 +1133,157 @@ namespace System.ServiceModel.Channels
             {
                 get
                 {
-                    return _writeTimeout;
+                    return this.writeTimeout;
                 }
 
                 set
                 {
-                    Contract.Assert(value >= -1, "WriteTimeout should not be negative.");
-                    _writeTimeout = value;
-                    _writeTimeoutHelper = new TimeoutHelper(TimeoutHelper.FromMilliseconds(_readTimeout));
+                    Fx.Assert(value >= 0, "WriteTimeout should not be negative.");
+                    this.writeTimeout = value;
                 }
             }
 
-            protected override void Dispose(bool disposing)
+            public override void Close()
             {
-                base.Dispose(disposing);
-                Cleanup();
+                TimeoutHelper helper = new TimeoutHelper(this.closeTimeout);
+                base.Close();
+                this.Cleanup(helper.RemainingTime());
             }
 
             public override void Flush()
             {
             }
 
-            public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
             {
-                Contract.Assert(_messageSource != null, "messageSource should not be null in read case.");
+                Fx.Assert(this.messageSource != null, "messageSource should not be null in read case.");
 
-                var cancelToken = _readTimeoutHelper.GetCancellationToken();
-                if (cancelToken.IsCancellationRequested)
-                {
-                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null,
-                        _readTimeoutHelper.OriginalTimeout, WebSocketHelper.ReceiveOperation));
+                if (this.ReadTimeout <= 0)
+                { 
+                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null, TimeoutHelper.FromMilliseconds(this.ReadTimeout), WebSocketHelper.ReceiveOperation));
                 }
 
-                if (_endOfMessageReached)
+                TimeoutHelper helper = new TimeoutHelper(TimeoutHelper.FromMilliseconds(this.ReadTimeout));
+
+                if (this.endOfMessageReached)
                 {
-                    return Task.FromResult(0);
+                    return new CompletedAsyncResult<int>(0, callback, state);
                 }
 
-                if (_initialReadBuffer.Count != 0)
+                if (this.initialReadBuffer.Count != 0)
                 {
-                    return Task.FromResult(GetBytesFromInitialReadBuffer(buffer, offset, count));
+                    int bytesRead = this.GetBytesFromInitialReadBuffer(buffer, offset, count);
+                    return new CompletedAsyncResult<int>(bytesRead, callback, state);
                 }
 
-                if (_endofMessageReceived)
+                if (this.endofMessageReceived)
                 {
-                    _endOfMessageReached = true;
-                    Cleanup();
-                    return Task.FromResult(0);
+                    this.endOfMessageReached = true;
+                    return new CompletedAsyncResult<int>(0, callback, state);
                 }
-
-                return ReadAsyncCore(buffer, offset, count, cancellationToken);
-            }
-
-            private async Task<int> ReadAsyncCore(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            {
-                int receivedBytes = 0;
 
                 if (TD.WebSocketAsyncReadStartIsEnabled())
                 {
-                    TD.WebSocketAsyncReadStart(_webSocket.GetHashCode());
+                    TD.WebSocketAsyncReadStart(this.webSocket.GetHashCode());
                 }
 
-                WebSocketReceiveResult result;
-                try
+                IOThreadCancellationTokenSource cancellationTokenSource = new IOThreadCancellationTokenSource(helper.RemainingTime());
+                Task<int> task = this.webSocket.ReceiveAsync(new ArraySegment<byte>(buffer, offset, count), cancellationTokenSource.Token).ContinueWith(t =>
                 {
-                    result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer, offset, count), cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    if (Fx.IsFatal(ex))
+                    cancellationTokenSource.Dispose();
+                    WebSocketHelper.ThrowExceptionOnTaskFailure(t, TimeoutHelper.FromMilliseconds(this.ReadTimeout), WebSocketHelper.ReceiveOperation);
+                    this.endOfMessageReached = t.Result.EndOfMessage;
+
+                    int receivedBytes = t.Result.Count;
+                    CheckResultAndEnsureNotCloseMessage(this.messageSource, t.Result);
+
+                    if (this.endOfMessageReached)
                     {
-                        throw;
+                        this.Cleanup(helper.RemainingTime());
                     }
 
-                    if (cancellationToken.IsCancellationRequested)
+                    if (TD.WebSocketAsyncReadStopIsEnabled())
                     {
-                        throw Fx.Exception.AsError(new TimeoutException(InternalSR.TaskTimedOutError(new TimeSpan(ReadTimeout))));
+                        TD.WebSocketAsyncReadStop(
+                            this.webSocket.GetHashCode(),
+                            receivedBytes,
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
                     }
 
-                    throw WebSocketHelper.ConvertAndTraceException(ex, new TimeSpan(ReadTimeout), WebSocketHelper.ReceiveOperation);
+                    return receivedBytes;
+                }, TaskContinuationOptions.None);
+
+                return task.AsAsyncResult<int>(callback, state);
+            }
+
+            public override int EndRead(IAsyncResult asyncResult)
+            {
+                Task<int> task = (Task<int>)asyncResult;
+                WebSocketHelper.ThrowExceptionOnTaskFailure((Task)task, TimeoutHelper.FromMilliseconds(this.ReadTimeout), WebSocketHelper.ReceiveOperation);
+                return task.Result;
+            }
+
+            [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, "Reliability104",
+                    Justification = "The exceptions will be traced and thrown by the handling method.")]
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                Fx.Assert(this.messageSource != null, "messageSource should not be null in read case.");
+
+                if (this.ReadTimeout <= 0)
+                { 
+                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null, TimeoutHelper.FromMilliseconds(this.ReadTimeout), WebSocketHelper.ReceiveOperation));
                 }
 
-                if (result.EndOfMessage)
+                TimeoutHelper helper = new TimeoutHelper(TimeoutHelper.FromMilliseconds(this.ReadTimeout));
+
+                if (this.endOfMessageReached)
                 {
-                    _endofMessageReceived = true;
-                    _endOfMessageReached = true;
+                    return 0;
                 }
 
-                receivedBytes = result.Count;
-                CheckResultAndEnsureNotCloseMessage(_messageSource, result);
-
-                if (TD.WebSocketAsyncReadStopIsEnabled())
+                if (this.initialReadBuffer.Count != 0)
                 {
-                    TD.WebSocketAsyncReadStop(_webSocket.GetHashCode(), receivedBytes, string.Empty);
+                    return this.GetBytesFromInitialReadBuffer(buffer, offset, count);
                 }
 
-                if (_endOfMessageReached)
+                int receivedBytes = 0;
+                if (this.endofMessageReceived)
                 {
-                    Cleanup();
+                    this.endOfMessageReached = true;
+                }
+                else
+                {
+                    if (TD.WebSocketAsyncReadStartIsEnabled())
+                    {
+                        TD.WebSocketAsyncReadStart(this.webSocket.GetHashCode());
+                    }
+
+                    Task<WebSocketReceiveResult> task = this.webSocket.ReceiveAsync(new ArraySegment<byte>(buffer, offset, count), CancellationToken.None);
+                    task.Wait(helper.RemainingTime(), WebSocketHelper.ThrowCorrectException, WebSocketHelper.ReceiveOperation);
+                    if (task.Result.EndOfMessage)
+                    {
+                        this.endofMessageReceived = true;
+                        this.endOfMessageReached = true;
+                    }
+
+                    receivedBytes = task.Result.Count;
+                    CheckResultAndEnsureNotCloseMessage(this.messageSource, task.Result);
+
+                    if (TD.WebSocketAsyncReadStopIsEnabled())
+                    {
+                        TD.WebSocketAsyncReadStop(
+                            this.webSocket.GetHashCode(),
+                            receivedBytes,
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
+                    }
+                }
+
+                if (this.endOfMessageReached)
+                {
+                    this.Cleanup(helper.RemainingTime());
                 }
 
                 return receivedBytes;
-            }
-
-            public override int Read(byte[] buffer, int offset, int count)
-            {
-                // WebSocketStream is never used directly but is wrapped in a TimeoutStream which calls the Async
-                // implementation in the synchronous Read method. 
-                throw FxTrace.Exception.AsError(new NotSupportedException("this method should never get called"));
             }
 
             public override long Seek(long offset, SeekOrigin origin)
@@ -1157,124 +1298,138 @@ namespace System.ServiceModel.Channels
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                // WebSocketStream is never used directly but is wrapped in a TimeoutStream which calls the Async
-                // implementation in the synchronous Write method. 
-                throw FxTrace.Exception.AsError(new NotSupportedException("this method should never get called"));
-            }
-
-            public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            {
-                if (_endOfMessageWritten == WebSocketHelper.OperationFinished)
+                if (this.endOfMessageWritten == WebSocketHelper.OperationFinished)
                 {
-                    throw FxTrace.Exception.AsError(new InvalidOperationException(SR.WebSocketStreamWriteCalledAfterEOMSent));
+                    throw FxTrace.Exception.AsError(new InvalidOperationException(SR.GetString(SR.WebSocketStreamWriteCalledAfterEOMSent)));
+                }
+                
+                if (this.WriteTimeout <= 0)
+                { 
+                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null, TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.SendOperation));
                 }
 
                 if (TD.WebSocketAsyncWriteStartIsEnabled())
                 {
                     TD.WebSocketAsyncWriteStart(
-                            _webSocket.GetHashCode(),
+                            this.webSocket.GetHashCode(),
                             count,
-                            string.Empty);
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
                 }
 
-                try
-                {
-                    await _webSocket.SendAsync(new ArraySegment<byte>(buffer, offset, count), _outgoingMessageType, false, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    if (Fx.IsFatal(ex))
-                    {
-                        throw;
-                    }
-
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        throw Fx.Exception.AsError(new TimeoutException(InternalSR.TaskTimedOutError(new TimeSpan(WriteTimeout))));
-                    }
-
-                    throw WebSocketHelper.ConvertAndTraceException(ex, new TimeSpan(WriteTimeout), WebSocketHelper.SendOperation);
-                }
+                Task task = this.webSocket.SendAsync(new ArraySegment<byte>(buffer, offset, count), this.outgoingMessageType, false, CancellationToken.None);
+                task.Wait(TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.ThrowCorrectException, WebSocketHelper.SendOperation);
 
                 if (TD.WebSocketAsyncWriteStopIsEnabled())
                 {
-                    TD.WebSocketAsyncWriteStop(_webSocket.GetHashCode());
+                    TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
                 }
             }
 
-            private async Task WriteAsyncInternal(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
             {
-                await TaskHelpers.EnsureDefaultTaskScheduler();
-                await WriteAsync(buffer, offset, count, cancellationToken);
-            }
+                if (this.endOfMessageWritten == WebSocketHelper.OperationFinished)
+                {
+                    throw FxTrace.Exception.AsError(new InvalidOperationException(SR.GetString(SR.WebSocketStreamWriteCalledAfterEOMSent)));
+                }
 
-            public void WriteEndOfMessage()
-            {
+                if (this.WriteTimeout <= 0)
+                {
+                    throw FxTrace.Exception.AsError(WebSocketHelper.GetTimeoutException(null, TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.SendOperation));
+                }
+
                 if (TD.WebSocketAsyncWriteStartIsEnabled())
                 {
                     TD.WebSocketAsyncWriteStart(
-                            _webSocket.GetHashCode(),
-                            0,
-                            string.Empty);
+                            this.webSocket.GetHashCode(),
+                            count,
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
                 }
 
-                var timeoutHelper = new TimeoutHelper(_closeTimeout);
-
-                if (Interlocked.CompareExchange(ref _endOfMessageWritten, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
+                IOThreadCancellationTokenSource cancellationTokenSource = new IOThreadCancellationTokenSource(this.WriteTimeout);
+                Task task = this.webSocket.SendAsync(new ArraySegment<byte>(buffer, offset, count), this.outgoingMessageType, false, cancellationTokenSource.Token).ContinueWith(t =>
                 {
-                    Task task = _webSocket.SendAsync(new ArraySegment<byte>(Array.Empty<byte>(), 0, 0), _outgoingMessageType, true, timeoutHelper.GetCancellationToken());
-                    task.Wait(timeoutHelper.RemainingTime(), WebSocketHelper.ThrowCorrectException, WebSocketHelper.SendOperation);
-                }
-
-                if (TD.WebSocketAsyncWriteStopIsEnabled())
-                {
-                    TD.WebSocketAsyncWriteStop(_webSocket.GetHashCode());
-                }
-            }
-
-            public async void WriteEndOfMessageAsync(Action<object> callback, object state)
-            {
-                if (TD.WebSocketAsyncWriteStartIsEnabled())
-                {
-                    // TODO: Open bug about not emitting the hostname/port
-                    TD.WebSocketAsyncWriteStart(
-                        _webSocket.GetHashCode(),
-                        0,
-                        string.Empty);
-                }
-
-                var timeoutHelper = new TimeoutHelper(_closeTimeout);
-                var cancelTokenTask = timeoutHelper.GetCancellationTokenAsync();
-                try
-                {
-                    var cancelToken = await cancelTokenTask;
-                    await _webSocket.SendAsync(new ArraySegment<byte>(Array.Empty<byte>(), 0, 0), _outgoingMessageType, true, cancelToken);
-
                     if (TD.WebSocketAsyncWriteStopIsEnabled())
                     {
-                        TD.WebSocketAsyncWriteStop(_webSocket.GetHashCode());
+                        TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
                     }
-                }
-                catch (Exception ex)
+
+                    cancellationTokenSource.Dispose();
+                    WebSocketHelper.ThrowExceptionOnTaskFailure(t, TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.SendOperation);
+                });
+
+                return task.AsAsyncResult(callback, state);
+            }
+
+            public override void EndWrite(IAsyncResult asyncResult)
+            {
+                Task task = (Task)asyncResult;
+                WebSocketHelper.ThrowExceptionOnTaskFailure(task, TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.SendOperation);
+            }
+
+            public void WriteEndOfMessage(TimeSpan timeout)
+            {
+                if (TD.WebSocketAsyncWriteStartIsEnabled())
                 {
-                    if (Fx.IsFatal(ex))
-                    {
-                        throw;
-                    }
-
-                    if (cancelTokenTask.Result.IsCancellationRequested)
-                    {
-                        throw Fx.Exception.AsError(
-                            new TimeoutException(InternalSR.TaskTimedOutError(timeoutHelper.OriginalTimeout)));
-                    }
-
-                    throw WebSocketHelper.ConvertAndTraceException(ex, timeoutHelper.OriginalTimeout,
-                        WebSocketHelper.SendOperation);
-
+                    TD.WebSocketAsyncWriteStart(
+                            this.webSocket.GetHashCode(),
+                            0,
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
                 }
-                finally
+
+                if (Interlocked.CompareExchange(ref this.endOfMessageWritten, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
                 {
-                    callback.Invoke(state);
+                    Task task = this.webSocket.SendAsync(new ArraySegment<byte>(EmptyArray<byte>.Instance, 0, 0), this.outgoingMessageType, true, CancellationToken.None);
+                    task.Wait(timeout, WebSocketHelper.ThrowCorrectException, WebSocketHelper.SendOperation);
+                }
+
+                if (TD.WebSocketAsyncWriteStopIsEnabled())
+                {
+                    TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
+                }
+            }
+
+            public async void WriteEndOfMessageAsync(TimeSpan timeout, WaitCallback callback, object state)
+            {
+                if (TD.WebSocketAsyncWriteStartIsEnabled())
+                {
+                    TD.WebSocketAsyncWriteStart(
+                            this.webSocket.GetHashCode(),
+                            0,
+                            this.messageSource != null ? TraceUtility.GetRemoteEndpointAddressPort(this.messageSource.RemoteEndpointMessageProperty) : string.Empty);
+                }
+
+                using (IOThreadCancellationTokenSource cancellationTokenSource = new IOThreadCancellationTokenSource(timeout))
+                {
+                    try
+                    {
+                        Task task = this.webSocket.SendAsync(new ArraySegment<byte>(EmptyArray<byte>.Instance, 0, 0), this.outgoingMessageType, true, cancellationTokenSource.Token);
+
+                        // The callback here will only be TransportDuplexSessionChannel.OnWriteComplete. It's safe to call this callback without flowing
+                        // security context here since there's no user code involved.
+                        await task.SuppressContextFlow();
+
+                        if (TD.WebSocketAsyncWriteStopIsEnabled())
+                        {
+                            TD.WebSocketAsyncWriteStop(this.webSocket.GetHashCode());
+                        }
+                    }
+                    catch(AggregateException ex)
+                    {
+                        WebSocketHelper.ThrowCorrectException(ex, TimeoutHelper.FromMilliseconds(this.WriteTimeout), WebSocketHelper.SendOperation);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (Fx.IsFatal(ex))
+                        {
+                            throw;
+                        }
+
+                        WebSocketHelper.ThrowCorrectException(ex);
+                    }
+                    finally
+                    {
+                        callback.Invoke(state);
+                    }
                 }
             }
 
@@ -1283,42 +1438,38 @@ namespace System.ServiceModel.Channels
                 messageSource.CheckCloseStatus(result);
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    throw FxTrace.Exception.AsError(new ProtocolException(SR.WebSocketUnexpectedCloseMessageError));
+                    throw FxTrace.Exception.AsError(new ProtocolException(SR.GetString(SR.WebSocketUnexpectedCloseMessageError)));
                 }
             }
 
             int GetBytesFromInitialReadBuffer(byte[] buffer, int offset, int count)
             {
-                int bytesToCopy = _initialReadBuffer.Count > count ? count : _initialReadBuffer.Count;
-                Buffer.BlockCopy(_initialReadBuffer.Array, _initialReadBuffer.Offset, buffer, offset, bytesToCopy);
-                _initialReadBuffer = new ArraySegment<byte>(_initialReadBuffer.Array, _initialReadBuffer.Offset + bytesToCopy, _initialReadBuffer.Count - bytesToCopy);
+                int bytesToCopy = this.initialReadBuffer.Count > count ? count : this.initialReadBuffer.Count;
+                Buffer.BlockCopy(this.initialReadBuffer.Array, this.initialReadBuffer.Offset, buffer, offset, bytesToCopy);
+                this.initialReadBuffer = new ArraySegment<byte>(this.initialReadBuffer.Array, this.initialReadBuffer.Offset + bytesToCopy, this.initialReadBuffer.Count - bytesToCopy);
                 return bytesToCopy;
             }
 
-            void Cleanup()
+            void Cleanup(TimeSpan timeout)
             {
-                if (_isForRead)
+                if (this.isForRead)
                 {
-                    if (Interlocked.CompareExchange(ref _messageSourceCleanState, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
+                    if (Interlocked.CompareExchange(ref this.messageSourceCleanState, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
                     {
                         Exception pendingException = null;
                         try
                         {
-                            if (!_endofMessageReceived && (_webSocket.State == WebSocketState.Open || _webSocket.State == WebSocketState.CloseSent))
+                            if (!this.endofMessageReceived && (this.webSocket.State == WebSocketState.Open || this.webSocket.State == WebSocketState.CloseSent))
                             {
                                 // Drain the reading stream
-                                var closeTimeoutHelper = new TimeoutHelper(_closeTimeout);
+                                TimeoutHelper helper = new TimeoutHelper(timeout);
                                 do
                                 {
-                                    var cancelToken = closeTimeoutHelper.GetCancellationToken();
-                                    Task<WebSocketReceiveResult> receiveTask =
-                                        _webSocket.ReceiveAsync(new ArraySegment<byte>(_initialReadBuffer.Array), cancelToken);
-                                    receiveTask.Wait(closeTimeoutHelper.RemainingTime(),
-                                        WebSocketHelper.ThrowCorrectException, WebSocketHelper.ReceiveOperation);
-                                    _endofMessageReceived = receiveTask.GetAwaiter().GetResult().EndOfMessage;
-                                } while (!_endofMessageReceived &&
-                                         (_webSocket.State == WebSocketState.Open ||
-                                          _webSocket.State == WebSocketState.CloseSent));
+                                    Task<WebSocketReceiveResult> receiveTask = this.webSocket.ReceiveAsync(new ArraySegment<byte>(this.initialReadBuffer.Array), CancellationToken.None);
+                                    receiveTask.Wait(helper.RemainingTime(), WebSocketHelper.ThrowCorrectException, WebSocketHelper.ReceiveOperation);
+                                    this.endofMessageReceived = receiveTask.Result.EndOfMessage;
+                                }
+                                while (!this.endofMessageReceived && (this.webSocket.State == WebSocketState.Open || this.webSocket.State == WebSocketState.CloseSent));
                             }
                         }
                         catch (Exception ex)
@@ -1331,38 +1482,62 @@ namespace System.ServiceModel.Channels
                             // Not throwing out this exception during stream cleanup. The exception
                             // will be thrown out when we are trying to receive the next message using the same
                             // WebSocket object.
-                            pendingException = WebSocketHelper.ConvertAndTraceException(ex, _closeTimeout, WebSocketHelper.CloseOperation);
+                            pendingException = WebSocketHelper.ConvertAndTraceException(ex, timeout, WebSocketHelper.CloseOperation);
                         }
 
-                        _bufferManager.ReturnBuffer(_initialReadBuffer.Array);
-                        Fx.Assert(_messageSource != null, "messageSource should not be null.");
-                        _messageSource.FinishUsingMessageStream(pendingException);
+                        this.bufferManager.ReturnBuffer(this.initialReadBuffer.Array);
+                        Fx.Assert(this.messageSource != null, "messageSource should not be null.");
+                        this.messageSource.FinishUsingMessageStream(pendingException);
                     }
                 }
                 else
                 {
-                    if (Interlocked.CompareExchange(ref _endOfMessageWritten, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
+                    if (Interlocked.CompareExchange(ref this.endOfMessageWritten, WebSocketHelper.OperationFinished, WebSocketHelper.OperationNotStarted) == WebSocketHelper.OperationNotStarted)
                     {
-                        WriteEndOfMessage();
+                        this.WriteEndOfMessage(timeout);
                     }
                 }
             }
         }
 
-        class WebSocketCloseDetails
+        class WebSocketCloseDetails : IWebSocketCloseDetails
         {
-            WebSocketCloseStatus _outputCloseStatus = WebSocketCloseStatus.NormalClosure;
-            string _outputCloseStatusDescription;
+            WebSocketCloseStatus outputCloseStatus = WebSocketCloseStatus.NormalClosure;
+            string outputCloseStatusDescription;
+            WebSocketCloseStatus? inputCloseStatus;
+            string inputCloseStatusDescription;
 
-            public WebSocketCloseStatus? InputCloseStatus { get; internal set; }
+            public WebSocketCloseStatus? InputCloseStatus
+            {
+                get
+                {
+                    return this.inputCloseStatus;
+                }
 
-            public string InputCloseStatusDescription { get; internal set; }
+                internal set
+                {
+                    this.inputCloseStatus = value;
+                }
+            }
+
+            public string InputCloseStatusDescription
+            {
+                get
+                {
+                    return this.inputCloseStatusDescription;
+                }
+
+                internal set
+                {
+                    this.inputCloseStatusDescription = value;
+                }
+            }
 
             internal WebSocketCloseStatus OutputCloseStatus
             {
                 get
                 {
-                    return _outputCloseStatus;
+                    return this.outputCloseStatus;
                 }
             }
 
@@ -1370,14 +1545,14 @@ namespace System.ServiceModel.Channels
             {
                 get
                 {
-                    return _outputCloseStatusDescription;
+                    return this.outputCloseStatusDescription;
                 }
             }
 
             public void SetOutputCloseStatus(WebSocketCloseStatus closeStatus, string closeStatusDescription)
             {
-                _outputCloseStatus = closeStatus;
-                _outputCloseStatusDescription = closeStatusDescription;
+                this.outputCloseStatus = closeStatus;
+                this.outputCloseStatusDescription = closeStatusDescription;
             }
         }
     }

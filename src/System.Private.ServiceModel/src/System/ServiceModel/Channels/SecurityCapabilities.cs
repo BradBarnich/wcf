@@ -1,11 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net.Security;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public class SecurityCapabilities : ISecurityCapabilities
+    using System.Net.Security;
+
+    class SecurityCapabilities : ISecurityCapabilities
     {
         internal bool supportsServerAuth;
         internal bool supportsClientAuth;
@@ -29,12 +30,12 @@ namespace System.ServiceModel.Channels
         public bool SupportsClientWindowsIdentity { get { return supportsClientWindowsIdentity; } }
         public bool SupportsServerAuthentication { get { return supportsServerAuth; } }
 
-        public static SecurityCapabilities None
+        static SecurityCapabilities None
         {
             get { return new SecurityCapabilities(false, false, false, ProtectionLevel.None, ProtectionLevel.None); }
         }
 
-        public static bool IsEqual(ISecurityCapabilities capabilities1, ISecurityCapabilities capabilities2)
+        internal static bool IsEqual(ISecurityCapabilities capabilities1, ISecurityCapabilities capabilities2)
         {
             if (capabilities1 == null)
             {

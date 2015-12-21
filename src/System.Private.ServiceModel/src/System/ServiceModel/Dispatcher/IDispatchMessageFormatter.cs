@@ -1,11 +1,14 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal interface IDispatchMessageFormatter
+    using System;
+    using System.ServiceModel.Channels;
+    using System.Collections;
+
+    public interface IDispatchMessageFormatter
     {
         void DeserializeRequest(Message message, object[] parameters);
         Message SerializeReply(MessageVersion messageVersion, object[] parameters, object result);

@@ -1,22 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public sealed class ExtensionCollection<T> : SynchronizedCollection<IExtension<T>>, IExtensionCollection<T>
         where T : IExtensibleObject<T>
     {
-        private T _owner;
+        T owner;
 
         public ExtensionCollection(T owner)
         {
             if (owner == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("owner");
 
-            _owner = owner;
+            this.owner = owner;
         }
 
         public ExtensionCollection(T owner, object syncRoot)
@@ -25,7 +28,7 @@ namespace System.ServiceModel
             if (owner == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("owner");
 
-            _owner = owner;
+            this.owner = owner;
         }
 
         bool ICollection<IExtension<T>>.IsReadOnly
@@ -45,7 +48,7 @@ namespace System.ServiceModel
 
                 foreach (IExtension<T> extension in array)
                 {
-                    extension.Detach(_owner);
+                    extension.Detach(this.owner);
                 }
             }
         }
@@ -92,7 +95,7 @@ namespace System.ServiceModel
 
             lock (this.SyncRoot)
             {
-                item.Attach(_owner);
+                item.Attach(this.owner);
                 base.InsertItem(index, item);
             }
         }
@@ -101,14 +104,14 @@ namespace System.ServiceModel
         {
             lock (this.SyncRoot)
             {
-                this.Items[index].Detach(_owner);
+                this.Items[index].Detach(this.owner);
                 base.RemoveItem(index);
             }
         }
 
         protected override void SetItem(int index, IExtension<T> item)
         {
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCannotSetExtensionsByIndex));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCannotSetExtensionsByIndex)));
         }
     }
 }

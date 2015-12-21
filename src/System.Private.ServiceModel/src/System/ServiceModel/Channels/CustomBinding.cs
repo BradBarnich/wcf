@@ -1,17 +1,32 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Configuration;
+    using System.Globalization;
+    using System.ServiceModel.Configuration;
+    using System.Net.Security;
+    using System.ServiceModel.Security;
+    using System.Windows.Markup;
+
+    [ContentProperty("Elements")]
     public class CustomBinding : Binding
     {
-        private BindingElementCollection _bindingElements = new BindingElementCollection();
+        BindingElementCollection bindingElements = new BindingElementCollection();
 
         public CustomBinding()
             : base()
         {
+        }
+
+        public CustomBinding(string configurationName)
+        {
+            ApplyConfiguration(configurationName);
         }
 
         public CustomBinding(params BindingElement[] bindingElementsInTopDownChannelStackOrder)
@@ -24,7 +39,7 @@ namespace System.ServiceModel.Channels
 
             foreach (BindingElement element in bindingElementsInTopDownChannelStackOrder)
             {
-                _bindingElements.Add(element);
+                this.bindingElements.Add(element);
             }
         }
 
@@ -38,7 +53,7 @@ namespace System.ServiceModel.Channels
 
             foreach (BindingElement element in bindingElementsInTopDownChannelStackOrder)
             {
-                _bindingElements.Add(element);
+                this.bindingElements.Add(element);
             }
         }
 
@@ -51,7 +66,7 @@ namespace System.ServiceModel.Channels
 
             foreach (BindingElement element in bindingElementsInTopDownChannelStackOrder)
             {
-                _bindingElements.Add(element);
+                this.bindingElements.Add(element);
             }
         }
 
@@ -65,7 +80,7 @@ namespace System.ServiceModel.Channels
 
             for (int i = 0; i < bindingElements.Count; i++)
             {
-                _bindingElements.Add(bindingElements[i]);
+                this.bindingElements.Add(bindingElements[i]);
             }
         }
 
@@ -74,7 +89,7 @@ namespace System.ServiceModel.Channels
         {
         }
 
-        private static BindingElementCollection SafeCreateBindingElements(Binding binding)
+        static BindingElementCollection SafeCreateBindingElements(Binding binding)
         {
             if (binding == null)
             {
@@ -103,7 +118,7 @@ namespace System.ServiceModel.Channels
 
             for (int i = 0; i < elements.Count; i++)
             {
-                _bindingElements.Add(elements[i]);
+                bindingElements.Add(elements[i]);
             }
         }
 
@@ -111,20 +126,37 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _bindingElements;
+                return bindingElements;
             }
         }
 
         public override BindingElementCollection CreateBindingElements()
         {
-            return _bindingElements.Clone();
+            return this.bindingElements.Clone();
+        }
+
+        void ApplyConfiguration(string configurationName)
+        {
+            CustomBindingCollectionElement section = CustomBindingCollectionElement.GetBindingCollectionElement();
+            CustomBindingElement element = section.Bindings[configurationName];
+            if (element == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ConfigurationErrorsException(
+                    SR.GetString(SR.ConfigInvalidBindingConfigurationName,
+                                 configurationName,
+                                 ConfigurationStrings.CustomBindingCollectionElementName)));
+            }
+            else
+            {
+                element.ApplyConfiguration(this);
+            }
         }
 
         public override string Scheme
         {
             get
             {
-                TransportBindingElement transport = _bindingElements.Find<TransportBindingElement>();
+                TransportBindingElement transport = bindingElements.Find<TransportBindingElement>();
                 if (transport == null)
                 {
                     return String.Empty;
@@ -135,3 +167,4 @@ namespace System.ServiceModel.Channels
         }
     }
 }
+

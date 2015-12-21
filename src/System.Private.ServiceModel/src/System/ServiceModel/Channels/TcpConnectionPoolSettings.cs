@@ -1,97 +1,98 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Runtime;
+
     public sealed class TcpConnectionPoolSettings
     {
-        private string _groupName;
-        private TimeSpan _idleTimeout;
-        private TimeSpan _leaseTimeout;
-        private int _maxOutboundConnectionsPerEndpoint;
+        string groupName;
+        TimeSpan idleTimeout;
+        TimeSpan leaseTimeout;
+        int maxOutboundConnectionsPerEndpoint;
 
         internal TcpConnectionPoolSettings()
         {
-            _groupName = ConnectionOrientedTransportDefaults.ConnectionPoolGroupName;
-            _idleTimeout = ConnectionOrientedTransportDefaults.IdleTimeout;
-            _leaseTimeout = TcpTransportDefaults.ConnectionLeaseTimeout;
-            _maxOutboundConnectionsPerEndpoint = ConnectionOrientedTransportDefaults.MaxOutboundConnectionsPerEndpoint;
+            groupName = ConnectionOrientedTransportDefaults.ConnectionPoolGroupName;
+            idleTimeout = ConnectionOrientedTransportDefaults.IdleTimeout;
+            leaseTimeout = TcpTransportDefaults.ConnectionLeaseTimeout;
+            maxOutboundConnectionsPerEndpoint = ConnectionOrientedTransportDefaults.MaxOutboundConnectionsPerEndpoint;
         }
 
         internal TcpConnectionPoolSettings(TcpConnectionPoolSettings tcp)
         {
-            _groupName = tcp._groupName;
-            _idleTimeout = tcp._idleTimeout;
-            _leaseTimeout = tcp._leaseTimeout;
-            _maxOutboundConnectionsPerEndpoint = tcp._maxOutboundConnectionsPerEndpoint;
+            this.groupName = tcp.groupName;
+            this.idleTimeout = tcp.idleTimeout;
+            this.leaseTimeout = tcp.leaseTimeout;
+            this.maxOutboundConnectionsPerEndpoint = tcp.maxOutboundConnectionsPerEndpoint;
         }
 
         public string GroupName
         {
-            get { return _groupName; }
+            get { return this.groupName; }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
 
-                _groupName = value;
+                this.groupName = value;
             }
         }
 
         public TimeSpan IdleTimeout
         {
-            get { return _idleTimeout; }
+            get { return this.idleTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _idleTimeout = value;
+                this.idleTimeout = value;
             }
         }
 
         public TimeSpan LeaseTimeout
         {
-            get { return _leaseTimeout; }
+            get { return this.leaseTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _leaseTimeout = value;
+                this.leaseTimeout = value;
             }
         }
 
         public int MaxOutboundConnectionsPerEndpoint
         {
-            get { return _maxOutboundConnectionsPerEndpoint; }
+            get { return this.maxOutboundConnectionsPerEndpoint; }
             set
             {
                 if (value < 0)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.ValueMustBeNonNegative));
+                        SR.GetString(SR.ValueMustBeNonNegative)));
 
-                _maxOutboundConnectionsPerEndpoint = value;
+                this.maxOutboundConnectionsPerEndpoint = value;
             }
         }
 
@@ -102,16 +103,16 @@ namespace System.ServiceModel.Channels
 
         internal bool IsMatch(TcpConnectionPoolSettings tcp)
         {
-            if (_groupName != tcp._groupName)
+            if (this.groupName != tcp.groupName)
                 return false;
 
-            if (_idleTimeout != tcp._idleTimeout)
+            if (this.idleTimeout != tcp.idleTimeout)
                 return false;
 
-            if (_leaseTimeout != tcp._leaseTimeout)
+            if (this.leaseTimeout != tcp.leaseTimeout)
                 return false;
 
-            if (_maxOutboundConnectionsPerEndpoint != tcp._maxOutboundConnectionsPerEndpoint)
+            if (this.maxOutboundConnectionsPerEndpoint != tcp.maxOutboundConnectionsPerEndpoint)
                 return false;
 
             return true;

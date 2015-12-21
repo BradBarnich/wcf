@@ -1,28 +1,27 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.ServiceModel.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class StreamFormatter
+    using System.IO;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Diagnostics;
+    using System.Xml;
+
+    class StreamFormatter
     {
-        private string _wrapperName;
-        private string _wrapperNS;
-        private string _partName;
-        private string _partNS;
-        private int _streamIndex;
-        private bool _isRequest;
-        private string _operationName;
-        private const int returnValueIndex = -1;
+        string wrapperName;
+        string wrapperNS;
+        string partName;
+        string partNS;
+        int streamIndex;
+        bool isRequest;
+        string operationName;
+        const int returnValueIndex = -1;
 
         internal static StreamFormatter Create(MessageDescription messageDescription, string operationName, bool isRequest)
         {
@@ -32,71 +31,43 @@ namespace System.ServiceModel.Dispatcher
             return new StreamFormatter(messageDescription, streamPart, operationName, isRequest);
         }
 
-        private StreamFormatter(MessageDescription messageDescription, MessagePartDescription streamPart, string operationName, bool isRequest)
+        StreamFormatter(MessageDescription messageDescription, MessagePartDescription streamPart, string operationName, bool isRequest)
         {
             if ((object)streamPart == (object)messageDescription.Body.ReturnValue)
-                _streamIndex = returnValueIndex;
+                this.streamIndex = returnValueIndex;
             else
-                _streamIndex = streamPart.Index;
-            _wrapperName = messageDescription.Body.WrapperName;
-            _wrapperNS = messageDescription.Body.WrapperNamespace;
-            _partName = streamPart.Name;
-            _partNS = streamPart.Namespace;
-            _isRequest = isRequest;
-            _operationName = operationName;
+                this.streamIndex = streamPart.Index;
+            wrapperName = messageDescription.Body.WrapperName;
+            wrapperNS = messageDescription.Body.WrapperNamespace;
+            partName = streamPart.Name;
+            partNS = streamPart.Namespace;
+            this.isRequest = isRequest;
+            this.operationName = operationName;
         }
 
         internal void Serialize(XmlDictionaryWriter writer, object[] parameters, object returnValue)
         {
             Stream streamValue = GetStreamAndWriteStartWrapperIfNecessary(writer, parameters, returnValue);
-            var streamProvider = new OperationStreamProvider(streamValue);
-            StreamFormatterHelper.WriteValue(writer, streamProvider);
+            writer.WriteValue(new OperationStreamProvider(streamValue));
             WriteEndWrapperIfNecessary(writer);
         }
 
-        internal async Task SerializeAsync(XmlDictionaryWriter writer, object[] parameters, object returnValue)
-        {
-            Stream streamValue = await GetStreamAndWriteStartWrapperIfNecessaryAsync(writer, parameters, returnValue);
-            var streamProvider = new OperationStreamProvider(streamValue);
-            await StreamFormatterHelper.WriteValueAsync(writer, streamProvider);
-            await WriteEndWrapperIfNecessaryAsync(writer);
-        }
-
-        private Stream GetStreamAndWriteStartWrapperIfNecessary(XmlDictionaryWriter writer, object[] parameters, object returnValue)
+        Stream GetStreamAndWriteStartWrapperIfNecessary(XmlDictionaryWriter writer, object[] parameters, object returnValue)
         {
             Stream streamValue = GetStreamValue(parameters, returnValue);
             if (streamValue == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull(_partName);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull(partName);
             if (WrapperName != null)
                 writer.WriteStartElement(WrapperName, WrapperNamespace);
             writer.WriteStartElement(PartName, PartNamespace);
             return streamValue;
         }
 
-        private async Task<Stream> GetStreamAndWriteStartWrapperIfNecessaryAsync(XmlDictionaryWriter writer, object[] parameters, object returnValue)
-        {
-            Stream streamValue = GetStreamValue(parameters, returnValue);
-            if (streamValue == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull(_partName);
-            if (WrapperName != null)
-                await writer.WriteStartElementAsync(null, WrapperName, WrapperNamespace);
-            await writer.WriteStartElementAsync(null, PartName, PartNamespace);
-            return streamValue;
-        }
-
-        private void WriteEndWrapperIfNecessary(XmlDictionaryWriter writer)
+        void WriteEndWrapperIfNecessary(XmlDictionaryWriter writer)
         {
             writer.WriteEndElement();
-            if (_wrapperName != null)
+            if (wrapperName != null)
                 writer.WriteEndElement();
-        }
-
-        private Task WriteEndWrapperIfNecessaryAsync(XmlDictionaryWriter writer)
-        {
-            writer.WriteEndElement();
-            if (_wrapperName != null)
-                writer.WriteEndElement();
-            return Task.CompletedTask;
         }
 
         internal IAsyncResult BeginSerialize(XmlDictionaryWriter writer, object[] parameters, object returnValue, AsyncCallback callback, object state)
@@ -109,29 +80,37 @@ namespace System.ServiceModel.Dispatcher
             SerializeAsyncResult.End(result);
         }
 
-        internal class SerializeAsyncResult : AsyncResult
+        class SerializeAsyncResult : AsyncResult
         {
-            private static AsyncCompletion s_handleEndSerialize = new AsyncCompletion(HandleEndSerialize);
+            static AsyncCompletion handleEndSerialize = new AsyncCompletion(HandleEndSerialize);
 
-            private StreamFormatter _streamFormatter;
-            private XmlDictionaryWriter _writer;
+            StreamFormatter streamFormatter;
+            XmlDictionaryWriter writer;
 
             internal SerializeAsyncResult(StreamFormatter streamFormatter, XmlDictionaryWriter writer, object[] parameters, object returnValue,
                 AsyncCallback callback, object state)
                 : base(callback, state)
             {
-                _streamFormatter = streamFormatter;
-                _writer = writer;
+                this.streamFormatter = streamFormatter;
+                this.writer = writer;
+                bool completeSelf = true;
 
-                // As we use the Task-returning method for async operation,
-                // we shouldn't get to this point. Throw exception just in case.
-                throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+                Stream streamValue = streamFormatter.GetStreamAndWriteStartWrapperIfNecessary(writer, parameters, returnValue);
+                IAsyncResult result = writer.WriteValueAsync(new OperationStreamProvider(streamValue)).AsAsyncResult(PrepareAsyncCompletion(handleEndSerialize), this);
+                completeSelf = SyncContinue(result);
+
+                // Note:  The current task implementation hard codes the "IAsyncResult.CompletedSynchronously" property to false, so this fast path will never
+                // be hit, and we will always hop threads.  CSDMain #210220
+                if (completeSelf)
+                {
+                    Complete(true);
+                }
             }
 
-            private static bool HandleEndSerialize(IAsyncResult result)
+            static bool HandleEndSerialize(IAsyncResult result)
             {
                 SerializeAsyncResult thisPtr = (SerializeAsyncResult)result.AsyncState;
-                thisPtr._streamFormatter.WriteEndWrapperIfNecessary(thisPtr._writer);
+                thisPtr.streamFormatter.WriteEndWrapperIfNecessary(thisPtr.writer);
                 return true;
             }
 
@@ -143,48 +122,48 @@ namespace System.ServiceModel.Dispatcher
 
         internal void Deserialize(object[] parameters, ref object retVal, Message message)
         {
-            SetStreamValue(parameters, ref retVal, new MessageBodyStream(message, WrapperName, WrapperNamespace, PartName, PartNamespace, _isRequest));
+            SetStreamValue(parameters, ref retVal, new MessageBodyStream(message, WrapperName, WrapperNamespace, PartName, PartNamespace, isRequest));
         }
 
         internal string WrapperName
         {
-            get { return _wrapperName; }
-            set { _wrapperName = value; }
+            get { return wrapperName; }
+            set { wrapperName = value; }
         }
 
         internal string WrapperNamespace
         {
-            get { return _wrapperNS; }
-            set { _wrapperNS = value; }
+            get { return wrapperNS; }
+            set { wrapperNS = value; }
         }
 
         internal string PartName
         {
-            get { return _partName; }
+            get { return partName; }
         }
 
         internal string PartNamespace
         {
-            get { return _partNS; }
+            get { return partNS; }
         }
 
 
-        private Stream GetStreamValue(object[] parameters, object returnValue)
+        Stream GetStreamValue(object[] parameters, object returnValue)
         {
-            if (_streamIndex == returnValueIndex)
+            if (streamIndex == returnValueIndex)
                 return (Stream)returnValue;
-            return (Stream)parameters[_streamIndex];
+            return (Stream)parameters[streamIndex];
         }
 
-        private void SetStreamValue(object[] parameters, ref object returnValue, Stream streamValue)
+        void SetStreamValue(object[] parameters, ref object returnValue, Stream streamValue)
         {
-            if (_streamIndex == returnValueIndex)
+            if (streamIndex == returnValueIndex)
                 returnValue = streamValue;
             else
-                parameters[_streamIndex] = streamValue;
+                parameters[streamIndex] = streamValue;
         }
 
-        private static MessagePartDescription ValidateAndGetStreamPart(MessageDescription messageDescription, bool isRequest, string operationName)
+        static MessagePartDescription ValidateAndGetStreamPart(MessageDescription messageDescription, bool isRequest, string operationName)
         {
             MessagePartDescription part = GetStreamPart(messageDescription);
             if (part != null)
@@ -192,11 +171,11 @@ namespace System.ServiceModel.Dispatcher
             if (HasStream(messageDescription))
             {
                 if (messageDescription.IsTypedMessage)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidStreamInTypedMessage, messageDescription.MessageName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidStreamInTypedMessage, messageDescription.MessageName)));
                 else if (isRequest)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidStreamInRequest, operationName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidStreamInRequest, operationName)));
                 else
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidStreamInResponse, operationName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidStreamInResponse, operationName)));
             }
             return null;
         }
@@ -213,7 +192,7 @@ namespace System.ServiceModel.Dispatcher
             return false;
         }
 
-        private static MessagePartDescription GetStreamPart(MessageDescription messageDescription)
+        static MessagePartDescription GetStreamPart(MessageDescription messageDescription)
         {
             if (OperationFormatter.IsValidReturnValue(messageDescription.Body.ReturnValue))
             {
@@ -237,65 +216,66 @@ namespace System.ServiceModel.Dispatcher
 
         internal class MessageBodyStream : Stream
         {
-            private Message _message;
-            private XmlDictionaryReader _reader;
-            private long _position;
-            private string _wrapperName, _wrapperNs;
-            private string _elementName, _elementNs;
-            private bool _isRequest;
+            Message message;
+            XmlDictionaryReader reader;
+            long position;
+            string wrapperName, wrapperNs;
+            string elementName, elementNs;
+            bool isRequest;
             internal MessageBodyStream(Message message, string wrapperName, string wrapperNs, string elementName, string elementNs, bool isRequest)
             {
-                _message = message;
-                _position = 0;
-                _wrapperName = wrapperName;
-                _wrapperNs = wrapperNs;
-                _elementName = elementName;
-                _elementNs = elementNs;
-                _isRequest = isRequest;
+                this.message = message;
+                this.position = 0;
+                this.wrapperName = wrapperName;
+                this.wrapperNs = wrapperNs;
+                this.elementName = elementName;
+                this.elementNs = elementNs;
+                this.isRequest = isRequest;
             }
 
             public override int Read(byte[] buffer, int offset, int count)
             {
                 EnsureStreamIsOpen();
                 if (buffer == null)
-                    throw TraceUtility.ThrowHelperError(new ArgumentNullException("buffer"), _message);
+                    throw TraceUtility.ThrowHelperError(new ArgumentNullException("buffer"), this.message);
                 if (offset < 0)
                     throw TraceUtility.ThrowHelperError(new ArgumentOutOfRangeException("offset", offset,
-                                                    SR.Format(SR.ValueMustBeNonNegative)), _message);
+                                                    SR.GetString(SR.ValueMustBeNonNegative)), this.message);
                 if (count < 0)
                     throw TraceUtility.ThrowHelperError(new ArgumentOutOfRangeException("count", count,
-                                                    SR.Format(SR.ValueMustBeNonNegative)), _message);
+                                                    SR.GetString(SR.ValueMustBeNonNegative)), this.message);
                 if (buffer.Length - offset < count)
-                    throw TraceUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.SFxInvalidStreamOffsetLength, offset + count)), _message);
+                    throw TraceUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.SFxInvalidStreamOffsetLength, offset + count)), this.message);
 
                 try
                 {
-                    if (_reader == null)
+
+                    if (reader == null)
                     {
-                        _reader = _message.GetReaderAtBodyContents();
-                        if (_wrapperName != null)
+                        reader = message.GetReaderAtBodyContents();
+                        if (wrapperName != null)
                         {
-                            _reader.MoveToContent();
-                            _reader.ReadStartElement(_wrapperName, _wrapperNs);
+                            reader.MoveToContent();
+                            reader.ReadStartElement(wrapperName, wrapperNs);
                         }
-                        _reader.MoveToContent();
-                        if (_reader.NodeType == XmlNodeType.EndElement)
+                        reader.MoveToContent();
+                        if (reader.NodeType == XmlNodeType.EndElement)
                         {
                             return 0;
                         }
 
-                        _reader.ReadStartElement(_elementName, _elementNs);
+                        reader.ReadStartElement(elementName, elementNs);
                     }
-                    if (_reader.MoveToContent() != XmlNodeType.Text)
+                    if (reader.MoveToContent() != XmlNodeType.Text)
                     {
-                        Exhaust(_reader);
+                        Exhaust(reader);
                         return 0;
                     }
-                    int bytesRead = _reader.ReadContentAsBase64(buffer, offset, count);
-                    _position += bytesRead;
+                    int bytesRead = reader.ReadContentAsBase64(buffer, offset, count);
+                    position += bytesRead;
                     if (bytesRead == 0)
                     {
-                        Exhaust(_reader);
+                        Exhaust(reader);
                     }
                     return bytesRead;
                 }
@@ -303,18 +283,18 @@ namespace System.ServiceModel.Dispatcher
                 {
                     if (Fx.IsFatal(ex))
                         throw;
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new IOException(SR.Format(SR.SFxStreamIOException), ex));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new IOException(SR.GetString(SR.SFxStreamIOException), ex));
                 }
             }
 
             private void EnsureStreamIsOpen()
             {
-                if (_message.State == MessageState.Closed)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(SR.Format(
-                        _isRequest ? SR.SFxStreamRequestMessageClosed : SR.SFxStreamResponseMessageClosed)));
+                if (message.State == MessageState.Closed)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(SR.GetString(
+                        isRequest ? SR.SFxStreamRequestMessageClosed : SR.SFxStreamResponseMessageClosed)));
             }
 
-            private static void Exhaust(XmlDictionaryReader reader)
+            static void Exhaust(XmlDictionaryReader reader)
             {
                 if (reader != null)
                 {
@@ -330,132 +310,58 @@ namespace System.ServiceModel.Dispatcher
                 get
                 {
                     EnsureStreamIsOpen();
-                    return _position;
+                    return position;
                 }
-                set { throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message); }
+                set { throw TraceUtility.ThrowHelperError(new NotSupportedException(), message); }
             }
 
-            protected override void Dispose(bool isDisposing)
+            public override void Close()
             {
-                _message.Close();
-                if (_reader != null)
+                message.Close();
+                if (reader != null)
                 {
-                    _reader.Dispose();
-                    _reader = null;
+                    reader.Close();
+                    reader = null;
                 }
-                base.Dispose(isDisposing);
+                base.Close();
             }
-            public override bool CanRead { get { return _message.State != MessageState.Closed; } }
+            public override bool CanRead { get { return message.State != MessageState.Closed; } }
             public override bool CanSeek { get { return false; } }
             public override bool CanWrite { get { return false; } }
             public override long Length
             {
                 get
                 {
-                    throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message);
+#pragma warning suppress 56503 // [....], not a seekable stream, it is ok to throw NotSupported in this case
+                    throw TraceUtility.ThrowHelperError(new NotSupportedException(), this.message);
                 }
             }
-            public override void Flush() { throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message); }
-            public override long Seek(long offset, SeekOrigin origin) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message); }
-            public override void SetLength(long value) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message); }
-            public override void Write(byte[] buffer, int offset, int count) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), _message); }
+            public override void Flush() { throw TraceUtility.ThrowHelperError(new NotSupportedException(), this.message); }
+            public override long Seek(long offset, SeekOrigin origin) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), this.message); }
+            public override void SetLength(long value) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), this.message); }
+            public override void Write(byte[] buffer, int offset, int count) { throw TraceUtility.ThrowHelperError(new NotSupportedException(), this.message); }
         }
 
-        internal class OperationStreamProvider
+        class OperationStreamProvider : IStreamProvider
         {
-            private Stream _stream;
+            Stream stream;
 
             internal OperationStreamProvider(Stream stream)
             {
-                _stream = stream;
+                this.stream = stream;
             }
 
             public Stream GetStream()
             {
-                return _stream;
+                return stream;
             }
             public void ReleaseStream(Stream stream)
             {
                 //Noop
             }
         }
-
-        internal class StreamFormatterHelper
-        {
-            // The method was duplicated from the desktop implementation of
-            // System.Xml.XmlDictionaryWriter.WriteValue(IStreamProvider)
-            public static void WriteValue(XmlDictionaryWriter writer, OperationStreamProvider value)
-            {
-                if (value == null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
-
-                Stream stream = value.GetStream();
-                if (stream == null)
-                {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.Format(SR.XmlInvalidStream)));
-                }
-
-                int blockSize = 256;
-                int bytesRead = 0;
-                byte[] block = new byte[blockSize];
-                while (true)
-                {
-                    bytesRead = stream.Read(block, 0, blockSize);
-                    if (bytesRead > 0)
-                    {
-                        writer.WriteBase64(block, 0, bytesRead);
-                    }
-                    else
-                    {
-                        break;
-                    }
-
-                    if (blockSize < 65536 && bytesRead == blockSize)
-                    {
-                        blockSize = blockSize * 16;
-                        block = new byte[blockSize];
-                    }
-                }
-
-                value.ReleaseStream(stream);
-            }
-
-            public static async Task WriteValueAsync(XmlDictionaryWriter writer, OperationStreamProvider value)
-            {
-                if (value == null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
-
-                Stream stream = value.GetStream();
-                if (stream == null)
-                {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.Format(SR.XmlInvalidStream)));
-                }
-
-                int blockSize = 256;
-                int bytesRead = 0;
-                byte[] block = new byte[blockSize];
-                while (true)
-                {
-                    bytesRead = await stream.ReadAsync(block, 0, blockSize);
-                    if (bytesRead > 0)
-                    {
-                        // XmlDictionaryWriter has not implemented WriteBase64Async() yet.
-                        writer.WriteBase64(block, 0, bytesRead);
-                    }
-                    else
-                    {
-                        break;
-                    }
-
-                    if (blockSize < 65536 && bytesRead == blockSize)
-                    {
-                        blockSize = blockSize * 16;
-                        block = new byte[blockSize];
-                    }
-                }
-
-                value.ReleaseStream(stream);
-            }
-        }
     }
+
+
+
 }

@@ -1,13 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.ServiceModel;
+
     public sealed class UserNamePasswordClientCredential
     {
-        private string _userName;
-        private string _password;
-        private bool _isReadOnly;
+        string userName;
+        string password;
+        bool isReadOnly;
 
         internal UserNamePasswordClientCredential()
         {
@@ -16,47 +19,47 @@ namespace System.ServiceModel.Security
 
         internal UserNamePasswordClientCredential(UserNamePasswordClientCredential other)
         {
-            _userName = other._userName;
-            _password = other._password;
-            _isReadOnly = other._isReadOnly;
+            this.userName = other.userName;
+            this.password = other.password;
+            this.isReadOnly = other.isReadOnly;
         }
 
         public string UserName
         {
-            get
+            get 
             {
-                return _userName;
+                return this.userName;
             }
             set
             {
                 ThrowIfImmutable();
-                _userName = value;
+                this.userName = value;
             }
         }
 
         public string Password
         {
-            get
+            get 
             {
-                return _password;
+                return this.password;
             }
             set
             {
                 ThrowIfImmutable();
-                _password = value;
+                this.password = value;
             }
         }
 
         internal void MakeReadOnly()
         {
-            _isReadOnly = true;
+            this.isReadOnly = true;
         }
 
-        private void ThrowIfImmutable()
+        void ThrowIfImmutable()
         {
-            if (_isReadOnly)
+            if (this.isReadOnly)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
             }
         }
     }

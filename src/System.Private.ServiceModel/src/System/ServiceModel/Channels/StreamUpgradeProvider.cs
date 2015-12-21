@@ -1,12 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public abstract class StreamUpgradeProvider : CommunicationObject, IAsyncCommunicationObject
+    public abstract class StreamUpgradeProvider : CommunicationObject
     {
-        private TimeSpan _closeTimeout;
-        private TimeSpan _openTimeout;
+        TimeSpan closeTimeout;
+        TimeSpan openTimeout;
 
         protected StreamUpgradeProvider()
             : this(null)
@@ -17,24 +17,24 @@ namespace System.ServiceModel.Channels
         {
             if (timeouts != null)
             {
-                _closeTimeout = timeouts.CloseTimeout;
-                _openTimeout = timeouts.OpenTimeout;
+                this.closeTimeout = timeouts.CloseTimeout;
+                this.openTimeout = timeouts.OpenTimeout;
             }
             else
             {
-                _closeTimeout = ServiceDefaults.CloseTimeout;
-                _openTimeout = ServiceDefaults.OpenTimeout;
+                this.closeTimeout = ServiceDefaults.CloseTimeout;
+                this.openTimeout = ServiceDefaults.OpenTimeout;
             }
         }
 
         protected override TimeSpan DefaultCloseTimeout
         {
-            get { return _closeTimeout; }
+            get { return this.closeTimeout; }
         }
 
         protected override TimeSpan DefaultOpenTimeout
         {
-            get { return _closeTimeout; }
+            get { return this.closeTimeout; }
         }
 
         public virtual T GetProperty<T>() where T : class

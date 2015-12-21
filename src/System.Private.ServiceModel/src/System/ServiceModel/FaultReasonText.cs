@@ -1,21 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Globalization;
+    using System.Threading;
+
     public class FaultReasonText
     {
-        private string _xmlLang;
-        private string _text;
+        string xmlLang;
+        string text;
 
         public FaultReasonText(string text)
         {
             if (text == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("text"));
-            _text = text;
-            _xmlLang = CultureInfo.CurrentCulture.Name;
+            this.text = text;
+            this.xmlLang = CultureInfo.CurrentCulture.Name;
         }
 
         public FaultReasonText(string text, string xmlLang)
@@ -24,8 +25,8 @@ namespace System.ServiceModel
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("text"));
             if (xmlLang == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("xmlLang"));
-            _text = text;
-            _xmlLang = xmlLang;
+            this.text = text;
+            this.xmlLang = xmlLang;
         }
 
         public FaultReasonText(string text, CultureInfo cultureInfo)
@@ -34,8 +35,8 @@ namespace System.ServiceModel
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("text"));
             if (cultureInfo == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("cultureInfo"));
-            _text = text;
-            _xmlLang = cultureInfo.Name;
+            this.text = text;
+            this.xmlLang = cultureInfo.Name;
         }
 
         public bool Matches(CultureInfo cultureInfo)
@@ -43,17 +44,17 @@ namespace System.ServiceModel
             if (cultureInfo == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("cultureInfo"));
 
-            return _xmlLang == cultureInfo.Name;
+            return xmlLang == cultureInfo.Name;
         }
 
         public string XmlLang
         {
-            get { return _xmlLang; }
+            get { return xmlLang; }
         }
 
         public string Text
         {
-            get { return _text; }
+            get { return text; }
         }
     }
 }

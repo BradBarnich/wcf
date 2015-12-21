@@ -1,28 +1,37 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.Runtime;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Channels;
+
+    [Serializable]
     internal class ActionMismatchAddressingException : ProtocolException
     {
-        private string _httpActionHeader;
-        private string _soapActionHeader;
+        string httpActionHeader;
+        string soapActionHeader;
 
         public ActionMismatchAddressingException(string message, string soapActionHeader, string httpActionHeader)
             : base(message)
         {
-            _httpActionHeader = httpActionHeader;
-            _soapActionHeader = soapActionHeader;
+            this.httpActionHeader = httpActionHeader;
+            this.soapActionHeader = soapActionHeader;
+        }
+
+        protected ActionMismatchAddressingException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
         }
 
         public string HttpActionHeader
         {
             get
             {
-                return _httpActionHeader;
+                return httpActionHeader;
             }
         }
 
@@ -30,7 +39,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _soapActionHeader;
+                return soapActionHeader;
             }
         }
 

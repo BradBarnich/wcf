@@ -1,84 +1,115 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.ServiceModel.Description;
-using System.Text;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.ServiceModel.Description;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Globalization;
+    using System.Text;
+
     public class BindingContext
     {
-        private CustomBinding _binding;
-        private BindingParameterCollection _bindingParameters;
-        private Uri _listenUriBaseAddress;
-        private ListenUriMode _listenUriMode;
-        private string _listenUriRelativeAddress;
-        private BindingElementCollection _remainingBindingElements;  // kept to ensure each BE builds itself once
+        CustomBinding binding;
+        BindingParameterCollection bindingParameters;
+        Uri listenUriBaseAddress;
+        ListenUriMode listenUriMode;
+        string listenUriRelativeAddress;
+        BindingElementCollection remainingBindingElements;  // kept to ensure each BE builds itself once
 
         public BindingContext(CustomBinding binding, BindingParameterCollection parameters)
+            : this(binding, parameters, null, string.Empty, ListenUriMode.Explicit)
+        {
+        }
+
+        public BindingContext(CustomBinding binding, BindingParameterCollection parameters, Uri listenUriBaseAddress, string listenUriRelativeAddress, ListenUriMode listenUriMode)
         {
             if (binding == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("binding");
             }
+            if (listenUriRelativeAddress == null)
+            {
+                listenUriRelativeAddress = string.Empty;
+            }
+            if (!ListenUriModeHelper.IsDefined(listenUriMode))
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("listenUriMode"));
+            }
 
-            Initialize(binding, binding.Elements, parameters);
+            Initialize(binding, binding.Elements, parameters, listenUriBaseAddress, listenUriRelativeAddress, listenUriMode);
         }
 
-        private BindingContext(CustomBinding binding,
+        BindingContext(CustomBinding binding,
                        BindingElementCollection remainingBindingElements,
-                       BindingParameterCollection parameters)
+                       BindingParameterCollection parameters,
+                       Uri listenUriBaseAddress,
+                       string listenUriRelativeAddress,
+                       ListenUriMode listenUriMode)
         {
-            Initialize(binding, remainingBindingElements, parameters);
+            Initialize(binding, remainingBindingElements, parameters, listenUriBaseAddress, listenUriRelativeAddress, listenUriMode);
         }
 
-        private void Initialize(CustomBinding binding,
+        void Initialize(CustomBinding binding,
                         BindingElementCollection remainingBindingElements,
-                        BindingParameterCollection parameters)
+                        BindingParameterCollection parameters,
+                        Uri listenUriBaseAddress,
+                        string listenUriRelativeAddress,
+                        ListenUriMode listenUriMode)
         {
-            _binding = binding;
+            this.binding = binding;
 
-            _remainingBindingElements = new BindingElementCollection(remainingBindingElements);
-            _bindingParameters = new BindingParameterCollection(parameters);
+            this.remainingBindingElements = new BindingElementCollection(remainingBindingElements);
+            this.bindingParameters = new BindingParameterCollection(parameters);
+            this.listenUriBaseAddress = listenUriBaseAddress;
+            this.listenUriRelativeAddress = listenUriRelativeAddress;
+            this.listenUriMode = listenUriMode;
         }
 
         public CustomBinding Binding
         {
-            get { return _binding; }
+            get { return this.binding; }
         }
 
         public BindingParameterCollection BindingParameters
         {
-            get { return _bindingParameters; }
+            get { return this.bindingParameters; }
         }
 
         public Uri ListenUriBaseAddress
         {
-            get { return _listenUriBaseAddress; }
-            set { _listenUriBaseAddress = value; }
+            get { return this.listenUriBaseAddress; }
+            set { this.listenUriBaseAddress = value; }
         }
 
         public ListenUriMode ListenUriMode
         {
-            get { return _listenUriMode; }
-            set { _listenUriMode = value; }
+            get { return this.listenUriMode; }
+            set { this.listenUriMode = value; }
         }
 
         public string ListenUriRelativeAddress
         {
-            get { return _listenUriRelativeAddress; }
-            set { _listenUriRelativeAddress = value; }
+            get { return this.listenUriRelativeAddress; }
+            set { this.listenUriRelativeAddress = value; }
         }
 
         public BindingElementCollection RemainingBindingElements
         {
-            get { return _remainingBindingElements; }
+            get { return this.remainingBindingElements; }
         }
 
         public IChannelFactory<TChannel> BuildInnerChannelFactory<TChannel>()
         {
             return this.RemoveNextElement().BuildChannelFactory<TChannel>(this);
+        }
+
+        public IChannelListener<TChannel> BuildInnerChannelListener<TChannel>()
+            where TChannel : class, IChannel
+        {
+            return this.RemoveNextElement().BuildChannelListener<TChannel>(this);
         }
 
         public bool CanBuildInnerChannelFactory<TChannel>()
@@ -87,10 +118,17 @@ namespace System.ServiceModel.Channels
             return clone.RemoveNextElement().CanBuildChannelFactory<TChannel>(clone);
         }
 
+        public bool CanBuildInnerChannelListener<TChannel>()
+            where TChannel : class, IChannel
+        {
+            BindingContext clone = this.Clone();
+            return clone.RemoveNextElement().CanBuildChannelListener<TChannel>(clone);
+        }
+
         public T GetInnerProperty<T>()
             where T : class
         {
-            if (_remainingBindingElements.Count == 0)
+            if (this.remainingBindingElements.Count == 0)
             {
                 return null;
             }
@@ -103,16 +141,17 @@ namespace System.ServiceModel.Channels
 
         public BindingContext Clone()
         {
-            return new BindingContext(_binding, _remainingBindingElements, _bindingParameters);
+            return new BindingContext(this.binding, this.remainingBindingElements, this.bindingParameters,
+                this.listenUriBaseAddress, this.listenUriRelativeAddress, this.listenUriMode);
         }
 
-        private BindingElement RemoveNextElement()
+        BindingElement RemoveNextElement()
         {
-            BindingElement element = _remainingBindingElements.Remove<BindingElement>();
+            BindingElement element = this.remainingBindingElements.Remove<BindingElement>();
             if (element != null)
                 return element;
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(
-                SR.NoChannelBuilderAvailable, _binding.Name, _binding.Namespace)));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(
+                SR.NoChannelBuilderAvailable, this.binding.Name, this.binding.Namespace)));
         }
 
         internal void ValidateBindingElementsConsumed()
@@ -130,7 +169,7 @@ namespace System.ServiceModel.Channels
                     string typeString = bindingElement.GetType().ToString();
                     builder.Append(typeString.Substring(typeString.LastIndexOf('.') + 1));
                 }
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.NotAllBindingElementsBuilt, builder.ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.NotAllBindingElementsBuilt, builder.ToString())));
             }
         }
     }

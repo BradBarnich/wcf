@@ -1,11 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics.Contracts;
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+
     class PerSessionInstanceContextProvider : InstanceContextProviderBase
     {
 
@@ -25,8 +27,29 @@ namespace System.ServiceModel.Dispatcher
             //  6. Bind channel to the InstanceContext.
             //  7. For all further requests on the same channel, we will return ServiceChannel.InstanceContext which will be non null.
             ServiceChannel serviceChannel = this.GetServiceChannelFromProxy(channel);
-            Contract.Assert((serviceChannel != null), "System.ServiceModel.Dispatcher.PerSessionInstanceContextProvider.GetExistingInstanceContext(), serviceChannel != null");
+            Fx.Assert((serviceChannel != null), "System.ServiceModel.Dispatcher.PerSessionInstanceContextProvider.GetExistingInstanceContext(), serviceChannel != null");
             return (serviceChannel != null) ? serviceChannel.InstanceContext : null;
+        }
+
+        public override void InitializeInstanceContext(InstanceContext instanceContext, Message message, IContextChannel channel)
+        {
+            ServiceChannel serviceChannel = GetServiceChannelFromProxy(channel);
+            if (serviceChannel != null && serviceChannel.HasSession)
+            {
+                instanceContext.BindIncomingChannel(serviceChannel);
+            }
+        }
+
+
+        public override bool IsIdle(InstanceContext instanceContext)
+        {
+            //By default return true
+            return true;
+        }
+
+        public override void NotifyIdle(InstanceContextIdleCallback callback, InstanceContext instanceContext)
+        {
+            //no-op
         }
     }
 }

@@ -1,14 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
-using System.Runtime.Diagnostics;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal struct ProxyRpc
+    using System;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.Runtime.Diagnostics;
+
+    struct ProxyRpc
     {
         internal readonly string Action;
         internal ServiceModelActivity Activity;
@@ -23,15 +25,15 @@ namespace System.ServiceModel.Dispatcher
         internal object ReturnValue;
         internal MessageVersion MessageVersion;
         internal readonly TimeoutHelper TimeoutHelper;
-        private EventTraceActivity _eventTraceActivity;
+        EventTraceActivity eventTraceActivity;
 
         internal ProxyRpc(ServiceChannel channel, ProxyOperationRuntime operation, string action, object[] inputs, TimeSpan timeout)
         {
             this.Action = action;
             this.Activity = null;
-            _eventTraceActivity = null;
+            this.eventTraceActivity = null;
             this.Channel = channel;
-            this.Correlation = EmptyArray<object>.Allocate(operation.Parent.CorrelationCount);
+            this.Correlation = EmptyArray.Allocate(operation.Parent.CorrelationCount);
             this.InputParameters = inputs;
             this.Operation = operation;
             this.OutputParameters = null;
@@ -47,17 +49,18 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                if (_eventTraceActivity == null)
+                if (this.eventTraceActivity == null)
                 {
-                    _eventTraceActivity = new EventTraceActivity();
+                    this.eventTraceActivity = new EventTraceActivity();
                 }
-                return _eventTraceActivity;
+                return this.eventTraceActivity;
             }
 
             set
             {
-                _eventTraceActivity = value;
+                this.eventTraceActivity = value;
             }
         }
+
     }
 }

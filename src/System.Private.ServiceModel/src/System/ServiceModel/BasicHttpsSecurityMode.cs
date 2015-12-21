@@ -1,18 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.Runtime;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Globalization;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+
     public enum BasicHttpsSecurityMode
     {
         Transport,
         TransportWithMessageCredential
     }
 
-    internal static class BasicHttpsSecurityModeHelper
+    static class BasicHttpsSecurityModeHelper
     {
         internal static bool IsDefined(BasicHttpsSecurityMode value)
         {

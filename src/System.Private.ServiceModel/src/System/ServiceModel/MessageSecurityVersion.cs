@@ -1,11 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Security;
-using System.IdentityModel.Selectors;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.ServiceModel.Security;
+    using System.IdentityModel.Selectors;
+
     public abstract class MessageSecurityVersion
     {
         public static MessageSecurityVersion WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11
@@ -110,13 +110,13 @@ namespace System.ServiceModel
         public abstract BasicSecurityProfileVersion BasicSecurityProfileVersion { get; }
         internal abstract MessageSecurityTokenVersion MessageSecurityTokenVersion { get; }
 
-        internal class WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override BasicSecurityProfileVersion BasicSecurityProfileVersion
@@ -140,13 +140,13 @@ namespace System.ServiceModel
             }
         }
 
-        internal class WSSecurity10WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity10WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity10WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity10WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override BasicSecurityProfileVersion BasicSecurityProfileVersion
@@ -170,13 +170,13 @@ namespace System.ServiceModel
             }
         }
 
-        internal class WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity11WSTrustFebruary2005WSSecureConversationFebruary2005WSSecurityPolicy11BasicSecurityProfile10MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override SecurityPolicyVersion SecurityPolicyVersion
@@ -200,13 +200,13 @@ namespace System.ServiceModel
             }
         }
 
-        internal class WSSecurity10WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity10WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity10WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity10WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override SecurityPolicyVersion SecurityPolicyVersion
@@ -230,13 +230,13 @@ namespace System.ServiceModel
             }
         }
 
-        internal class WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override SecurityPolicyVersion SecurityPolicyVersion
@@ -260,13 +260,13 @@ namespace System.ServiceModel
             }
         }
 
-        internal class WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
+        class WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion : MessageSecurityVersion
         {
-            private static MessageSecurityVersion s_instance = new WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion();
+            static MessageSecurityVersion instance = new WSSecurity11WSTrust13WSSecureConversation13WSSecurityPolicy12BasicSecurityProfile10MessageSecurityVersion();
 
             public static MessageSecurityVersion Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public override SecurityPolicyVersion SecurityPolicyVersion

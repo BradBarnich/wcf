@@ -1,30 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.ServiceModel.Channels;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Security;
+    using System.Xml;
+
     public class ScopedMessagePartSpecification
     {
-        private MessagePartSpecification _channelParts;
-        private Dictionary<string, MessagePartSpecification> _actionParts;
-        private Dictionary<string, MessagePartSpecification> _readOnlyNormalizedActionParts;
-        private bool _isReadOnly;
+        MessagePartSpecification channelParts;
+        Dictionary<string, MessagePartSpecification> actionParts;
+        Dictionary<string, MessagePartSpecification> readOnlyNormalizedActionParts;
+        bool isReadOnly;
 
         public ScopedMessagePartSpecification()
         {
-            _channelParts = new MessagePartSpecification();
-            _actionParts = new Dictionary<string, MessagePartSpecification>();
+            this.channelParts = new MessagePartSpecification();
+            this.actionParts = new Dictionary<string, MessagePartSpecification>();
         }
 
         public ICollection<string> Actions
         {
             get
             {
-                return _actionParts.Keys;
+                return this.actionParts.Keys;
             }
         }
 
@@ -32,7 +36,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _channelParts;
+                return this.channelParts;
             }
         }
 
@@ -40,7 +44,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _isReadOnly;
+                return this.isReadOnly;
             }
         }
 
@@ -50,14 +54,14 @@ namespace System.ServiceModel.Security
             if (other == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("other"));
 
-            _channelParts.Union(other._channelParts);
-            if (other._actionParts != null)
+            this.channelParts.Union(other.channelParts);
+            if (other.actionParts != null)
             {
-                foreach (string action in other._actionParts.Keys)
+                foreach (string action in other.actionParts.Keys)
                 {
                     MessagePartSpecification p = new MessagePartSpecification();
-                    p.Union(other._actionParts[action]);
-                    _actionParts[action] = p;
+                    p.Union(other.actionParts[action]);
+                    this.actionParts[action] = p;
                 }
             }
         }
@@ -65,9 +69,9 @@ namespace System.ServiceModel.Security
         internal ScopedMessagePartSpecification(ScopedMessagePartSpecification other, bool newIncludeBody)
             : this(other)
         {
-            _channelParts.IsBodyIncluded = newIncludeBody;
-            foreach (string action in _actionParts.Keys)
-                _actionParts[action].IsBodyIncluded = newIncludeBody;
+            this.channelParts.IsBodyIncluded = newIncludeBody;
+            foreach (string action in this.actionParts.Keys)
+                this.actionParts[action].IsBodyIncluded = newIncludeBody;
         }
 
         public void AddParts(MessagePartSpecification parts)
@@ -77,7 +81,7 @@ namespace System.ServiceModel.Security
 
             ThrowIfReadOnly();
 
-            _channelParts.Union(parts);
+            this.channelParts.Union(parts);
         }
 
         public void AddParts(MessagePartSpecification parts, string action)
@@ -89,9 +93,9 @@ namespace System.ServiceModel.Security
 
             ThrowIfReadOnly();
 
-            if (!_actionParts.ContainsKey(action))
-                _actionParts[action] = new MessagePartSpecification();
-            _actionParts[action].Union(parts);
+            if (!this.actionParts.ContainsKey(action))
+                this.actionParts[action] = new MessagePartSpecification();
+            this.actionParts[action].Union(parts);
         }
 
         internal void AddParts(MessagePartSpecification parts, XmlDictionaryString action)
@@ -104,7 +108,7 @@ namespace System.ServiceModel.Security
         internal bool IsEmpty()
         {
             bool result;
-            if (!_channelParts.IsEmpty())
+            if (!channelParts.IsEmpty())
             {
                 result = false;
             }
@@ -125,7 +129,7 @@ namespace System.ServiceModel.Security
                 }
             }
 
-            return result;
+            return result;   
         }
 
         public bool TryGetParts(string action, bool excludeChannelScope, out MessagePartSpecification parts)
@@ -134,20 +138,20 @@ namespace System.ServiceModel.Security
                 action = MessageHeaders.WildcardAction;
             parts = null;
 
-            if (_isReadOnly)
+            if (this.isReadOnly)
             {
-                if (_readOnlyNormalizedActionParts.ContainsKey(action))
+                if (this.readOnlyNormalizedActionParts.ContainsKey(action))
                     if (excludeChannelScope)
-                        parts = _actionParts[action];
+                        parts = this.actionParts[action];
                     else
-                        parts = _readOnlyNormalizedActionParts[action];
+                        parts = this.readOnlyNormalizedActionParts[action];
             }
-            else if (_actionParts.ContainsKey(action))
+            else if (this.actionParts.ContainsKey(action))
             {
                 MessagePartSpecification p = new MessagePartSpecification();
-                p.Union(_actionParts[action]);
+                p.Union(this.actionParts[action]);
                 if (!excludeChannelScope)
-                    p.Union(_channelParts);
+                    p.Union(this.channelParts);
                 parts = p;
             }
 
@@ -163,14 +167,14 @@ namespace System.ServiceModel.Security
             target.ChannelParts.IsBodyIncluded = this.ChannelParts.IsBodyIncluded;
             foreach (XmlQualifiedName headerType in ChannelParts.HeaderTypes)
             {
-                if (!target._channelParts.IsHeaderIncluded(headerType.Name, headerType.Namespace))
+                if (!target.channelParts.IsHeaderIncluded(headerType.Name, headerType.Namespace))
                 {
                     target.ChannelParts.HeaderTypes.Add(headerType);
                 }
             }
-            foreach (string action in _actionParts.Keys)
+            foreach (string action in this.actionParts.Keys)
             {
-                target.AddParts(_actionParts[action], action);
+                target.AddParts(this.actionParts[action], action);
             }
         }
 
@@ -181,25 +185,25 @@ namespace System.ServiceModel.Security
 
         public void MakeReadOnly()
         {
-            if (!_isReadOnly)
+            if (!this.isReadOnly)
             {
-                _readOnlyNormalizedActionParts = new Dictionary<string, MessagePartSpecification>();
-                foreach (string action in _actionParts.Keys)
+                this.readOnlyNormalizedActionParts = new Dictionary<string, MessagePartSpecification>();
+                foreach (string action in this.actionParts.Keys)
                 {
                     MessagePartSpecification p = new MessagePartSpecification();
-                    p.Union(_actionParts[action]);
-                    p.Union(_channelParts);
+                    p.Union(this.actionParts[action]);
+                    p.Union(this.channelParts);
                     p.MakeReadOnly();
-                    _readOnlyNormalizedActionParts[action] = p;
+                    this.readOnlyNormalizedActionParts[action] = p;
                 }
-                _isReadOnly = true;
+                this.isReadOnly = true;
             }
         }
 
-        private void ThrowIfReadOnly()
+        void ThrowIfReadOnly()
         {
-            if (_isReadOnly)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+            if (this.isReadOnly)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
         }
     }
 }

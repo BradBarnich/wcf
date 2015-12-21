@@ -1,25 +1,26 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.Runtime;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal sealed class SecurityTimestamp
+    using System.Globalization;
+    using System.Runtime;
+    using System.Xml;
+
+    sealed class SecurityTimestamp
     {
-        private const string DefaultFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+        const string DefaultFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
         //                            012345678901234567890123
 
         internal static readonly TimeSpan defaultTimeToLive = SecurityProtocolFactory.defaultTimestampValidityDuration;
-        private char[] _computedCreationTimeUtc;
-        private char[] _computedExpiryTimeUtc;
-        private DateTime _creationTimeUtc;
-        private DateTime _expiryTimeUtc;
-        private readonly string _id;
-        private readonly string _digestAlgorithm;
-        private readonly byte[] _digest;
+        char[] computedCreationTimeUtc;
+        char[] computedExpiryTimeUtc;
+        DateTime creationTimeUtc;
+        DateTime expiryTimeUtc;
+        readonly string id;
+        readonly string digestAlgorithm;
+        readonly byte[] digest;
 
         public SecurityTimestamp(DateTime creationTimeUtc, DateTime expiryTimeUtc, string id)
             : this(creationTimeUtc, expiryTimeUtc, id, null, null)
@@ -33,22 +34,22 @@ namespace System.ServiceModel.Security
 
             if (creationTimeUtc > expiryTimeUtc)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperWarning(new ArgumentOutOfRangeException("recordedExpiryTime", SR.CreationTimeUtcIsAfterExpiryTime));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperWarning(new ArgumentOutOfRangeException("recordedExpiryTime", SR.GetString(SR.CreationTimeUtcIsAfterExpiryTime)));
             }
 
-            _creationTimeUtc = creationTimeUtc;
-            _expiryTimeUtc = expiryTimeUtc;
-            _id = id;
+            this.creationTimeUtc = creationTimeUtc;
+            this.expiryTimeUtc = expiryTimeUtc;
+            this.id = id;
 
-            _digestAlgorithm = digestAlgorithm;
-            _digest = digest;
+            this.digestAlgorithm = digestAlgorithm;
+            this.digest = digest;
         }
 
         public DateTime CreationTimeUtc
         {
             get
             {
-                return _creationTimeUtc;
+                return this.creationTimeUtc;
             }
         }
 
@@ -56,7 +57,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _expiryTimeUtc;
+                return this.expiryTimeUtc;
             }
         }
 
@@ -64,7 +65,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _id;
+                return this.id;
             }
         }
 
@@ -72,34 +73,34 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _digestAlgorithm;
+                return this.digestAlgorithm;
             }
         }
 
         internal byte[] GetDigest()
         {
-            return _digest;
+            return this.digest;
         }
 
         internal char[] GetCreationTimeChars()
         {
-            if (_computedCreationTimeUtc == null)
+            if (this.computedCreationTimeUtc == null)
             {
-                _computedCreationTimeUtc = ToChars(ref _creationTimeUtc);
+                this.computedCreationTimeUtc = ToChars(ref this.creationTimeUtc);
             }
-            return _computedCreationTimeUtc;
+            return this.computedCreationTimeUtc;
         }
 
         internal char[] GetExpiryTimeChars()
         {
-            if (_computedExpiryTimeUtc == null)
+            if (this.computedExpiryTimeUtc == null)
             {
-                _computedExpiryTimeUtc = ToChars(ref _expiryTimeUtc);
+                this.computedExpiryTimeUtc = ToChars(ref this.expiryTimeUtc);
             }
-            return _computedExpiryTimeUtc;
+            return this.computedExpiryTimeUtc;
         }
 
-        private static char[] ToChars(ref DateTime utcTime)
+        static char[] ToChars(ref DateTime utcTime)
         {
             char[] buffer = new char[DefaultFormat.Length];
             int offset = 0;
@@ -128,7 +129,7 @@ namespace System.ServiceModel.Security
             return buffer;
         }
 
-        private static void ToChars(int n, char[] buffer, ref int offset, int count)
+        static void ToChars(int n, char[] buffer, ref int offset, int count)
         {
             for (int i = offset + count - 1; i >= offset; i--)
             {
@@ -145,8 +146,8 @@ namespace System.ServiceModel.Security
                 CultureInfo.InvariantCulture,
                 "SecurityTimestamp: Id={0}, CreationTimeUtc={1}, ExpirationTimeUtc={2}",
                 this.Id,
-                XmlConvert.ToString(new DateTimeOffset(this.CreationTimeUtc)),
-                XmlConvert.ToString(new DateTimeOffset(this.ExpiryTimeUtc)));
+                XmlConvert.ToString(this.CreationTimeUtc, XmlDateTimeSerializationMode.RoundtripKind),
+                XmlConvert.ToString(this.ExpiryTimeUtc, XmlDateTimeSerializationMode.RoundtripKind));
         }
 
         /// <summary>
@@ -161,7 +162,7 @@ namespace System.ServiceModel.Security
             // Check that the creation time is less than expiry time
             if (this.CreationTimeUtc >= this.ExpiryTimeUtc)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.Format(SR.TimeStampHasCreationAheadOfExpiry, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), this.ExpiryTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture))));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.GetString(SR.TimeStampHasCreationAheadOfExpiry, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), this.ExpiryTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture))));
             }
 
             ValidateFreshness(timeToLive, allowedClockSkew);
@@ -173,20 +174,21 @@ namespace System.ServiceModel.Security
             // check that the message has not expired
             if (this.ExpiryTimeUtc <= TimeoutHelper.Subtract(now, allowedClockSkew))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.Format(SR.TimeStampHasExpiryTimeInPast, this.ExpiryTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), allowedClockSkew)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.GetString(SR.TimeStampHasExpiryTimeInPast, this.ExpiryTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), allowedClockSkew)));
             }
 
             // check that creation time is not in the future (modulo clock skew)
             if (this.CreationTimeUtc >= TimeoutHelper.Add(now, allowedClockSkew))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.Format(SR.TimeStampHasCreationTimeInFuture, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), allowedClockSkew)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.GetString(SR.TimeStampHasCreationTimeInFuture, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), allowedClockSkew)));
             }
 
             // check that the creation time is not more than timeToLive in the past
             if (this.CreationTimeUtc <= TimeoutHelper.Subtract(now, TimeoutHelper.Add(timeToLive, allowedClockSkew)))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.Format(SR.TimeStampWasCreatedTooLongAgo, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), timeToLive, allowedClockSkew)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new MessageSecurityException(SR.GetString(SR.TimeStampWasCreatedTooLongAgo, this.CreationTimeUtc.ToString(DefaultFormat, CultureInfo.CurrentCulture), now.ToString(DefaultFormat, CultureInfo.CurrentCulture), timeToLive, allowedClockSkew)));
             }
+
             // this is a fresh timestamp
         }
     }

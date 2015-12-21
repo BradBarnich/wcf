@@ -1,13 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security.Tokens
 {
     public class ClaimTypeRequirement
     {
         internal const bool DefaultIsOptional = false;
-        private string _claimType;
-        private bool _isOptional;
+        string claimType;
+        bool isOptional;
 
         public ClaimTypeRequirement(string claimType)
             : this(claimType, DefaultIsOptional)
@@ -22,21 +23,21 @@ namespace System.ServiceModel.Security.Tokens
             }
             if (claimType.Length <= 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("claimType", SR.ClaimTypeCannotBeEmpty);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("claimType", SR.GetString(SR.ClaimTypeCannotBeEmpty));
             }
 
-            _claimType = claimType;
-            _isOptional = isOptional;
+            this.claimType = claimType;
+            this.isOptional = isOptional;
         }
 
-        public string ClaimType
+        public string ClaimType 
         {
-            get { return _claimType; }
+            get { return this.claimType; }
         }
 
         public bool IsOptional
         {
-            get { return _isOptional; }
+            get { return this.isOptional; }
         }
     }
 }

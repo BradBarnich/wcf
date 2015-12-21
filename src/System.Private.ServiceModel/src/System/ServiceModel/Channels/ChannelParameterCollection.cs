@@ -1,13 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Collections.ObjectModel;
+
     public class ChannelParameterCollection : Collection<object>
     {
-        private IChannel _channel;
+        IChannel channel;
 
         public ChannelParameterCollection()
         {
@@ -15,12 +17,12 @@ namespace System.ServiceModel.Channels
 
         public ChannelParameterCollection(IChannel channel)
         {
-            _channel = channel;
+            this.channel = channel;
         }
 
         protected virtual IChannel Channel
         {
-            get { return _channel; }
+            get { return this.channel; }
         }
 
         public void PropagateChannelParameters(IChannel innerChannel)
@@ -66,7 +68,7 @@ namespace System.ServiceModel.Channels
             base.SetItem(index, item);
         }
 
-        private void ThrowIfDisposedOrImmutable()
+        void ThrowIfDisposedOrImmutable()
         {
             IChannel channel = this.Channel;
             if (channel != null)
@@ -84,12 +86,12 @@ namespace System.ServiceModel.Channels
                     case CommunicationState.Closing:
                     case CommunicationState.Closed:
                     case CommunicationState.Faulted:
-                        text = SR.Format(SR.ChannelParametersCannotBeModified,
+                        text = SR.GetString(SR.ChannelParametersCannotBeModified,
                                             channel.GetType().ToString(), state.ToString());
                         break;
 
                     default:
-                        text = SR.Format(SR.CommunicationObjectInInvalidState,
+                        text = SR.GetString(SR.CommunicationObjectInInvalidState,
                                             channel.GetType().ToString(), state.ToString());
                         break;
                 }
@@ -101,7 +103,7 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void ThrowIfMutable()
+        void ThrowIfMutable()
         {
             IChannel channel = this.Channel;
             if (channel != null)
@@ -112,7 +114,7 @@ namespace System.ServiceModel.Channels
                 switch (state)
                 {
                     case CommunicationState.Created:
-                        text = SR.Format(SR.ChannelParametersCannotBePropagated,
+                        text = SR.GetString(SR.ChannelParametersCannotBePropagated,
                                             channel.GetType().ToString(), state.ToString());
                         break;
 
@@ -124,7 +126,7 @@ namespace System.ServiceModel.Channels
                         break;
 
                     default:
-                        text = SR.Format(SR.CommunicationObjectInInvalidState,
+                        text = SR.GetString(SR.CommunicationObjectInInvalidState,
                                             channel.GetType().ToString(), state.ToString());
                         break;
                 }

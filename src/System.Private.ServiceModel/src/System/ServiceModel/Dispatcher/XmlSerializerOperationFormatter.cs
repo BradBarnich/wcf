@@ -1,38 +1,43 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
 //-----------------------------------------------------------------------------
-
-using System.Collections;
-using System.ServiceModel.Channels;
-using System.ServiceModel;
-using System.ServiceModel.Description;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Runtime.Serialization;
-using System.Reflection;
-using System.Xml;
-using System.Xml.Serialization;
-using System.ServiceModel.Diagnostics;
-using System.IO;
-using System.Xml.Schema;
-
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Dispatcher
 {
-    internal class XmlSerializerOperationFormatter : OperationFormatter
-    {
-        private const string soap11Encoding = "http://schemas.xmlsoap.org/soap/encoding/";
-        private const string soap12Encoding = "http://www.w3.org/2003/05/soap-encoding";
+    using System.Collections;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Runtime.Serialization;
+    using System.Reflection;
+    using System.Xml;
+    using System.Xml.Serialization;
+    using System.ServiceModel.Diagnostics;
+    using System.IO;
+    using System.Xml.Schema;
 
-        private MessageInfo _requestMessageInfo;
-        private MessageInfo _replyMessageInfo;
+    class XmlSerializerOperationFormatter : OperationFormatter
+    {
+        const string soap11Encoding = "http://schemas.xmlsoap.org/soap/encoding/";
+        const string soap12Encoding = "http://www.w3.org/2003/05/soap-encoding";
+
+        bool isEncoded;
+
+        MessageInfo requestMessageInfo;
+        MessageInfo replyMessageInfo;
 
         public XmlSerializerOperationFormatter(OperationDescription description, XmlSerializerFormatAttribute xmlSerializerFormatAttribute,
             MessageInfo requestMessageInfo, MessageInfo replyMessageInfo) :
-            base(description, xmlSerializerFormatAttribute.Style == OperationFormatStyle.Rpc, false/*isEncoded*/)
+            base(description, xmlSerializerFormatAttribute.Style == OperationFormatStyle.Rpc, xmlSerializerFormatAttribute.IsEncoded)
         {
-            _requestMessageInfo = requestMessageInfo;
-            _replyMessageInfo = replyMessageInfo;
+            if (xmlSerializerFormatAttribute.IsEncoded && xmlSerializerFormatAttribute.Style != OperationFormatStyle.Rpc)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxDocEncodedNotSupported, description.Name)));
+            this.isEncoded = xmlSerializerFormatAttribute.IsEncoded;
+
+            this.requestMessageInfo = requestMessageInfo;
+            this.replyMessageInfo = replyMessageInfo;
         }
 
         protected override void AddHeadersToMessage(Message message, MessageDescription messageDescription, object[] parameters, bool isRequest)
@@ -47,15 +52,15 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (isRequest)
                 {
-                    serializer = _requestMessageInfo.HeaderSerializer;
-                    headerDescriptionTable = _requestMessageInfo.HeaderDescriptionTable;
-                    unknownHeaderDescription = _requestMessageInfo.UnknownHeaderDescription;
+                    serializer = requestMessageInfo.HeaderSerializer;
+                    headerDescriptionTable = requestMessageInfo.HeaderDescriptionTable;
+                    unknownHeaderDescription = requestMessageInfo.UnknownHeaderDescription;
                 }
                 else
                 {
-                    serializer = _replyMessageInfo.HeaderSerializer;
-                    headerDescriptionTable = _replyMessageInfo.HeaderDescriptionTable;
-                    unknownHeaderDescription = _replyMessageInfo.UnknownHeaderDescription;
+                    serializer = replyMessageInfo.HeaderSerializer;
+                    headerDescriptionTable = replyMessageInfo.HeaderDescriptionTable;
+                    unknownHeaderDescription = replyMessageInfo.UnknownHeaderDescription;
                 }
                 if (serializer != null)
                 {
@@ -82,7 +87,7 @@ namespace System.ServiceModel.Dispatcher
                     MemoryStream memoryStream = new MemoryStream();
                     XmlDictionaryWriter bufferWriter = XmlDictionaryWriter.CreateTextWriter(memoryStream);
                     bufferWriter.WriteStartElement("root");
-                    serializer.Serialize(bufferWriter, headerValues, null);
+                    serializer.Serialize(bufferWriter, headerValues, null, isEncoded ? GetEncoding(message.Version.Envelope) : null);
                     bufferWriter.WriteEndElement();
                     bufferWriter.Flush();
                     XmlDocument doc = new XmlDocument();
@@ -114,6 +119,7 @@ namespace System.ServiceModel.Dispatcher
                 {
                     foreach (object unknownHeader in (IEnumerable)parameters[unknownHeaderDescription.Index])
                     {
+
                         XmlElement element = (XmlElement)GetContentOfMessageHeaderOfT(unknownHeaderDescription, unknownHeader, out mustUnderstand, out relay, out actor);
                         if (element != null)
                             message.Headers.Add(new XmlElementMessageHeader(this, message.Version, element.LocalName, element.NamespaceURI,
@@ -124,7 +130,7 @@ namespace System.ServiceModel.Dispatcher
             catch (InvalidOperationException e)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorSerializingHeader, messageDescription.MessageName, e.Message), e));
+                    SR.GetString(SR.SFxErrorSerializingHeader, messageDescription.MessageName, e.Message), e));
             }
         }
 
@@ -137,15 +143,15 @@ namespace System.ServiceModel.Dispatcher
                 MessageHeaderDescription unknownHeaderDescription;
                 if (isRequest)
                 {
-                    serializer = _requestMessageInfo.HeaderSerializer;
-                    headerDescriptionTable = _requestMessageInfo.HeaderDescriptionTable;
-                    unknownHeaderDescription = _requestMessageInfo.UnknownHeaderDescription;
+                    serializer = requestMessageInfo.HeaderSerializer;
+                    headerDescriptionTable = requestMessageInfo.HeaderDescriptionTable;
+                    unknownHeaderDescription = requestMessageInfo.UnknownHeaderDescription;
                 }
                 else
                 {
-                    serializer = _replyMessageInfo.HeaderSerializer;
-                    headerDescriptionTable = _replyMessageInfo.HeaderDescriptionTable;
-                    unknownHeaderDescription = _replyMessageInfo.UnknownHeaderDescription;
+                    serializer = replyMessageInfo.HeaderSerializer;
+                    headerDescriptionTable = replyMessageInfo.HeaderDescriptionTable;
+                    unknownHeaderDescription = replyMessageInfo.UnknownHeaderDescription;
                 }
                 MessageHeaders headers = message.Headers;
                 ArrayList unknownHeaders = null;
@@ -187,12 +193,13 @@ namespace System.ServiceModel.Dispatcher
                                 messageHeaderOfTHelper = new MessageHeaderOfTHelper(parameters.Length);
                             messageHeaderOfTHelper.SetHeaderAttributes(matchingHeaderDescription, header.MustUnderstand, header.Relay, header.Actor);
                         }
+
                     }
                     if (matchingHeaderDescription == null && unknownHeaderDescription != null)
                         AddUnknownHeader(unknownHeaderDescription, unknownHeaders, xmlDoc, bufferWriter, header, headerReader);
                     else
                         bufferWriter.WriteNode(headerReader, false);
-                    headerReader.Dispose();
+                    headerReader.Close();
                 }
                 bufferWriter.WriteEndElement();
                 bufferWriter.WriteEndElement();
@@ -206,16 +213,14 @@ namespace System.ServiceModel.Dispatcher
                 */
 
                 memoryStream.Position = 0;
-                ArraySegment<byte> memoryBuffer;
-                memoryStream.TryGetBuffer(out memoryBuffer);
-                XmlDictionaryReader bufferReader = XmlDictionaryReader.CreateTextReader(memoryBuffer.Array, 0, (int)memoryStream.Length, XmlDictionaryReaderQuotas.Max);
+                XmlDictionaryReader bufferReader = XmlDictionaryReader.CreateTextReader(memoryStream.GetBuffer(), 0, (int)memoryStream.Length, XmlDictionaryReaderQuotas.Max);
 
                 bufferReader.ReadStartElement();
                 bufferReader.MoveToContent();
                 if (!bufferReader.IsEmptyElement)
                 {
                     bufferReader.ReadStartElement();
-                    object[] headerValues = (object[])serializer.Deserialize(bufferReader);
+                    object[] headerValues = (object[])serializer.Deserialize(bufferReader, isEncoded ? GetEncoding(message.Version.Envelope) : null);
                     int headerIndex = 0;
                     foreach (MessageHeaderDescription headerDescription in messageDescription.Headers)
                     {
@@ -227,7 +232,7 @@ namespace System.ServiceModel.Dispatcher
                             parameters[headerDescription.Index] = parameterValue;
                         }
                     }
-                    bufferReader.Dispose();
+                    bufferReader.Close();
                 }
                 if (unknownHeaderDescription != null)
                     parameters[unknownHeaderDescription.Index] = unknownHeaders.ToArray(unknownHeaderDescription.TypedHeader ? typeof(MessageHeader<XmlElement>) : typeof(XmlElement));
@@ -237,7 +242,7 @@ namespace System.ServiceModel.Dispatcher
                 // all exceptions from XmlSerializer get wrapped in InvalidOperationException,
                 // so we must be conservative and never turn this into a fault
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorDeserializingHeader, messageDescription.MessageName), e));
+                    SR.GetString(SR.SFxErrorDeserializingHeader, messageDescription.MessageName), e));
             }
         }
 
@@ -254,8 +259,13 @@ namespace System.ServiceModel.Dispatcher
 
         protected override void WriteBodyAttributes(XmlDictionaryWriter writer, MessageVersion version)
         {
-            writer.WriteAttributeString("xmlns", "xsi", null, XmlUtil.XmlSerializerSchemaInstanceNamespace);
-            writer.WriteAttributeString("xmlns", "xsd", null, XmlUtil.XmlSerializerSchemaNamespace);
+            if (isEncoded && version.Envelope == EnvelopeVersion.Soap11)
+            {
+                string encoding = GetEncoding(version.Envelope);
+                writer.WriteAttributeString("encodingStyle", version.Envelope.Namespace, encoding);
+            }
+            writer.WriteAttributeString("xmlns", "xsi", null, XmlSchema.InstanceNamespace);
+            writer.WriteAttributeString("xmlns", "xsd", null, XmlSchema.Namespace);
         }
 
         protected override void SerializeBody(XmlDictionaryWriter writer, MessageVersion version, string action, MessageDescription messageDescription, object returnValue, object[] parameters, bool isRequest)
@@ -266,9 +276,9 @@ namespace System.ServiceModel.Dispatcher
             {
                 MessageInfo messageInfo;
                 if (isRequest)
-                    messageInfo = _requestMessageInfo;
+                    messageInfo = requestMessageInfo;
                 else
-                    messageInfo = _replyMessageInfo;
+                    messageInfo = replyMessageInfo;
                 if (messageInfo.RpcEncodedTypedMessageBodyParts == null)
                 {
                     SerializeBody(writer, version, messageInfo.BodySerializer, messageDescription.Body.ReturnValue, messageDescription.Body.Parts, returnValue, parameters);
@@ -278,7 +288,7 @@ namespace System.ServiceModel.Dispatcher
                 object[] bodyPartValues = new object[messageInfo.RpcEncodedTypedMessageBodyParts.Count];
                 object bodyObject = parameters[messageDescription.Body.Parts[0].Index];
                 if (bodyObject == null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxBodyCannotBeNull, messageDescription.MessageName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxBodyCannotBeNull, messageDescription.MessageName)));
                 int i = 0;
                 foreach (MessagePartDescription bodyPart in messageInfo.RpcEncodedTypedMessageBodyParts)
                 {
@@ -298,11 +308,11 @@ namespace System.ServiceModel.Dispatcher
             catch (InvalidOperationException e)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorSerializingBody, messageDescription.MessageName, e.Message), e));
+                    SR.GetString(SR.SFxErrorSerializingBody, messageDescription.MessageName, e.Message), e));
             }
         }
 
-        private void SerializeBody(XmlDictionaryWriter writer, MessageVersion version, XmlSerializer serializer, MessagePartDescription returnPart, MessagePartDescriptionCollection bodyParts, object returnValue, object[] parameters)
+        void SerializeBody(XmlDictionaryWriter writer, MessageVersion version, XmlSerializer serializer, MessagePartDescription returnPart, MessagePartDescriptionCollection bodyParts, object returnValue, object[] parameters)
         {
             if (serializer == null)
             {
@@ -319,7 +329,8 @@ namespace System.ServiceModel.Dispatcher
             for (int i = 0; i < bodyParts.Count; i++)
                 bodyParameters[paramIndex++] = parameters[bodyParts[i].Index];
 
-            serializer.Serialize(writer, bodyParameters, null);
+            string encoding = isEncoded ? GetEncoding(version.Envelope) : null;
+            serializer.Serialize(writer, bodyParameters, null, encoding);
         }
 
 
@@ -327,9 +338,9 @@ namespace System.ServiceModel.Dispatcher
         {
             MessageInfo messageInfo;
             if (isRequest)
-                messageInfo = _requestMessageInfo;
+                messageInfo = requestMessageInfo;
             else
-                messageInfo = _replyMessageInfo;
+                messageInfo = replyMessageInfo;
             if (messageInfo.RpcEncodedTypedMessageBodyParts == null)
                 return DeserializeBody(reader, version, messageInfo.BodySerializer, messageDescription.Body.ReturnValue, messageDescription.Body.Parts, parameters, isRequest);
 
@@ -354,7 +365,7 @@ namespace System.ServiceModel.Dispatcher
             return null;
         }
 
-        private object DeserializeBody(XmlDictionaryReader reader, MessageVersion version, XmlSerializer serializer, MessagePartDescription returnPart, MessagePartDescriptionCollection bodyParts, object[] parameters, bool isRequest)
+        object DeserializeBody(XmlDictionaryReader reader, MessageVersion version, XmlSerializer serializer, MessagePartDescription returnPart, MessagePartDescriptionCollection bodyParts, object[] parameters, bool isRequest)
         {
             try
             {
@@ -368,7 +379,8 @@ namespace System.ServiceModel.Dispatcher
                 if (reader.NodeType == XmlNodeType.EndElement)
                     return null;
 
-                object[] bodyParameters = (object[])serializer.Deserialize(reader);
+                object[] bodyParameters = (object[])serializer.Deserialize(reader, isEncoded ? GetEncoding(version.Envelope) : null);
+
                 int paramIndex = 0;
                 if (IsValidReturnValue(returnPart))
                     returnValue = bodyParameters[paramIndex++];
@@ -384,7 +396,7 @@ namespace System.ServiceModel.Dispatcher
                 string resourceKey = isRequest ? SR.SFxErrorDeserializingRequestBody : SR.SFxErrorDeserializingReplyBody;
 
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(resourceKey, OperationName), e));
+                    SR.GetString(resourceKey, OperationName), e));
             }
         }
 
@@ -401,7 +413,7 @@ namespace System.ServiceModel.Dispatcher
             else
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("version",
-                    SR.Format(SR.EnvelopeVersionNotSupported, version));
+                    SR.GetString(SR.EnvelopeVersionNotSupported, version));
             }
         }
 
@@ -414,12 +426,12 @@ namespace System.ServiceModel.Dispatcher
             internal abstract MessagePartDescriptionCollection RpcEncodedTypedMessageBodyParts { get; }
         }
 
-        private class MessageHeaderOfTHelper
+        class MessageHeaderOfTHelper
         {
-            private object[] _attributes;
+            object[] attributes;
             internal MessageHeaderOfTHelper(int parameterCount)
             {
-                _attributes = new object[parameterCount];
+                attributes = new object[parameterCount];
             }
             internal object GetContentAndSaveHeaderAttributes(object parameterValue, MessageHeaderDescription headerDescription)
             {
@@ -438,15 +450,16 @@ namespace System.ServiceModel.Dispatcher
                         tArray.SetValue(GetContentOfMessageHeaderOfT(headerDescription, messageHeaderOfTArray[i], out mustUnderstand, out relay, out actor), i);
                         messageHeaderOfTAttributes[i] = new MessageHeader<object>(null, mustUnderstand, actor, relay);
                     }
-                    _attributes[headerDescription.Index] = messageHeaderOfTAttributes;
+                    attributes[headerDescription.Index] = messageHeaderOfTAttributes;
                     return tArray;
                 }
                 else
                 {
                     object content = GetContentOfMessageHeaderOfT(headerDescription, parameterValue, out mustUnderstand, out relay, out actor);
-                    _attributes[headerDescription.Index] = new MessageHeader<object>(null, mustUnderstand, actor, relay);
+                    attributes[headerDescription.Index] = new MessageHeader<object>(null, mustUnderstand, actor, relay);
                     return content;
                 }
+
             }
 
             internal void GetHeaderAttributes(MessageHeaderDescription headerDescription, out bool mustUnderstand, out bool relay, out string actor)
@@ -454,7 +467,7 @@ namespace System.ServiceModel.Dispatcher
                 MessageHeader<object> matchingMessageHeaderOfTAttribute = null;
                 if (headerDescription.Multiple)
                 {
-                    MessageHeader<object>[] messageHeaderOfTAttributes = (MessageHeader<object>[])_attributes[headerDescription.Index];
+                    MessageHeader<object>[] messageHeaderOfTAttributes = (MessageHeader<object>[])attributes[headerDescription.Index];
                     for (int i = 0; i < messageHeaderOfTAttributes.Length; i++)
                     {
                         if (messageHeaderOfTAttributes[i] != null)
@@ -468,7 +481,7 @@ namespace System.ServiceModel.Dispatcher
 
                 }
                 else
-                    matchingMessageHeaderOfTAttribute = (MessageHeader<object>)_attributes[headerDescription.Index];
+                    matchingMessageHeaderOfTAttribute = (MessageHeader<object>)attributes[headerDescription.Index];
                 mustUnderstand = matchingMessageHeaderOfTAttribute.MustUnderstand;
                 relay = matchingMessageHeaderOfTAttribute.Relay;
                 actor = matchingMessageHeaderOfTAttribute.Actor;
@@ -478,18 +491,19 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (headerDescription.Multiple)
                 {
-                    if (_attributes[headerDescription.Index] == null)
-                        _attributes[headerDescription.Index] = new List<MessageHeader<object>>();
-                    ((List<MessageHeader<object>>)_attributes[headerDescription.Index]).Add(new MessageHeader<object>(null, mustUnderstand, actor, relay));
+                    if (attributes[headerDescription.Index] == null)
+                        attributes[headerDescription.Index] = new List<MessageHeader<object>>();
+                    ((List<MessageHeader<object>>)attributes[headerDescription.Index]).Add(new MessageHeader<object>(null, mustUnderstand, actor, relay));
                 }
                 else
-                    _attributes[headerDescription.Index] = new MessageHeader<object>(null, mustUnderstand, actor, relay);
+                    attributes[headerDescription.Index] = new MessageHeader<object>(null, mustUnderstand, actor, relay);
+
             }
             internal object CreateMessageHeader(MessageHeaderDescription headerDescription, object headerValue)
             {
                 if (headerDescription.Multiple)
                 {
-                    IList<MessageHeader<object>> messageHeaderOfTAttributes = (IList<MessageHeader<object>>)_attributes[headerDescription.Index];
+                    IList<MessageHeader<object>> messageHeaderOfTAttributes = (IList<MessageHeader<object>>)attributes[headerDescription.Index];
                     object[] messageHeaderOfTArray = (object[])Array.CreateInstance(TypedHeaderManager.GetMessageHeaderType(headerDescription.Type), messageHeaderOfTAttributes.Count);
                     Array headerValues = (Array)headerValue;
                     for (int i = 0; i < messageHeaderOfTArray.Length; i++)
@@ -502,9 +516,10 @@ namespace System.ServiceModel.Dispatcher
                 }
                 else
                 {
-                    MessageHeader<object> messageHeaderOfTAttribute = (MessageHeader<object>)_attributes[headerDescription.Index];
+                    MessageHeader<object> messageHeaderOfTAttribute = (MessageHeader<object>)attributes[headerDescription.Index];
                     return TypedHeaderManager.Create(headerDescription.Type, headerValue,
                                                                   messageHeaderOfTAttribute.MustUnderstand, messageHeaderOfTAttribute.Relay, messageHeaderOfTAttribute.Actor);
+
                 }
             }
         }

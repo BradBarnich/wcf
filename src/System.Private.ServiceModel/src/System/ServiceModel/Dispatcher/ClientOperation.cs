@@ -1,13 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reflection;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.Reflection;
+    using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Diagnostics.CodeAnalysis;
+
     [SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Compat", Justification = "Compat is an accepted abbreviation")]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public class ClientOperationCompatBase
@@ -27,25 +30,26 @@ namespace System.ServiceModel.Dispatcher
 
     public sealed class ClientOperation : ClientOperationCompatBase
     {
-        private string _action;
-        private SynchronizedCollection<FaultContractInfo> _faultContractInfos;
-        private bool _serializeRequest;
-        private bool _deserializeReply;
-        private IClientMessageFormatter _formatter;
-        private IClientFaultFormatter _faultFormatter;
-        private bool _isInitiating = true;
-        private bool _isOneWay;
-        private bool _isSessionOpenNotificationEnabled;
-        private string _name;
+        string action;
+        SynchronizedCollection<FaultContractInfo> faultContractInfos;
+        bool serializeRequest;
+        bool deserializeReply;
+        IClientMessageFormatter formatter;
+        IClientFaultFormatter faultFormatter;
+        bool isInitiating = true;
+        bool isOneWay;
+        bool isTerminating;
+        bool isSessionOpenNotificationEnabled;
+        string name;
 
-        private ClientRuntime _parent;
-        private string _replyAction;
-        private MethodInfo _beginMethod;
-        private MethodInfo _endMethod;
-        private MethodInfo _syncMethod;
-        private MethodInfo _taskMethod;
-        private Type _taskTResult;
-        private bool _isFaultFormatterSetExplicit = false;
+        ClientRuntime parent;
+        string replyAction;
+        MethodInfo beginMethod;
+        MethodInfo endMethod;
+        MethodInfo syncMethod;
+        MethodInfo taskMethod;
+        Type taskTResult;
+        bool isFaultFormatterSetExplicit = false;
 
         public ClientOperation(ClientRuntime parent, string name, string action)
             : this(parent, name, action, null)
@@ -60,141 +64,154 @@ namespace System.ServiceModel.Dispatcher
             if (name == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("name");
 
-            _parent = parent;
-            _name = name;
-            _action = action;
-            _replyAction = replyAction;
+            this.parent = parent;
+            this.name = name;
+            this.action = action;
+            this.replyAction = replyAction;
 
-            _faultContractInfos = parent.NewBehaviorCollection<FaultContractInfo>();
+            this.faultContractInfos = parent.NewBehaviorCollection<FaultContractInfo>();
             this.parameterInspectors = parent.NewBehaviorCollection<IParameterInspector>();
         }
 
         public string Action
         {
-            get { return _action; }
+            get { return this.action; }
         }
 
         public SynchronizedCollection<FaultContractInfo> FaultContractInfos
         {
-            get { return _faultContractInfos; }
+            get { return this.faultContractInfos; }
         }
 
         public MethodInfo BeginMethod
         {
-            get { return _beginMethod; }
+            get { return this.beginMethod; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _beginMethod = value;
+                    this.parent.InvalidateRuntime();
+                    this.beginMethod = value;
                 }
             }
         }
 
         public MethodInfo EndMethod
         {
-            get { return _endMethod; }
+            get { return this.endMethod; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _endMethod = value;
+                    this.parent.InvalidateRuntime();
+                    this.endMethod = value;
                 }
             }
         }
 
         public MethodInfo SyncMethod
         {
-            get { return _syncMethod; }
+            get { return this.syncMethod; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _syncMethod = value;
+                    this.parent.InvalidateRuntime();
+                    this.syncMethod = value;
                 }
             }
         }
-
+        
         public IClientMessageFormatter Formatter
         {
-            get { return _formatter; }
+            get { return this.formatter; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _formatter = value;
+                    this.parent.InvalidateRuntime();
+                    this.formatter = value;
                 }
             }
         }
-
+        
         internal IClientFaultFormatter FaultFormatter
         {
-            get
+            get 
             {
-                if (_faultFormatter == null)
+                if (this.faultFormatter == null)
                 {
-                    _faultFormatter = new DataContractSerializerFaultFormatter(_faultContractInfos);
+                    this.faultFormatter = new DataContractSerializerFaultFormatter(this.faultContractInfos);
                 }
-                return _faultFormatter;
+                return this.faultFormatter; 
             }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _faultFormatter = value;
-                    _isFaultFormatterSetExplicit = true;
+                    this.parent.InvalidateRuntime();
+                    this.faultFormatter = value;
+                    this.isFaultFormatterSetExplicit = true;
                 }
             }
         }
 
         internal bool IsFaultFormatterSetExplicit
         {
-            get
+            get 
             {
-                return _isFaultFormatterSetExplicit;
+                return this.isFaultFormatterSetExplicit; 
             }
         }
 
         internal IClientMessageFormatter InternalFormatter
         {
-            get { return _formatter; }
-            set { _formatter = value; }
+            get { return this.formatter; }
+            set { this.formatter = value; }
         }
 
         public bool IsInitiating
         {
-            get { return _isInitiating; }
+            get { return this.isInitiating; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _isInitiating = value;
+                    this.parent.InvalidateRuntime();
+                    this.isInitiating = value;
                 }
             }
         }
 
         public bool IsOneWay
         {
-            get { return _isOneWay; }
+            get { return this.isOneWay; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _isOneWay = value;
+                    this.parent.InvalidateRuntime();
+                    this.isOneWay = value;
+                }
+            }
+        }
+
+        public bool IsTerminating
+        {
+            get { return this.isTerminating; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.isTerminating = value;
                 }
             }
         }
 
         public string Name
         {
-            get { return _name; }
+            get { return this.name; }
         }
 
         public ICollection<IParameterInspector> ClientParameterInspectors
@@ -210,77 +227,78 @@ namespace System.ServiceModel.Dispatcher
 
         public ClientRuntime Parent
         {
-            get { return _parent; }
+            get { return this.parent; }
         }
 
         public string ReplyAction
         {
-            get { return _replyAction; }
+            get { return this.replyAction; }
         }
 
         public bool SerializeRequest
         {
-            get { return _serializeRequest; }
+            get { return this.serializeRequest; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _serializeRequest = value;
+                    this.parent.InvalidateRuntime();
+                    this.serializeRequest = value;
                 }
             }
         }
 
         public bool DeserializeReply
         {
-            get { return _deserializeReply; }
+            get { return this.deserializeReply; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _deserializeReply = value;
+                    this.parent.InvalidateRuntime();
+                    this.deserializeReply = value;
                 }
             }
         }
 
-        public MethodInfo TaskMethod
+        public MethodInfo TaskMethod 
         {
-            get { return _taskMethod; }
+            get { return this.taskMethod; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _taskMethod = value;
+                    this.parent.InvalidateRuntime();
+                    this.taskMethod = value;
                 }
-            }
+            } 
         }
 
-        public Type TaskTResult
+        public Type TaskTResult 
         {
-            get { return _taskTResult; }
+            get { return this.taskTResult; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _taskTResult = value;
+                    this.parent.InvalidateRuntime();
+                    this.taskTResult = value;
                 }
-            }
+            }  
         }
 
         internal bool IsSessionOpenNotificationEnabled
         {
-            get { return _isSessionOpenNotificationEnabled; }
+            get { return this.isSessionOpenNotificationEnabled; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _isSessionOpenNotificationEnabled = value;
+                    this.parent.InvalidateRuntime();
+                    this.isSessionOpenNotificationEnabled = value;
                 }
             }
         }
+
     }
 }

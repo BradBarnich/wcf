@@ -1,9 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Diagnostics
 {
-    internal static class TraceCode
+    static class TraceCode 
     {
         // Administration trace codes
         public const int Administration = 0X10000;
@@ -112,6 +113,34 @@ namespace System.ServiceModel.Diagnostics
         public const int PeerFlooderReceiveMessageQuotaExceeded = TraceCode.Channels | 0X004F;
         public const int PeerServiceOpened = TraceCode.Channels | 0X0050;
         public const int PeerMaintainerActivity = TraceCode.Channels | 0X0051;
+        public const int MsmqCannotPeekOnQueue = TraceCode.Channels | 0X0052;
+        public const int MsmqCannotReadQueues = TraceCode.Channels | 0X0053;
+        public const int MsmqDatagramSent = TraceCode.Channels | 0X0054;
+        public const int MsmqDatagramReceived = TraceCode.Channels | 0X0055;
+        public const int MsmqDetected = TraceCode.Channels | 0X0056;
+        public const int MsmqEnteredBatch = TraceCode.Channels | 0X0057;
+        public const int MsmqExpectedException = TraceCode.Channels | 0X0058;
+        public const int MsmqFoundBaseAddress = TraceCode.Channels | 0X0059;
+        public const int MsmqLeftBatch = TraceCode.Channels | 0X005A;
+        public const int MsmqMatchedApplicationFound = TraceCode.Channels | 0X005B;
+        public const int MsmqMessageDropped = TraceCode.Channels | 0X005C;
+        public const int MsmqMessageLockedUnderTheTransaction = TraceCode.Channels | 0X005D;
+        public const int MsmqMessageRejected = TraceCode.Channels | 0X005E;
+        public const int MsmqMoveOrDeleteAttemptFailed = TraceCode.Channels | 0X005F;
+        public const int MsmqPoisonMessageMovedPoison = TraceCode.Channels | 0X0060;
+        public const int MsmqPoisonMessageMovedRetry = TraceCode.Channels | 0X0061;
+        public const int MsmqPoisonMessageRejected = TraceCode.Channels | 0X0062;
+        public const int MsmqPoolFull = TraceCode.Channels | 0X0063;
+        public const int MsmqPotentiallyPoisonMessageDetected = TraceCode.Channels | 0X0064;
+        public const int MsmqQueueClosed = TraceCode.Channels | 0X0065;
+        public const int MsmqQueueOpened = TraceCode.Channels | 0X0066;
+        public const int MsmqQueueTransactionalStatusUnknown = TraceCode.Channels | 0X0067;
+        public const int MsmqScanStarted = TraceCode.Channels | 0X0068;
+        public const int MsmqSessiongramReceived = TraceCode.Channels | 0X0069;
+        public const int MsmqSessiongramSent = TraceCode.Channels | 0X006A;
+        public const int MsmqStartingApplication = TraceCode.Channels | 0X006B;
+        public const int MsmqStartingService = TraceCode.Channels | 0X006C;
+        public const int MsmqUnexpectedAcknowledgment = TraceCode.Channels | 0X006D;
         public const int WsrmNegativeElapsedTimeDetected = TraceCode.Channels | 0X006E;
         public const int TcpTransferError = TraceCode.Channels | 0X006F;
         public const int TcpConnectionResetError = TraceCode.Channels | 0X0070;
@@ -305,7 +334,7 @@ namespace System.ServiceModel.Diagnostics
         public const int MetadataExchangeClientSendRequest = TraceCode.ServiceModel | 0X005B;
         public const int MetadataExchangeClientReceiveReply = TraceCode.ServiceModel | 0X005C;
         public const int WarnHelpPageEnabledNoBaseAddress = TraceCode.ServiceModel | 0X005D;
-
+        
         // PortSharingtrace codes
         public const int PortSharing = 0xA0000;
         public const int PortSharingClosed = TraceCode.PortSharing | 0X0001;
@@ -313,9 +342,9 @@ namespace System.ServiceModel.Diagnostics
         public const int PortSharingDupHandleGranted = TraceCode.PortSharing | 0X0003;
         public const int PortSharingDuplicatedSocket = TraceCode.PortSharing | 0X0004;
         public const int PortSharingListening = TraceCode.PortSharing | 0X0005;
-
+        
         public const int SharedManagerServiceEndpointNotExist = TraceCode.PortSharing | 0X000E;
-
+        
         //Indigo Tx trace codes
         public const int ServiceModelTransaction = 0xE0000;
         public const int TxSourceTxScopeRequiredIsTransactedTransport = TraceCode.ServiceModelTransaction | 0X0001;

@@ -1,33 +1,37 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Reflection;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Name={_name}, IsInitiating={_isInitiating}")]
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Net.Security;
+    using System.Reflection;
+    using System.ServiceModel.Security;
+
+    [DebuggerDisplay("Name={name}, IsInitiating={isInitiating}, IsTerminating={isTerminating}")]
     public class OperationDescription
     {
         internal const string SessionOpenedAction = Channels.WebSocketTransportSettings.ConnectionOpenedAction;
-
-        private XmlName _name;
-        private bool _isInitiating;
-        private bool _isSessionOpenNotificationEnabled;
-        private ContractDescription _declaringContract;
-        private FaultDescriptionCollection _faults;
-        private MessageDescriptionCollection _messages;
-        private KeyedByTypeCollection<IOperationBehavior> _behaviors;
-        private Collection<Type> _knownTypes;
-        private MethodInfo _beginMethod;
-        private MethodInfo _endMethod;
-        private MethodInfo _syncMethod;
-        private MethodInfo _taskMethod;
-        private bool _validateRpcWrapperName = true;
-        private bool _hasNoDisposableParameters;
+        XmlName name;
+        bool isInitiating;
+        bool isTerminating;
+        bool isSessionOpenNotificationEnabled;
+        ContractDescription declaringContract;
+        FaultDescriptionCollection faults;
+        MessageDescriptionCollection messages;
+        KeyedByTypeCollection<IOperationBehavior> behaviors;
+        Collection<Type> knownTypes;
+        MethodInfo beginMethod;
+        MethodInfo endMethod;
+        MethodInfo syncMethod;
+        MethodInfo taskMethod;
+        ProtectionLevel protectionLevel;
+        bool hasProtectionLevel;
+        bool validateRpcWrapperName = true;
+        bool hasNoDisposableParameters;
 
         public OperationDescription(string name, ContractDescription declaringContract)
         {
@@ -38,25 +42,26 @@ namespace System.ServiceModel.Description
             if (name.Length == 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("name", SR.SFxOperationDescriptionNameCannotBeEmpty));
+                    new ArgumentOutOfRangeException("name", SR.GetString(SR.SFxOperationDescriptionNameCannotBeEmpty)));
             }
-            _name = new XmlName(name, true /*isEncoded*/);
+            this.name = new XmlName(name, true /*isEncoded*/);
             if (declaringContract == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("declaringContract");
             }
-            _declaringContract = declaringContract;
-            _isInitiating = true;
-            _faults = new FaultDescriptionCollection();
-            _messages = new MessageDescriptionCollection();
-            _behaviors = new KeyedByTypeCollection<IOperationBehavior>();
-            _knownTypes = new Collection<Type>();
+            this.declaringContract = declaringContract;
+            this.isInitiating = true;
+            this.isTerminating = false;
+            this.faults = new FaultDescriptionCollection();
+            this.messages = new MessageDescriptionCollection();
+            this.behaviors = new KeyedByTypeCollection<IOperationBehavior>();
+            this.knownTypes = new Collection<Type>();
         }
 
         internal OperationDescription(string name, ContractDescription declaringContract, bool validateRpcWrapperName)
             : this(name, declaringContract)
         {
-            _validateRpcWrapperName = validateRpcWrapperName;
+            this.validateRpcWrapperName = validateRpcWrapperName;
         }
 
         public KeyedCollection<Type, IOperationBehavior> OperationBehaviors
@@ -64,34 +69,34 @@ namespace System.ServiceModel.Description
             get { return this.Behaviors; }
         }
 
-        [EditorBrowsable(EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)] 
         public KeyedByTypeCollection<IOperationBehavior> Behaviors
         {
-            get { return _behaviors; }
+            get { return behaviors; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
         // produce it, only available when binding to runtime
         public MethodInfo TaskMethod
         {
-            get { return _taskMethod; }
-            set { _taskMethod = value; }
+            get { return this.taskMethod; }
+            set { this.taskMethod = value; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
         // produce it, only available when binding to runtime
         public MethodInfo SyncMethod
         {
-            get { return _syncMethod; }
-            set { _syncMethod = value; }
+            get { return this.syncMethod; }
+            set { this.syncMethod = value; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
         // produce it, only available when binding to runtime
         public MethodInfo BeginMethod
         {
-            get { return _beginMethod; }
-            set { _beginMethod = value; }
+            get { return this.beginMethod; }
+            set { this.beginMethod = value; }
         }
 
         internal MethodInfo OperationMethod
@@ -109,24 +114,45 @@ namespace System.ServiceModel.Description
             }
         }
 
+        public ProtectionLevel ProtectionLevel
+        {
+            get { return this.protectionLevel; }
+            set
+            {
+                if (!ProtectionLevelHelper.IsDefined(value))
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
+            }
+        }
+
+        public bool ShouldSerializeProtectionLevel()
+        {
+            return this.HasProtectionLevel;
+        }
+
+        public bool HasProtectionLevel
+        {
+            get { return this.hasProtectionLevel; }
+        }
 
         internal bool HasNoDisposableParameters
         {
-            get { return _hasNoDisposableParameters; }
-            set { _hasNoDisposableParameters = value; }
+            get { return this.hasNoDisposableParameters; }
+            set { this.hasNoDisposableParameters = value; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
         // produce it, only available when binding to runtime
         public MethodInfo EndMethod
         {
-            get { return _endMethod; }
-            set { _endMethod = value; }
+            get { return this.endMethod; }
+            set { this.endMethod = value; }
         }
 
         public ContractDescription DeclaringContract
         {
-            get { return _declaringContract; }
+            get { return this.declaringContract; }
             set
             {
                 if (value == null)
@@ -135,14 +161,14 @@ namespace System.ServiceModel.Description
                 }
                 else
                 {
-                    _declaringContract = value;
+                    this.declaringContract = value;
                 }
             }
         }
 
         public FaultDescriptionCollection Faults
         {
-            get { return _faults; }
+            get { return faults; }
         }
 
         public bool IsOneWay
@@ -150,10 +176,11 @@ namespace System.ServiceModel.Description
             get { return this.Messages.Count == 1; }
         }
 
+        [DefaultValue(false)]
         public bool IsInitiating
         {
-            get { return _isInitiating; }
-            set { _isInitiating = value; }
+            get { return this.isInitiating; }
+            set { this.isInitiating = value; }
         }
 
         internal bool IsServerInitiated()
@@ -162,33 +189,57 @@ namespace System.ServiceModel.Description
             return Messages[0].Direction == MessageDirection.Output;
         }
 
+        [DefaultValue(false)]
+        public bool IsTerminating
+        {
+            get { return this.isTerminating; }
+            set { this.isTerminating = value; }
+        }
+
         public Collection<Type> KnownTypes
         {
-            get { return _knownTypes; }
+            get { return this.knownTypes; }
         }
 
         // Messages[0] is the 'request' (first of MEP), and for non-oneway MEPs, Messages[1] is the 'response' (second of MEP)
         public MessageDescriptionCollection Messages
         {
-            get { return _messages; }
+            get { return messages; }
         }
 
         internal XmlName XmlName
         {
-            get { return _name; }
+            get { return name; }
         }
 
         internal string CodeName
         {
-            get { return _name.DecodedName; }
+            get { return name.DecodedName; }
         }
 
         public string Name
         {
-            get { return _name.EncodedName; }
+            get { return name.EncodedName; }
         }
 
-        internal bool IsValidateRpcWrapperName { get { return _validateRpcWrapperName; } }
+        internal bool IsValidateRpcWrapperName { get { return validateRpcWrapperName; } }
+
+
+        //This property is set during contract inference in a hosted workflow scenario. This is required to handle correct
+        //transactional invocation from the dispatcher in regards to scenarios involving the TransactedReceiveScope activity
+        internal bool IsInsideTransactedReceiveScope
+        {
+            get;
+            set;
+        }
+
+        //This property is set during contract inference in a hosted workflow scenario. This is required to handle correct
+        //transactional invocation from the dispatcher in regards to scenarios involving the TransactedReceiveScope activity
+        internal bool IsFirstReceiveOfTransactedReceiveScopeTree
+        {
+            get;
+            set;
+        }
 
         internal Type TaskTResult
         {
@@ -208,16 +259,22 @@ namespace System.ServiceModel.Description
 
         internal bool IsSessionOpenNotificationEnabled
         {
-            get { return _isSessionOpenNotificationEnabled; }
-            set { _isSessionOpenNotificationEnabled = value; }
+            get { return this.isSessionOpenNotificationEnabled; }
+            set { this.isSessionOpenNotificationEnabled = value; }
         }
 
         internal void EnsureInvariants()
         {
             if (this.Messages.Count != 1 && this.Messages.Count != 2)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new System.InvalidOperationException(SR.Format(SR.SFxOperationMustHaveOneOrTwoMessages, this.Name)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new System.InvalidOperationException(SR.GetString(SR.SFxOperationMustHaveOneOrTwoMessages, this.Name)));
             }
+        }
+
+        internal void ResetProtectionLevel()
+        {
+            this.protectionLevel = ProtectionLevel.None;
+            this.hasProtectionLevel = false;
         }
     }
 }

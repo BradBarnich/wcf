@@ -1,17 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
-using System.Globalization;
-using System.ServiceModel.Diagnostics;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal class TcpConnectionPoolRegistry : ConnectionPoolRegistry
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Net;
+    using System.Net.Sockets;
+    using System.Globalization;
+    using System.ServiceModel.Diagnostics;
+
+    class TcpConnectionPoolRegistry : ConnectionPoolRegistry
     {
         public TcpConnectionPoolRegistry()
             : base()
@@ -24,7 +24,7 @@ namespace System.ServiceModel.Channels
             return new TcpConnectionPool(tcpSettings);
         }
 
-        private class TcpConnectionPool : ConnectionPool
+        class TcpConnectionPool : ConnectionPool
         {
             public TcpConnectionPool(ITcpChannelFactorySettings settings)
                 : base(settings, settings.LeaseTimeout)

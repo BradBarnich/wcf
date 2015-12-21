@@ -1,27 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ErrorHandlingReceiver
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+
+    class ErrorHandlingReceiver
     {
-        private ChannelDispatcher _dispatcher;
-        private IChannelBinder _binder;
+        ChannelDispatcher dispatcher;
+        IChannelBinder binder;
 
         internal ErrorHandlingReceiver(IChannelBinder binder, ChannelDispatcher dispatcher)
         {
-            _binder = binder;
-            _dispatcher = dispatcher;
+            this.binder = binder;
+            this.dispatcher = dispatcher;
         }
 
         internal void Close()
         {
             try
             {
-                _binder.Channel.Close();
+                this.binder.Channel.Close();
             }
             catch (Exception e)
             {
@@ -33,21 +36,21 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private void HandleError(Exception e)
+        void HandleError(Exception e)
         {
-            if (_dispatcher != null)
+            if (this.dispatcher != null)
             {
-                _dispatcher.HandleError(e);
+                this.dispatcher.HandleError(e);
             }
         }
 
-        private void HandleErrorOrAbort(Exception e)
+        void HandleErrorOrAbort(Exception e)
         {
-            if ((_dispatcher == null) || !_dispatcher.HandleError(e))
+            if ((this.dispatcher == null) || !this.dispatcher.HandleError(e))
             {
-                if (_binder.HasSession)
+                if (this.binder.HasSession)
                 {
-                    _binder.Abort();
+                    this.binder.Abort();
                 }
             }
         }
@@ -56,7 +59,7 @@ namespace System.ServiceModel.Dispatcher
         {
             try
             {
-                return _binder.TryReceive(timeout, out requestContext);
+                return this.binder.TryReceive(timeout, out requestContext);
             }
             catch (CommunicationObjectAbortedException)
             {
@@ -96,7 +99,7 @@ namespace System.ServiceModel.Dispatcher
         {
             try
             {
-                return _binder.BeginTryReceive(timeout, callback, state);
+                return this.binder.BeginTryReceive(timeout, callback, state);
             }
             catch (CommunicationObjectAbortedException)
             {
@@ -139,7 +142,7 @@ namespace System.ServiceModel.Dispatcher
             {
                 try
                 {
-                    return _binder.EndTryReceive(result, out requestContext);
+                    return this.binder.EndTryReceive(result, out requestContext);
                 }
                 catch (CommunicationObjectAbortedException)
                 {
@@ -176,10 +179,100 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private class ErrorHandlingCompletedAsyncResult : CompletedAsyncResult<bool>
+        internal void WaitForMessage()
+        {
+            try
+            {
+                this.binder.WaitForMessage(TimeSpan.MaxValue);
+            }
+            catch (CommunicationObjectAbortedException) { }
+            catch (CommunicationObjectFaultedException) { }
+            catch (CommunicationException e)
+            {
+                this.HandleError(e);
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+                this.HandleErrorOrAbort(e);
+            }
+        }
+
+        internal IAsyncResult BeginWaitForMessage(AsyncCallback callback, object state)
+        {
+            try
+            {
+                return this.binder.BeginWaitForMessage(TimeSpan.MaxValue, callback, state);
+            }
+            catch (CommunicationObjectAbortedException)
+            {
+                return new WaitCompletedAsyncResult(callback, state);
+            }
+            catch (CommunicationObjectFaultedException)
+            {
+                return new WaitCompletedAsyncResult(callback, state);
+            }
+            catch (CommunicationException e)
+            {
+                this.HandleError(e);
+                return new WaitCompletedAsyncResult(callback, state);
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+                this.HandleErrorOrAbort(e);
+                return new WaitCompletedAsyncResult(callback, state);
+            }
+        }
+
+        internal void EndWaitForMessage(IAsyncResult result)
+        {
+            WaitCompletedAsyncResult handlerResult = result as WaitCompletedAsyncResult;
+            if (handlerResult != null)
+            {
+                WaitCompletedAsyncResult.End(handlerResult);
+            }
+            else
+            {
+                try
+                {
+                    this.binder.EndWaitForMessage(result);
+                }
+                catch (CommunicationObjectAbortedException) { }
+                catch (CommunicationObjectFaultedException) { }
+                catch (CommunicationException e)
+                {
+                    this.HandleError(e);
+                }
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    this.HandleErrorOrAbort(e);
+                }
+            }
+        }
+
+        class ErrorHandlingCompletedAsyncResult : CompletedAsyncResult<bool>
         {
             internal ErrorHandlingCompletedAsyncResult(bool data, AsyncCallback callback, object state)
                 : base(data, callback, state)
+            {
+            }
+        }
+
+        class WaitCompletedAsyncResult : CompletedAsyncResult
+        {
+            internal WaitCompletedAsyncResult(AsyncCallback callback, object state)
+                : base(callback, state)
             {
             }
         }

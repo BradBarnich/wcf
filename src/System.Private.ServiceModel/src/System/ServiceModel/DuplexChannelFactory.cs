@@ -1,12 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Description;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Dispatcher;
+    using System.ServiceModel.Channels;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Runtime.Serialization;
+    using System.Text;
+    using System.Threading;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Configuration;
+
     public class DuplexChannelFactory<TChannel> : ChannelFactory<TChannel>
     {
         //Type overloads
@@ -63,7 +73,7 @@ namespace System.ServiceModel
             {
                 if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    ServiceModelActivity.Start(activity, SR.Format(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
+                    ServiceModelActivity.Start(activity, SR.GetString(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
                 }
                 if (callbackObject == null)
                 {
@@ -89,7 +99,7 @@ namespace System.ServiceModel
             {
                 if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    ServiceModelActivity.Start(activity, SR.Format(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
+                    ServiceModelActivity.Start(activity, SR.GetString(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
                 }
                 if (callbackObject == null)
                 {
@@ -125,7 +135,7 @@ namespace System.ServiceModel
             {
                 if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    ServiceModelActivity.Start(activity, SR.Format(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
+                    ServiceModelActivity.Start(activity, SR.GetString(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
                 }
                 if (callbackObject == null)
                 {
@@ -150,7 +160,7 @@ namespace System.ServiceModel
             {
                 if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    ServiceModelActivity.Start(activity, SR.Format(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
+                    ServiceModelActivity.Start(activity, SR.GetString(SR.ActivityConstructChannelFactory, TraceUtility.CreateSourceString(this)), ActivityType.Construct);
                 }
                 if (callbackObject == null)
                 {
@@ -212,34 +222,33 @@ namespace System.ServiceModel
 
             if (this.CallbackType != null && callbackInstance == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCreateDuplexChannelNoCallback1));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCreateDuplexChannelNoCallback1)));
             }
             if (callbackInstance == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCreateDuplexChannelNoCallback));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCreateDuplexChannelNoCallback)));
             }
 
             if (callbackInstance.UserObject == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxCreateDuplexChannelNoCallbackUserObject));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCreateDuplexChannelNoCallbackUserObject)));
             }
 
             if (!this.HasDuplexOperations())
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxCreateDuplexChannel1, this.Endpoint.Contract.Name)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxCreateDuplexChannel1, this.Endpoint.Contract.Name)));
             }
 
             Type userObjectType = callbackInstance.UserObject.GetType();
             Type callbackType = this.Endpoint.Contract.CallbackContractType;
             if (callbackType != null && !callbackType.IsAssignableFrom(userObjectType))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(
                     SR.SFxCreateDuplexChannelBadCallbackUserObject, callbackType)));
             }
 
             EnsureOpened();
-            TChannel result = this.ServiceChannelFactory.CreateChannel<TChannel>(address, via);
-            // Desktop: this.ServiceChannelFactory.CreateChannel(typeof(TChannel), address, via);
+            TChannel result = (TChannel)this.ServiceChannelFactory.CreateChannel(typeof(TChannel), address, via);
 
             IDuplexContextChannel duplexChannel = result as IDuplexContextChannel;
             if (duplexChannel != null)
@@ -249,8 +258,8 @@ namespace System.ServiceModel
             return result;
         }
 
-        //Static functions to create channels
-        private static InstanceContext GetInstanceContextForObject(object callbackObject)
+        //Static funtions to create channels
+        static InstanceContext GetInstanceContextForObject(object callbackObject)
         {
             if (callbackObject is InstanceContext)
             {
@@ -298,5 +307,6 @@ namespace System.ServiceModel
             SetFactoryToAutoClose(channel);
             return channel;
         }
+
     }
 }

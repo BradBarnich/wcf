@@ -1,57 +1,60 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-using System.ServiceModel.Channels;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Xml;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public class MessagePartSpecification
     {
-        private List<XmlQualifiedName> _headerTypes;
-        private bool _isBodyIncluded;
-        private bool _isReadOnly;
-        private static MessagePartSpecification s_noParts;
+        List<XmlQualifiedName> headerTypes;
+        bool isBodyIncluded;
+        bool isReadOnly;
+        static MessagePartSpecification noParts;
 
         public ICollection<XmlQualifiedName> HeaderTypes
         {
             get
             {
-                if (_headerTypes == null)
+                if (headerTypes == null)
                 {
-                    _headerTypes = new List<XmlQualifiedName>();
+                    headerTypes = new List<XmlQualifiedName>();
                 }
 
-                if (_isReadOnly)
+                if (isReadOnly)
                 {
-                    return new ReadOnlyCollection<XmlQualifiedName>(_headerTypes);
+                    return new ReadOnlyCollection<XmlQualifiedName>(headerTypes);
                 }
                 else
                 {
-                    return _headerTypes;
+                    return headerTypes;
                 }
             }
         }
 
         internal bool HasHeaders
         {
-            get { return _headerTypes != null && _headerTypes.Count > 0; }
+            get { return this.headerTypes != null && this.headerTypes.Count > 0; }
         }
 
         public bool IsBodyIncluded
         {
             get
             {
-                return _isBodyIncluded;
+                return this.isBodyIncluded;
             }
             set
             {
-                if (_isReadOnly)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+                if (isReadOnly)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
 
-                _isBodyIncluded = value;
+                this.isBodyIncluded = value;
             }
         }
 
@@ -59,7 +62,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _isReadOnly;
+                return this.isReadOnly;
             }
         }
 
@@ -67,62 +70,62 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                if (s_noParts == null)
+                if (noParts == null)
                 {
                     MessagePartSpecification parts = new MessagePartSpecification();
                     parts.MakeReadOnly();
-                    s_noParts = parts;
+                    noParts = parts;
                 }
-                return s_noParts;
+                return noParts;
             }
         }
 
         public void Clear()
         {
-            if (_isReadOnly)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+            if (isReadOnly)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
 
-            if (_headerTypes != null)
-                _headerTypes.Clear();
-            _isBodyIncluded = false;
+            if (this.headerTypes != null)
+                this.headerTypes.Clear();
+            this.isBodyIncluded = false;
         }
 
         public void Union(MessagePartSpecification specification)
         {
-            if (_isReadOnly)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+            if (isReadOnly)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
             if (specification == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("specification");
 
-            _isBodyIncluded |= specification.IsBodyIncluded;
+            this.isBodyIncluded |= specification.IsBodyIncluded;
 
-            List<XmlQualifiedName> headerTypes = specification._headerTypes;
+            List<XmlQualifiedName> headerTypes = specification.headerTypes;
             if (headerTypes != null && headerTypes.Count > 0)
             {
-                if (_headerTypes == null)
+                if (this.headerTypes == null)
                 {
-                    _headerTypes = new List<XmlQualifiedName>(headerTypes.Count);
+                    this.headerTypes = new List<XmlQualifiedName>(headerTypes.Count);
                 }
 
                 for (int i = 0; i < headerTypes.Count; i++)
                 {
                     XmlQualifiedName qname = headerTypes[i];
-                    _headerTypes.Add(qname);
+                    this.headerTypes.Add(qname);
                 }
             }
         }
 
         public void MakeReadOnly()
         {
-            if (_isReadOnly)
+            if (isReadOnly)
                 return;
 
-            if (_headerTypes != null)
+            if (this.headerTypes != null)
             {
-                List<XmlQualifiedName> noDuplicates = new List<XmlQualifiedName>(_headerTypes.Count);
-                for (int i = 0; i < _headerTypes.Count; i++)
+                List<XmlQualifiedName> noDuplicates = new List<XmlQualifiedName>(headerTypes.Count);
+                for (int i = 0; i < headerTypes.Count; i++)
                 {
-                    XmlQualifiedName qname = _headerTypes[i];
+                    XmlQualifiedName qname = headerTypes[i];
                     if (qname != null)
                     {
                         bool include = true;
@@ -142,37 +145,37 @@ namespace System.ServiceModel.Security
                     }
                 }
 
-                _headerTypes = noDuplicates;
+                this.headerTypes = noDuplicates;
             }
 
-            _isReadOnly = true;
+            this.isReadOnly = true;
         }
 
-        public MessagePartSpecification()
+        public MessagePartSpecification() 
         {
             // empty
         }
 
-        public MessagePartSpecification(bool isBodyIncluded)
+        public MessagePartSpecification(bool isBodyIncluded) 
         {
-            _isBodyIncluded = isBodyIncluded;
+            this.isBodyIncluded = isBodyIncluded;
         }
 
-        public MessagePartSpecification(params XmlQualifiedName[] headerTypes)
+        public MessagePartSpecification(params XmlQualifiedName[] headerTypes) 
             : this(false, headerTypes)
         {
             // empty
         }
 
-        public MessagePartSpecification(bool isBodyIncluded, params XmlQualifiedName[] headerTypes)
+        public MessagePartSpecification(bool isBodyIncluded, params XmlQualifiedName[] headerTypes) 
         {
-            _isBodyIncluded = isBodyIncluded;
+            this.isBodyIncluded = isBodyIncluded;
             if (headerTypes != null && headerTypes.Length > 0)
             {
-                _headerTypes = new List<XmlQualifiedName>(headerTypes.Length);
+                this.headerTypes = new List<XmlQualifiedName>(headerTypes.Length);
                 for (int i = 0; i < headerTypes.Length; i++)
                 {
-                    _headerTypes.Add(headerTypes[i]);
+                    this.headerTypes.Add(headerTypes[i]);
                 }
             }
         }
@@ -192,11 +195,11 @@ namespace System.ServiceModel.Security
             if (ns == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("ns");
 
-            if (_headerTypes != null)
+            if (this.headerTypes != null)
             {
-                for (int i = 0; i < _headerTypes.Count; i++)
+                for (int i = 0; i < this.headerTypes.Count; i++)
                 {
-                    XmlQualifiedName qname = _headerTypes[i];
+                    XmlQualifiedName qname = this.headerTypes[i];
                     // Name is an optional attribute. If not present, compare with only the namespace.
                     if (String.IsNullOrEmpty(qname.Name))
                     {
@@ -205,7 +208,7 @@ namespace System.ServiceModel.Security
                             return true;
                         }
                     }
-                    else
+                    else 
                     {
                         if (qname.Name == name && qname.Namespace == ns)
                         {
@@ -220,7 +223,7 @@ namespace System.ServiceModel.Security
 
         internal bool IsEmpty()
         {
-            if (_headerTypes != null && _headerTypes.Count > 0)
+            if (this.headerTypes != null && this.headerTypes.Count > 0)
                 return false;
 
             return !this.IsBodyIncluded;

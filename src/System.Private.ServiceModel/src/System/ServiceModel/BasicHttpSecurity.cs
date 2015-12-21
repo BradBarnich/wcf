@@ -1,60 +1,73 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Configuration;
+    using System.ComponentModel;
+
     public sealed class BasicHttpSecurity
     {
         internal const BasicHttpSecurityMode DefaultMode = BasicHttpSecurityMode.None;
-        private BasicHttpSecurityMode _mode;
-        private HttpTransportSecurity _transportSecurity;
+        BasicHttpSecurityMode mode;
+        HttpTransportSecurity transportSecurity;
+        BasicHttpMessageSecurity messageSecurity;
 
         public BasicHttpSecurity()
-            : this(DefaultMode, new HttpTransportSecurity())
+            : this(DefaultMode, new HttpTransportSecurity(), new BasicHttpMessageSecurity())
         {
         }
 
-        private BasicHttpSecurity(BasicHttpSecurityMode mode, HttpTransportSecurity transportSecurity)
+        BasicHttpSecurity(BasicHttpSecurityMode mode, HttpTransportSecurity transportSecurity, BasicHttpMessageSecurity messageSecurity)
         {
             Fx.Assert(BasicHttpSecurityModeHelper.IsDefined(mode), string.Format("Invalid BasicHttpSecurityMode value: {0}.", mode.ToString()));
             this.Mode = mode;
-            _transportSecurity = transportSecurity == null ? new HttpTransportSecurity() : transportSecurity;
+            this.transportSecurity = transportSecurity == null ? new HttpTransportSecurity() : transportSecurity;
+            this.messageSecurity = messageSecurity == null ? new BasicHttpMessageSecurity() : messageSecurity;
         }
 
         public BasicHttpSecurityMode Mode
         {
-            get { return _mode; }
+            get { return this.mode; }
             set
             {
                 if (!BasicHttpSecurityModeHelper.IsDefined(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
                 }
-                _mode = value;
+                this.mode = value;
             }
         }
 
         public HttpTransportSecurity Transport
         {
-            get { return _transportSecurity; }
+            get { return this.transportSecurity; }
             set
             {
-                _transportSecurity = (value == null) ? new HttpTransportSecurity() : value;
+                this.transportSecurity = (value == null) ? new HttpTransportSecurity() : value;
+            }
+        }
+
+        public BasicHttpMessageSecurity Message
+        {
+            get { return this.messageSecurity; }
+            set
+            {
+                this.messageSecurity = (value == null) ? new BasicHttpMessageSecurity() : value;
             }
         }
 
         internal void EnableTransportSecurity(HttpsTransportBindingElement https)
         {
-            if (_mode == BasicHttpSecurityMode.TransportWithMessageCredential)
+            if (this.mode == BasicHttpSecurityMode.TransportWithMessageCredential)
             {
-                _transportSecurity.ConfigureTransportProtectionOnly(https);
+                this.transportSecurity.ConfigureTransportProtectionOnly(https);
             }
             else
             {
-                _transportSecurity.ConfigureTransportProtectionAndAuthentication(https);
+                this.transportSecurity.ConfigureTransportProtectionAndAuthentication(https);
             }
         }
 
@@ -65,7 +78,7 @@ namespace System.ServiceModel
 
         internal void EnableTransportAuthentication(HttpTransportBindingElement http)
         {
-            _transportSecurity.ConfigureTransportAuthentication(http);
+            this.transportSecurity.ConfigureTransportAuthentication(http);
         }
 
         internal static bool IsEnabledTransportAuthentication(HttpTransportBindingElement http, HttpTransportSecurity transportSecurity)
@@ -75,18 +88,63 @@ namespace System.ServiceModel
 
         internal void DisableTransportAuthentication(HttpTransportBindingElement http)
         {
-            _transportSecurity.DisableTransportAuthentication(http);
+            this.transportSecurity.DisableTransportAuthentication(http);
         }
 
         internal SecurityBindingElement CreateMessageSecurity()
         {
-            if (_mode == BasicHttpSecurityMode.Message
-                || _mode == BasicHttpSecurityMode.TransportWithMessageCredential)
+            if (this.mode == BasicHttpSecurityMode.Message
+                || this.mode == BasicHttpSecurityMode.TransportWithMessageCredential)
             {
-                throw ExceptionHelper.PlatformNotSupported();
+                return this.messageSecurity.CreateMessageSecurity(this.Mode == BasicHttpSecurityMode.TransportWithMessageCredential);
             }
+            else
+            {
+                return null;
+            }
+        }
 
-            return null;
+        internal static bool TryCreate(SecurityBindingElement sbe, UnifiedSecurityMode mode, HttpTransportSecurity transportSecurity, out BasicHttpSecurity security)
+        {
+            security = null;
+            BasicHttpMessageSecurity messageSecurity = null;
+            if (sbe != null)
+            {
+                mode &= UnifiedSecurityMode.Message | UnifiedSecurityMode.TransportWithMessageCredential;
+                bool isSecureTransportMode;
+                if (!BasicHttpMessageSecurity.TryCreate(sbe, out messageSecurity, out isSecureTransportMode))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                mode &= ~(UnifiedSecurityMode.Message | UnifiedSecurityMode.TransportWithMessageCredential);
+            }
+            BasicHttpSecurityMode basicHttpSecurityMode = BasicHttpSecurityModeHelper.ToSecurityMode(mode);
+            Fx.Assert(BasicHttpSecurityModeHelper.IsDefined(basicHttpSecurityMode), string.Format("Invalid BasicHttpSecurityMode value: {0}.", basicHttpSecurityMode.ToString()));
+            security = new BasicHttpSecurity(basicHttpSecurityMode, transportSecurity, messageSecurity);
+
+            return SecurityElement.AreBindingsMatching(security.CreateMessageSecurity(), sbe);
+        }
+
+        internal bool InternalShouldSerialize()
+        {
+            return this.Mode != DefaultMode
+                || this.ShouldSerializeMessage()
+                || this.ShouldSerializeTransport();
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeMessage()
+        {
+            return messageSecurity.InternalShouldSerialize();
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeTransport()
+        {
+            return transportSecurity.InternalShouldSerialize();
         }
     }
 }

@@ -1,10 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.ComponentModel;
+
     /// <summary>
     /// Modes that can be set in a to determine whether a channel 
     /// supports streamed and/or buffered mode.
@@ -17,7 +17,7 @@ namespace System.ServiceModel
         StreamedResponse,
     }
 
-    public static class TransferModeHelper
+    static class TransferModeHelper
     {
         public static bool IsDefined(TransferMode v)
         {

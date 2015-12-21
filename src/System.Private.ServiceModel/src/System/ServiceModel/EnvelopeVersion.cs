@@ -1,28 +1,26 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Runtime.Serialization;
+    using System.Xml;
+    using System.ServiceModel.Channels;
+
     public sealed class EnvelopeVersion
     {
-        private string _ultimateDestinationActor;
-        private string[] _ultimateDestinationActorValues;
-        private string _nextDestinationActorValue;
-        private string _ns;
-        private XmlDictionaryString _dictionaryNs;
-        private string _actor;
-        private XmlDictionaryString _dictionaryActor;
-        private string _toStringFormat;
-        private string[] _mustUnderstandActorValues;
-        private string _senderFaultName;
-        private string _receiverFaultName;
-        private const string Soap11ToStringFormat = "Soap11 ({0})";
-        private const string Soap12ToStringFormat = "Soap12 ({0})";
-        private const string EnvelopeNoneToStringFormat = "EnvelopeNone ({0})";
-
-        private static EnvelopeVersion s_soap11 =
+        string ultimateDestinationActor;
+        string[] ultimateDestinationActorValues;
+        string nextDestinationActorValue;
+        string ns;
+        XmlDictionaryString dictionaryNs;
+        string actor;
+        XmlDictionaryString dictionaryActor;
+        string toStringFormat;
+        string[] mustUnderstandActorValues;
+        string senderFaultName;
+        string receiverFaultName;
+        static EnvelopeVersion soap11 =
             new EnvelopeVersion(
                 "",
                 "http://schemas.xmlsoap.org/soap/actor/next",
@@ -30,11 +28,11 @@ namespace System.ServiceModel
                 XD.Message11Dictionary.Namespace,
                 Message11Strings.Actor,
                 XD.Message11Dictionary.Actor,
-                Soap11ToStringFormat,
+                SR.Soap11ToStringFormat,
                 "Client",
                 "Server");
 
-        private static EnvelopeVersion s_soap12 =
+        static EnvelopeVersion soap12 =
             new EnvelopeVersion(
                 "http://www.w3.org/2003/05/soap-envelope/role/ultimateReceiver",
                 "http://www.w3.org/2003/05/soap-envelope/role/next",
@@ -42,128 +40,128 @@ namespace System.ServiceModel
                 XD.Message12Dictionary.Namespace,
                 Message12Strings.Role,
                 XD.Message12Dictionary.Role,
-                Soap12ToStringFormat,
+                SR.Soap12ToStringFormat,
                 "Sender",
                 "Receiver");
 
-        private static EnvelopeVersion s_none = new EnvelopeVersion(
+        static EnvelopeVersion none = new EnvelopeVersion(
                 null,
                 null,
                 MessageStrings.Namespace,
                 XD.MessageDictionary.Namespace,
                 null,
                 null,
-                EnvelopeNoneToStringFormat,
+                SR.EnvelopeNoneToStringFormat,
                 "Sender",
                 "Receiver");
 
-        private EnvelopeVersion(string ultimateReceiverActor, string nextDestinationActorValue,
+        EnvelopeVersion(string ultimateReceiverActor, string nextDestinationActorValue,
             string ns, XmlDictionaryString dictionaryNs, string actor, XmlDictionaryString dictionaryActor,
             string toStringFormat, string senderFaultName, string receiverFaultName)
         {
-            _toStringFormat = toStringFormat;
-            _ultimateDestinationActor = ultimateReceiverActor;
-            _nextDestinationActorValue = nextDestinationActorValue;
-            _ns = ns;
-            _dictionaryNs = dictionaryNs;
-            _actor = actor;
-            _dictionaryActor = dictionaryActor;
-            _senderFaultName = senderFaultName;
-            _receiverFaultName = receiverFaultName;
+            this.toStringFormat = toStringFormat;
+            this.ultimateDestinationActor = ultimateReceiverActor;
+            this.nextDestinationActorValue = nextDestinationActorValue;
+            this.ns = ns;
+            this.dictionaryNs = dictionaryNs;
+            this.actor = actor;
+            this.dictionaryActor = dictionaryActor;
+            this.senderFaultName = senderFaultName;
+            this.receiverFaultName = receiverFaultName;
 
             if (ultimateReceiverActor != null)
             {
                 if (ultimateReceiverActor.Length == 0)
                 {
-                    _mustUnderstandActorValues = new string[] { "", nextDestinationActorValue };
-                    _ultimateDestinationActorValues = new string[] { "", nextDestinationActorValue };
+                    mustUnderstandActorValues = new string[] { "", nextDestinationActorValue };
+                    ultimateDestinationActorValues = new string[] { "", nextDestinationActorValue };
                 }
                 else
                 {
-                    _mustUnderstandActorValues = new string[] { "", ultimateReceiverActor, nextDestinationActorValue };
-                    _ultimateDestinationActorValues = new string[] { "", ultimateReceiverActor, nextDestinationActorValue };
+                    mustUnderstandActorValues = new string[] { "", ultimateReceiverActor, nextDestinationActorValue };
+                    ultimateDestinationActorValues = new string[] { "", ultimateReceiverActor, nextDestinationActorValue };
                 }
             }
         }
 
         internal string Actor
         {
-            get { return _actor; }
+            get { return actor; }
         }
 
         internal XmlDictionaryString DictionaryActor
         {
-            get { return _dictionaryActor; }
+            get { return dictionaryActor; }
         }
 
         internal string Namespace
         {
-            get { return _ns; }
+            get { return ns; }
         }
 
         internal XmlDictionaryString DictionaryNamespace
         {
-            get { return _dictionaryNs; }
+            get { return dictionaryNs; }
         }
 
         public string NextDestinationActorValue
         {
-            get { return _nextDestinationActorValue; }
+            get { return nextDestinationActorValue; }
         }
 
         public static EnvelopeVersion None
         {
-            get { return s_none; }
+            get { return none; }
         }
 
         public static EnvelopeVersion Soap11
         {
-            get { return s_soap11; }
+            get { return soap11; }
         }
 
         public static EnvelopeVersion Soap12
         {
-            get { return s_soap12; }
+            get { return soap12; }
         }
 
         internal string ReceiverFaultName
         {
-            get { return _receiverFaultName; }
+            get { return receiverFaultName; }
         }
 
         internal string SenderFaultName
         {
-            get { return _senderFaultName; }
+            get { return senderFaultName; }
         }
 
         internal string[] MustUnderstandActorValues
         {
-            get { return _mustUnderstandActorValues; }
+            get { return this.mustUnderstandActorValues; }
         }
 
         internal string UltimateDestinationActor
         {
-            get { return _ultimateDestinationActor; }
+            get { return ultimateDestinationActor; }
         }
 
         public string[] GetUltimateDestinationActorValues()
         {
-            return (string[])_ultimateDestinationActorValues.Clone();
+            return (string[])this.ultimateDestinationActorValues.Clone();
         }
 
         internal string[] UltimateDestinationActorValues
         {
-            get { return _ultimateDestinationActorValues; }
+            get { return ultimateDestinationActorValues; }
         }
 
         internal bool IsUltimateDestinationActor(string actor)
         {
-            return actor.Length == 0 || actor == _ultimateDestinationActor || actor == _nextDestinationActorValue;
+            return actor.Length == 0 || actor == this.ultimateDestinationActor || actor == this.nextDestinationActorValue;
         }
 
         public override string ToString()
         {
-            return string.Format(_toStringFormat, Namespace);
+            return SR.GetString(toStringFormat, Namespace);
         }
     }
 }

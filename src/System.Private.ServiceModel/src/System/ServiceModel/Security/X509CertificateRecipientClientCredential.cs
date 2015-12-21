@@ -1,57 +1,60 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections.Generic;
+    using System.Security.Cryptography.X509Certificates;
+    using System.ServiceModel;
+
     public sealed class X509CertificateRecipientClientCredential
     {
-        private X509ServiceCertificateAuthentication _authentication;
-        private X509ServiceCertificateAuthentication _sslCertificateAuthentication;
+        X509ServiceCertificateAuthentication authentication;
+        X509ServiceCertificateAuthentication sslCertificateAuthentication;
 
         internal const StoreLocation DefaultStoreLocation = StoreLocation.CurrentUser;
         internal const StoreName DefaultStoreName = StoreName.My;
         internal const X509FindType DefaultFindType = X509FindType.FindBySubjectDistinguishedName;
 
-        private X509Certificate2 _defaultCertificate;
-        private Dictionary<Uri, X509Certificate2> _scopedCertificates;
-        private bool _isReadOnly;
+        X509Certificate2 defaultCertificate;
+        Dictionary<Uri, X509Certificate2> scopedCertificates;
+        bool isReadOnly;
 
         internal X509CertificateRecipientClientCredential()
         {
-            _authentication = new X509ServiceCertificateAuthentication();
-            _scopedCertificates = new Dictionary<Uri, X509Certificate2>();
+            this.authentication = new X509ServiceCertificateAuthentication();
+            this.scopedCertificates = new Dictionary<Uri, X509Certificate2>();
         }
 
         internal X509CertificateRecipientClientCredential(X509CertificateRecipientClientCredential other)
         {
-            _authentication = new X509ServiceCertificateAuthentication(other._authentication);
-            if (other._sslCertificateAuthentication != null)
+            this.authentication = new X509ServiceCertificateAuthentication(other.authentication);
+            if (other.sslCertificateAuthentication != null)
             {
-                _sslCertificateAuthentication = new X509ServiceCertificateAuthentication(other._sslCertificateAuthentication);
+                this.sslCertificateAuthentication = new X509ServiceCertificateAuthentication(other.sslCertificateAuthentication);
             }
 
-            _defaultCertificate = other._defaultCertificate;
-            _scopedCertificates = new Dictionary<Uri, X509Certificate2>();
+            this.defaultCertificate = other.defaultCertificate;
+            this.scopedCertificates = new Dictionary<Uri, X509Certificate2>();
             foreach (Uri uri in other.ScopedCertificates.Keys)
             {
-                _scopedCertificates.Add(uri, other.ScopedCertificates[uri]);
+                this.scopedCertificates.Add(uri, other.ScopedCertificates[uri]);
             }
-            _isReadOnly = other._isReadOnly;
+            this.isReadOnly = other.isReadOnly;
         }
 
         public X509Certificate2 DefaultCertificate
         {
             get
             {
-                return _defaultCertificate;
+                
+                return this.defaultCertificate;
             }
             set
             {
                 ThrowIfImmutable();
-                _defaultCertificate = value;
+                this.defaultCertificate = value;
             }
         }
 
@@ -59,7 +62,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _scopedCertificates;
+                return this.scopedCertificates;
             }
         }
 
@@ -67,7 +70,8 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _authentication;
+                
+                return this.authentication;
             }
         }
 
@@ -75,12 +79,12 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _sslCertificateAuthentication;
+                return this.sslCertificateAuthentication;
             }
             set
             {
                 ThrowIfImmutable();
-                _sslCertificateAuthentication = value;
+                this.sslCertificateAuthentication = value;
             }
         }
 
@@ -100,7 +104,7 @@ namespace System.ServiceModel.Security
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("findValue");
             }
             ThrowIfImmutable();
-            _defaultCertificate = SecurityUtils.GetCertificateFromStore(storeName, storeLocation, findType, findValue, null);
+            this.defaultCertificate = SecurityUtils.GetCertificateFromStore(storeName, storeLocation, findType, findValue, null);
         }
 
         public void SetScopedCertificate(string subjectName, StoreLocation storeLocation, StoreName storeName, Uri targetService)
@@ -129,19 +133,19 @@ namespace System.ServiceModel.Security
 
         internal void MakeReadOnly()
         {
-            _isReadOnly = true;
+            this.isReadOnly = true;
             this.Authentication.MakeReadOnly();
-            if (_sslCertificateAuthentication != null)
+            if (this.sslCertificateAuthentication != null)
             {
-                _sslCertificateAuthentication.MakeReadOnly();
+                this.sslCertificateAuthentication.MakeReadOnly();
             }
         }
 
-        private void ThrowIfImmutable()
+        void ThrowIfImmutable()
         {
-            if (_isReadOnly)
+            if (this.isReadOnly)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.ObjectIsReadOnly)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
             }
         }
     }

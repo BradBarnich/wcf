@@ -1,11 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Xml;
+﻿// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright> 
 
 namespace System.ServiceModel.Channels
 {
+    using System.ComponentModel;
+    using System.Runtime;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Configuration;
+    using System.Xml;
+
     internal static class EncoderHelpers
     {
         internal static XmlDictionaryReaderQuotas GetBufferedReadQuotas(XmlDictionaryReaderQuotas encoderQuotas)

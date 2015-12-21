@@ -1,9 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
+
+using System;
+
+using System.ServiceModel.Channels;
+
+using System.ServiceModel;
+
+using System.ServiceModel.Description;
+using System.Xml;
+using System.Collections.Generic;
+using System.IdentityModel.Selectors;
+using System.Globalization;
 
 namespace System.ServiceModel.Security.Tokens
 {
-    public sealed class RecipientServiceModelSecurityTokenRequirement : ServiceModelSecurityTokenRequirement
+    public sealed class RecipientServiceModelSecurityTokenRequirement : ServiceModelSecurityTokenRequirement 
     {
         public RecipientServiceModelSecurityTokenRequirement()
             : base()
@@ -13,13 +26,49 @@ namespace System.ServiceModel.Security.Tokens
 
         public Uri ListenUri
         {
-            get
+            get 
             {
                 return GetPropertyOrDefault<Uri>(ListenUriProperty, null);
             }
-            set
+            set 
             {
                 this.Properties[ListenUriProperty] = value;
+            }
+        }
+
+        public AuditLogLocation AuditLogLocation
+        {
+            get
+            {
+                return GetPropertyOrDefault<AuditLogLocation>(AuditLogLocationProperty, ServiceSecurityAuditBehavior.defaultAuditLogLocation);
+            }
+            set
+            {
+                this.Properties[AuditLogLocationProperty] = value;
+            }
+        }
+
+        public bool SuppressAuditFailure
+        {
+            get
+            {
+                return GetPropertyOrDefault<bool>(SuppressAuditFailureProperty, ServiceSecurityAuditBehavior.defaultSuppressAuditFailure);
+            }
+            set
+            {
+                this.Properties[SuppressAuditFailureProperty] = value;
+            }
+        }
+
+        public AuditLevel MessageAuthenticationAuditLevel
+        {
+            get
+            {
+                return GetPropertyOrDefault<AuditLevel>(MessageAuthenticationAuditLevelProperty, ServiceSecurityAuditBehavior.defaultMessageAuthenticationAuditLevel);
+            }
+            set
+            {
+                this.Properties[MessageAuthenticationAuditLevelProperty] = value;
             }
         }
 

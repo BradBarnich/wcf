@@ -1,34 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal abstract class BufferedMessageData : IBufferedMessageData
+    using System.Runtime;
+    using System.Xml;
+
+    abstract class BufferedMessageData : IBufferedMessageData
     {
-        private ArraySegment<byte> _buffer;
-        private BufferManager _bufferManager;
-        private int _refCount;
-        private int _outstandingReaders;
-        private bool _multipleUsers;
-        private RecycledMessageState _messageState;
-        private SynchronizedPool<RecycledMessageState> _messageStatePool;
+        ArraySegment<byte> buffer;
+        BufferManager bufferManager;
+        int refCount;
+        int outstandingReaders;
+        bool multipleUsers;
+        RecycledMessageState messageState;
+        SynchronizedPool<RecycledMessageState> messageStatePool;
 
         public BufferedMessageData(SynchronizedPool<RecycledMessageState> messageStatePool)
         {
-            _messageStatePool = messageStatePool;
+            this.messageStatePool = messageStatePool;
         }
 
         public ArraySegment<byte> Buffer
         {
-            get { return _buffer; }
+            get { return buffer; }
         }
 
         public BufferManager BufferManager
         {
-            get { return _bufferManager; }
+            get { return bufferManager; }
         }
 
         public virtual XmlDictionaryReaderQuotas Quotas
@@ -38,23 +38,23 @@ namespace System.ServiceModel.Channels
 
         public abstract MessageEncoder MessageEncoder { get; }
 
-        private object ThisLock
+        object ThisLock
         {
             get { return this; }
         }
 
         public void EnableMultipleUsers()
         {
-            _multipleUsers = true;
+            multipleUsers = true;
         }
 
         public void Close()
         {
-            if (_multipleUsers)
+            if (multipleUsers)
             {
                 lock (ThisLock)
                 {
-                    if (--_refCount == 0)
+                    if (--this.refCount == 0)
                     {
                         DoClose();
                     }
@@ -66,59 +66,59 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void DoClose()
+        void DoClose()
         {
-            _bufferManager.ReturnBuffer(_buffer.Array);
-            if (_outstandingReaders == 0)
+            bufferManager.ReturnBuffer(buffer.Array);
+            if (outstandingReaders == 0)
             {
-                _bufferManager = null;
-                _buffer = new ArraySegment<byte>();
+                bufferManager = null;
+                buffer = new ArraySegment<byte>();
                 OnClosed();
             }
         }
 
         public void DoReturnMessageState(RecycledMessageState messageState)
         {
-            if (_messageState == null)
+            if (this.messageState == null)
             {
-                _messageState = messageState;
+                this.messageState = messageState;
             }
             else
             {
-                _messageStatePool.Return(messageState);
+                messageStatePool.Return(messageState);
             }
         }
 
-        private void DoReturnXmlReader(XmlDictionaryReader reader)
+        void DoReturnXmlReader(XmlDictionaryReader reader)
         {
             ReturnXmlReader(reader);
-            _outstandingReaders--;
+            outstandingReaders--;
         }
 
         public RecycledMessageState DoTakeMessageState()
         {
-            RecycledMessageState messageState = _messageState;
+            RecycledMessageState messageState = this.messageState;
             if (messageState != null)
             {
-                _messageState = null;
+                this.messageState = null;
                 return messageState;
             }
             else
             {
-                return _messageStatePool.Take();
+                return messageStatePool.Take();
             }
         }
 
-        private XmlDictionaryReader DoTakeXmlReader()
+        XmlDictionaryReader DoTakeXmlReader()
         {
             XmlDictionaryReader reader = TakeXmlReader();
-            _outstandingReaders++;
+            outstandingReaders++;
             return reader;
         }
 
         public XmlDictionaryReader GetMessageReader()
         {
-            if (_multipleUsers)
+            if (multipleUsers)
             {
                 lock (ThisLock)
                 {
@@ -133,7 +133,7 @@ namespace System.ServiceModel.Channels
 
         public void OnXmlReaderClosed(XmlDictionaryReader reader)
         {
-            if (_multipleUsers)
+            if (multipleUsers)
             {
                 lock (ThisLock)
                 {
@@ -152,7 +152,7 @@ namespace System.ServiceModel.Channels
 
         public RecycledMessageState TakeMessageState()
         {
-            if (_multipleUsers)
+            if (multipleUsers)
             {
                 lock (ThisLock)
                 {
@@ -171,23 +171,23 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                _refCount++;
+                this.refCount++;
             }
         }
 
         public void Open(ArraySegment<byte> buffer, BufferManager bufferManager)
         {
-            _refCount = 1;
-            _bufferManager = bufferManager;
-            _buffer = buffer;
-            _multipleUsers = false;
+            this.refCount = 1;
+            this.bufferManager = bufferManager;
+            this.buffer = buffer;
+            multipleUsers = false;
         }
 
         protected abstract void ReturnXmlReader(XmlDictionaryReader xmlReader);
 
         public void ReturnMessageState(RecycledMessageState messageState)
         {
-            if (_multipleUsers)
+            if (multipleUsers)
             {
                 lock (ThisLock)
                 {

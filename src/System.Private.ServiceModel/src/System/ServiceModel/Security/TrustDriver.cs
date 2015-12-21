@@ -1,18 +1,28 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.IdentityModel.Selectors;
-using System.IdentityModel.Tokens;
-
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal abstract class TrustDriver
+    using System;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Runtime.Serialization;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Selectors;
+    using System.IdentityModel.Tokens;
+    using System.Security.Principal;
+    using System.Security.Cryptography;
+    using System.ServiceModel.Security.Tokens;
+
+    using System.Xml;
+
+    abstract class TrustDriver
     {
         // issued tokens control        
         public virtual bool IsIssuedTokensSupported
@@ -28,7 +38,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.TrustDriverVersionDoesNotSupportIssuedTokens));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+#pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.TrustDriverVersionDoesNotSupportIssuedTokens)));
             }
         }
 
@@ -37,7 +49,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.TrustDriverVersionDoesNotSupportIssuedTokens));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+#pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.TrustDriverVersionDoesNotSupportIssuedTokens)));
             }
         }
 
@@ -61,7 +75,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.TrustDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+#pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.TrustDriverVersionDoesNotSupportSession)));
             }
         }
 
@@ -72,7 +88,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.TrustDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+#pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.TrustDriverVersionDoesNotSupportSession)));
             }
         }
 
@@ -124,6 +142,12 @@ namespace System.ServiceModel.Security
         // RSTR specific method
         public abstract SecurityToken GetEntropy(RequestSecurityTokenResponse rstr, SecurityTokenResolver resolver);
 
+        // RSTR specific method
+        public abstract GenericXmlSecurityToken GetIssuedToken(RequestSecurityTokenResponse rstr, SecurityTokenResolver resolver, IList<SecurityTokenAuthenticator> allowedAuthenticators, SecurityKeyEntropyMode keyEntropyMode, byte[] requestorEntropy,
+            string expectedTokenType, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies, int defaultKeySize, bool isBearerKeyType);
+
+        public abstract GenericXmlSecurityToken GetIssuedToken(RequestSecurityTokenResponse rstr, string expectedTokenType, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies, RSA clientKey);
+
         public abstract void OnRSTRorRSTRCMissingException();
 
         // RST specific method
@@ -137,5 +161,26 @@ namespace System.ServiceModel.Security
 
         // Federation proxy creation
         public abstract IChannelFactory<IRequestChannel> CreateFederationProxy(EndpointAddress address, Binding binding, KeyedByTypeCollection<IEndpointBehavior> channelBehaviors);
+        public abstract XmlElement CreateKeySizeElement(int keySize);
+        public abstract XmlElement CreateKeyTypeElement(SecurityKeyType keyType);
+        public abstract XmlElement CreateTokenTypeElement(string tokenTypeUri);
+        public abstract XmlElement CreateRequiredClaimsElement(IEnumerable<XmlElement> claimsList);
+        public abstract XmlElement CreateUseKeyElement(SecurityKeyIdentifier keyIdentifier, SecurityStandardsManager standardsManager);
+        public abstract XmlElement CreateSignWithElement(string signatureAlgorithm);
+        public abstract XmlElement CreateEncryptWithElement(string encryptionAlgorithm);
+        public abstract XmlElement CreateEncryptionAlgorithmElement(string encryptionAlgorithm);
+        public abstract XmlElement CreateCanonicalizationAlgorithmElement(string canonicalicationAlgorithm);
+        public abstract XmlElement CreateComputedKeyAlgorithmElement(string computedKeyAlgorithm);
+        public abstract Collection<XmlElement> ProcessUnknownRequestParameters(Collection<XmlElement> unknownRequestParameters, Collection<XmlElement> originalRequestParameters);
+        public abstract bool TryParseKeySizeElement(XmlElement element, out int keySize);
+        public abstract bool TryParseKeyTypeElement(XmlElement element, out SecurityKeyType keyType);
+        public abstract bool TryParseTokenTypeElement(XmlElement element, out string tokenType);
+        public abstract bool TryParseRequiredClaimsElement(XmlElement element, out Collection<XmlElement> requiredClaims);
+        // helper methods for the parsing standard binding elements
+        internal virtual bool IsSignWithElement(XmlElement element, out string signatureAlgorithm) { signatureAlgorithm = null; return false; }
+        internal virtual bool IsEncryptWithElement(XmlElement element, out string encryptWithAlgorithm) { encryptWithAlgorithm = null; return false; }
+        internal virtual bool IsEncryptionAlgorithmElement(XmlElement element, out string encryptionAlgorithm) { encryptionAlgorithm = null; return false; }
+        internal virtual bool IsCanonicalizationAlgorithmElement(XmlElement element, out string canonicalizationAlgorithm) { canonicalizationAlgorithm = null; return false; }
+        internal virtual bool IsKeyWrapAlgorithmElement(XmlElement element, out string keyWrapAlgorithm) { keyWrapAlgorithm = null; return false; }
     }
 }

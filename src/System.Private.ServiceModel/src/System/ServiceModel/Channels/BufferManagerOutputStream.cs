@@ -1,31 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Diagnostics.Application; // for QuotaExceededException
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal class BufferManagerOutputStream : BufferedOutputStream
+    using System;
+    using System.Runtime;
+    using System.ServiceModel; // for QuotaExceededException
+    using System.ServiceModel.Diagnostics.Application;
+
+    class BufferManagerOutputStream : BufferedOutputStream
     {
-        private string _quotaExceededString;
+        string quotaExceededString;
 
         public BufferManagerOutputStream(string quotaExceededString)
             : base()
         {
-            _quotaExceededString = quotaExceededString;
+            this.quotaExceededString = quotaExceededString;
         }
 
         public BufferManagerOutputStream(string quotaExceededString, int maxSize)
             : base(maxSize)
         {
-            _quotaExceededString = quotaExceededString;
+            this.quotaExceededString = quotaExceededString;
         }
 
         public BufferManagerOutputStream(string quotaExceededString, int initialSize, int maxSize, BufferManager bufferManager)
             : base(initialSize, maxSize, BufferManager.GetInternalBufferManager(bufferManager))
         {
-            _quotaExceededString = quotaExceededString;
+            this.quotaExceededString = quotaExceededString;
         }
 
         public void Init(int initialSize, int maxSizeQuota, BufferManager bufferManager)
@@ -40,7 +43,7 @@ namespace System.ServiceModel.Channels
 
         protected override Exception CreateQuotaExceededException(int maxSizeQuota)
         {
-            string excMsg = SR.Format(_quotaExceededString, maxSizeQuota);
+            string excMsg = SR.GetString(this.quotaExceededString, maxSizeQuota);
             if (TD.MaxSentMessageSizeExceededIsEnabled())
             {
                 TD.MaxSentMessageSizeExceeded(excMsg);

@@ -1,10 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.ComponentModel;
+
     public enum SecurityTokenAttachmentMode
     {
         Signed,
@@ -13,7 +14,7 @@ namespace System.ServiceModel.Security
         SignedEncrypted
     }
 
-    internal static class SecurityTokenAttachmentModeHelper
+    static class SecurityTokenAttachmentModeHelper
     {
         internal static bool IsDefined(SecurityTokenAttachmentMode value)
         {
@@ -35,6 +36,7 @@ namespace System.ServiceModel.Security
         internal static void Categorize(SecurityTokenAttachmentMode value,
             out bool isBasic, out bool isSignedButNotBasic, out ReceiveSecurityHeaderBindingModes mode)
         {
+
             SecurityTokenAttachmentModeHelper.Validate(value);
 
             switch (value)

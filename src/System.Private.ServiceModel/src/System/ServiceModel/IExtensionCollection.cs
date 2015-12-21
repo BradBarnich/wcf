@@ -1,12 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+
     public interface IExtensionCollection<T> : ICollection<IExtension<T>>
     where T : IExtensibleObject<T>
     {

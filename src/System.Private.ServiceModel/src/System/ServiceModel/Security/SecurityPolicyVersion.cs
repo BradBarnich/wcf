@@ -1,24 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Xml;
 
 namespace System.ServiceModel.Security
 {
     public abstract class SecurityPolicyVersion
     {
-        private readonly String _spNamespace;
-        private readonly String _prefix;
+        readonly String spNamespace;
+        readonly String prefix;
 
         internal SecurityPolicyVersion(String ns, String prefix)
         {
-            _spNamespace = ns;
-            _prefix = prefix;
+            this.spNamespace = ns;
+            this.prefix = prefix;
         }
 
         public String Namespace
         {
             get
             {
-                return _spNamespace;
+                return this.spNamespace;
             }
         }
 
@@ -26,7 +32,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _prefix;
+                return this.prefix;
             }
         }
 
@@ -40,12 +46,12 @@ namespace System.ServiceModel.Security
             get { return WSSecurityPolicyVersion12.Instance; }
         }
 
-        internal class WSSecurityPolicyVersion11 : SecurityPolicyVersion
+        class WSSecurityPolicyVersion11 : SecurityPolicyVersion
         {
-            private static readonly WSSecurityPolicyVersion11 s_instance = new WSSecurityPolicyVersion11();
+            static readonly WSSecurityPolicyVersion11 instance = new WSSecurityPolicyVersion11();
 
             protected WSSecurityPolicyVersion11()
-                : base("http://schemas.xmlsoap.org/ws/2005/07/securitypolicy", WSSecurityPolicy.WsspPrefix)
+                : base(System.ServiceModel.Security.WSSecurityPolicy11.WsspNamespace, WSSecurityPolicy.WsspPrefix)
             {
             }
 
@@ -53,17 +59,17 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
 
-        internal class WSSecurityPolicyVersion12 : SecurityPolicyVersion
+        class WSSecurityPolicyVersion12 : SecurityPolicyVersion
         {
-            private static readonly WSSecurityPolicyVersion12 s_instance = new WSSecurityPolicyVersion12();
+            static readonly WSSecurityPolicyVersion12 instance = new WSSecurityPolicyVersion12();
 
             protected WSSecurityPolicyVersion12()
-                : base("http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200702", WSSecurityPolicy.WsspPrefix)
+                : base(System.ServiceModel.Security.WSSecurityPolicy12.WsspNamespace, WSSecurityPolicy.WsspPrefix)
             {
             }
 
@@ -71,9 +77,10 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
+
     }
 }

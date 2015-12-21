@@ -1,20 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.Text;
-using System.Runtime.Serialization;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.Globalization;
+    using System.Text;
+    using System.Runtime.Serialization;
+
     [DataContract]
     public class ExceptionDetail
     {
-        private string _helpLink;
-        private ExceptionDetail _innerException;
-        private string _message;
-        private string _stackTrace;
-        private string _type;
+        string helpLink;
+        ExceptionDetail innerException;
+        string message;
+        string stackTrace;
+        string type;
 
         public ExceptionDetail(Exception exception)
         {
@@ -23,58 +25,58 @@ namespace System.ServiceModel
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("exception");
             }
 
-            _helpLink = exception.HelpLink;
-            _message = exception.Message;
-            _stackTrace = exception.StackTrace;
-            _type = exception.GetType().ToString();
+            this.helpLink = exception.HelpLink;
+            this.message = exception.Message;
+            this.stackTrace = exception.StackTrace;
+            this.type = exception.GetType().ToString();
 
             if (exception.InnerException != null)
             {
-                _innerException = new ExceptionDetail(exception.InnerException);
+                this.innerException = new ExceptionDetail(exception.InnerException);
             }
         }
 
         [DataMember]
         public string HelpLink
         {
-            get { return _helpLink; }
-            set { _helpLink = value; }
+            get { return this.helpLink; }
+            set { this.helpLink = value; }
         }
 
         [DataMember]
         public ExceptionDetail InnerException
         {
-            get { return _innerException; }
-            set { _innerException = value; }
+            get { return this.innerException; }
+            set { this.innerException = value; }
         }
 
         [DataMember]
         public string Message
         {
-            get { return _message; }
-            set { _message = value; }
+            get { return this.message; }
+            set { this.message = value; }
         }
 
         [DataMember]
         public string StackTrace
         {
-            get { return _stackTrace; }
-            set { _stackTrace = value; }
+            get { return this.stackTrace; }
+            set { this.stackTrace = value; }
         }
 
         [DataMember]
         public string Type
         {
-            get { return _type; }
-            set { _type = value; }
+            get { return this.type; }
+            set { this.type = value; }
         }
 
         public override string ToString()
         {
-            return string.Format(CultureInfo.InvariantCulture, "{0}\n{1}", SR.SFxExceptionDetailFormat, this.ToStringHelper(false));
+            return string.Format(CultureInfo.InvariantCulture, "{0}\n{1}", SR.GetString(SR.SFxExceptionDetailFormat), this.ToStringHelper(false));
         }
 
-        private string ToStringHelper(bool isInner)
+        string ToStringHelper(bool isInner)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendFormat("{0}: {1}", this.Type, this.Message);
@@ -89,7 +91,7 @@ namespace System.ServiceModel
             sb.Append(this.StackTrace);
             if (isInner)
             {
-                sb.AppendFormat("\n   {0}\n", SR.SFxExceptionDetailEndOfInner);
+                sb.AppendFormat("\n   {0}\n", SR.GetString(SR.SFxExceptionDetailEndOfInner));
             }
             return sb.ToString();
         }

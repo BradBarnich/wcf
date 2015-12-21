@@ -1,10 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.ComponentModel;
+
     public enum SecurityKeyEntropyMode
     {
         ClientEntropy,
@@ -12,7 +13,7 @@ namespace System.ServiceModel.Security
         CombinedEntropy
     }
 
-    internal sealed class SecurityKeyEntropyModeHelper
+    sealed class SecurityKeyEntropyModeHelper
     {
         internal static bool IsDefined(SecurityKeyEntropyMode value)
         {

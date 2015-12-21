@@ -1,18 +1,26 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public abstract class TransportChannelFactory<TChannel> : ChannelFactoryBase<TChannel>, ITransportFactorySettings
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.ServiceModel;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Runtime.Serialization;
+    using System.Text;
+    using System.Threading;
+
+    abstract class TransportChannelFactory<TChannel> : ChannelFactoryBase<TChannel>, ITransportFactorySettings
     {
-        private BufferManager _bufferManager;
-        private long _maxBufferPoolSize;
-        private long _maxReceivedMessageSize;
-        private MessageEncoderFactory _messageEncoderFactory;
-        private bool _manualAddressing;
-        private MessageVersion _messageVersion;
+        BufferManager bufferManager;
+        long maxBufferPoolSize;
+        long maxReceivedMessageSize;
+        MessageEncoderFactory messageEncoderFactory;
+        bool manualAddressing;
+        MessageVersion messageVersion;
 
         protected TransportChannelFactory(TransportBindingElement bindingElement, BindingContext context)
             : this(bindingElement, context, TransportDefaults.GetDefaultMessageEncoderFactory())
@@ -23,38 +31,38 @@ namespace System.ServiceModel.Channels
                                           MessageEncoderFactory defaultMessageEncoderFactory)
             : base(context.Binding)
         {
-            _manualAddressing = bindingElement.ManualAddressing;
-            _maxBufferPoolSize = bindingElement.MaxBufferPoolSize;
-            _maxReceivedMessageSize = bindingElement.MaxReceivedMessageSize;
+            this.manualAddressing = bindingElement.ManualAddressing;
+            this.maxBufferPoolSize = bindingElement.MaxBufferPoolSize;
+            this.maxReceivedMessageSize = bindingElement.MaxReceivedMessageSize;
 
             Collection<MessageEncodingBindingElement> messageEncoderBindingElements
                 = context.BindingParameters.FindAll<MessageEncodingBindingElement>();
 
             if (messageEncoderBindingElements.Count > 1)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.MultipleMebesInParameters));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.MultipleMebesInParameters)));
             }
             else if (messageEncoderBindingElements.Count == 1)
             {
-                _messageEncoderFactory = messageEncoderBindingElements[0].CreateMessageEncoderFactory();
+                this.messageEncoderFactory = messageEncoderBindingElements[0].CreateMessageEncoderFactory();
                 context.BindingParameters.Remove<MessageEncodingBindingElement>();
             }
             else
             {
-                _messageEncoderFactory = defaultMessageEncoderFactory;
+                this.messageEncoderFactory = defaultMessageEncoderFactory;
             }
 
-            if (null != _messageEncoderFactory)
-                _messageVersion = _messageEncoderFactory.MessageVersion;
+            if (null != this.messageEncoderFactory)
+                this.messageVersion = this.messageEncoderFactory.MessageVersion;
             else
-                _messageVersion = MessageVersion.None;
+                this.messageVersion = MessageVersion.None;
         }
 
         public BufferManager BufferManager
         {
             get
             {
-                return _bufferManager;
+                return this.bufferManager;
             }
         }
 
@@ -62,7 +70,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxBufferPoolSize;
+                return this.maxBufferPoolSize;
             }
         }
 
@@ -70,7 +78,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxReceivedMessageSize;
+                return maxReceivedMessageSize;
             }
         }
 
@@ -78,7 +86,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _messageEncoderFactory;
+                return this.messageEncoderFactory;
             }
         }
 
@@ -86,7 +94,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _messageVersion;
+                return this.messageVersion;
             }
         }
 
@@ -94,7 +102,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _manualAddressing;
+                return this.manualAddressing;
             }
         }
 
@@ -142,15 +150,15 @@ namespace System.ServiceModel.Channels
             base.OnClose(timeout);
         }
 
-        private void OnCloseOrAbort()
+        void OnCloseOrAbort()
         {
-            if (_bufferManager != null)
+            if (this.bufferManager != null)
             {
-                _bufferManager.Clear();
+                this.bufferManager.Clear();
             }
         }
 
-        public virtual int GetMaxBufferSize()
+        internal virtual int GetMaxBufferSize()
         {
             if (MaxReceivedMessageSize > int.MaxValue)
                 return int.MaxValue;
@@ -161,17 +169,17 @@ namespace System.ServiceModel.Channels
         protected override void OnOpening()
         {
             base.OnOpening();
-            _bufferManager = BufferManager.CreateBufferManager(MaxBufferPoolSize, GetMaxBufferSize());
+            this.bufferManager = BufferManager.CreateBufferManager(MaxBufferPoolSize, GetMaxBufferSize());
         }
 
-        public void ValidateScheme(Uri via)
+        internal void ValidateScheme(Uri via)
         {
             if (via.Scheme != this.Scheme)
             {
                 // URI schemes are case-insensitive, so try a case insensitive compare now
                 if (string.Compare(via.Scheme, this.Scheme, StringComparison.OrdinalIgnoreCase) != 0)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("via", SR.Format(SR.InvalidUriScheme,
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("via", SR.GetString(SR.InvalidUriScheme,
                         via.Scheme, this.Scheme));
                 }
             }

@@ -1,43 +1,43 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
     [AttributeUsage(ServiceModelAttributeTargets.MessageMember, AllowMultiple = false, Inherited = false)]
     public class MessageHeaderAttribute : MessageContractMemberAttribute
     {
-        private bool _mustUnderstand;
-        private bool _isMustUnderstandSet;
-        private bool _relay;
-        private bool _isRelaySet;
-        private string _actor;
+        bool mustUnderstand;
+        bool isMustUnderstandSet;
+        bool relay;
+        bool isRelaySet;
+        string actor;
 
         public bool MustUnderstand
         {
-            get { return _mustUnderstand; }
-            set { _mustUnderstand = value; _isMustUnderstandSet = true; }
+            get { return mustUnderstand; }
+            set { mustUnderstand = value; isMustUnderstandSet = true; }
         }
 
         public bool Relay
         {
-            get { return _relay; }
-            set { _relay = value; _isRelaySet = true; }
+            get { return relay; }
+            set { relay = value; isRelaySet = true; }
         }
 
         public string Actor
         {
-            get { return _actor; }
-            set { _actor = value; }
+            get { return actor; }
+            set { actor = value; }
         }
 
         internal bool IsMustUnderstandSet
         {
-            get { return _isMustUnderstandSet; }
+            get { return isMustUnderstandSet; }
         }
 
         internal bool IsRelaySet
         {
-            get { return _isRelaySet; }
+            get { return isRelaySet; }
         }
     }
 }

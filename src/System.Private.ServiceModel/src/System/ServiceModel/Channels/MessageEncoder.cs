@@ -1,16 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.ServiceModel.Diagnostics;
-using System.Runtime;
-using System.Threading;
-using System.Threading.Tasks;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.IO;
+    using System.Net.Mime;
+    using System.Runtime.Serialization;
+    using System.Runtime.Diagnostics;
+    using System.ServiceModel.Diagnostics;
+    using System.Runtime;
+    using System.Threading;
+    using System.ServiceModel.Diagnostics.Application;
+
     public abstract class MessageEncoder
     {
+        private string traceSourceString;
+
         public abstract string ContentType { get; }
 
         public abstract string MediaType { get; }
@@ -32,16 +38,6 @@ namespace System.ServiceModel.Channels
             return ReadMessage(stream, maxSizeOfHeaders, null);
         }
 
-        public virtual Task<Message> ReadMessageAsync(Stream stream, int maxSizeOfHeaders, string contentType)
-        {
-            return Task.FromResult(ReadMessage(stream, maxSizeOfHeaders, contentType));
-        }
-
-        public virtual Task<Message> ReadMessageAsync(ArraySegment<byte> buffer, BufferManager bufferManager, string contentType)
-        {
-            return Task.FromResult(ReadMessage(buffer, bufferManager, contentType));
-        }
-
         public abstract Message ReadMessage(Stream stream, int maxSizeOfHeaders, string contentType);
 
         public Message ReadMessage(ArraySegment<byte> buffer, BufferManager bufferManager)
@@ -53,7 +49,7 @@ namespace System.ServiceModel.Channels
         public abstract Message ReadMessage(ArraySegment<byte> buffer, BufferManager bufferManager, string contentType);
 
         // used for buffered streaming
-        internal async Task<ArraySegment<byte>> BufferMessageStreamAsync(Stream stream, BufferManager bufferManager, int maxBufferSize)
+        internal ArraySegment<byte> BufferMessageStream(Stream stream, BufferManager bufferManager, int maxBufferSize)
         {
             byte[] buffer = bufferManager.TakeBuffer(ConnectionOrientedTransportDefaults.ConnectionBufferSize);
             int offset = 0;
@@ -61,10 +57,10 @@ namespace System.ServiceModel.Channels
 
             while (offset < currentBufferSize)
             {
-                int count = await stream.ReadAsync(buffer, offset, currentBufferSize - offset, CancellationToken.None);
+                int count = stream.Read(buffer, offset, currentBufferSize - offset);
                 if (count == 0)
                 {
-                    stream.Dispose();
+                    stream.Close();
                     break;
                 }
 
@@ -88,9 +84,9 @@ namespace System.ServiceModel.Channels
         }
 
         // used for buffered streaming
-        internal virtual async Task<Message> ReadMessageAsync(Stream stream, BufferManager bufferManager, int maxBufferSize, string contentType)
+        internal virtual Message ReadMessage(Stream stream, BufferManager bufferManager, int maxBufferSize, string contentType)
         {
-            return ReadMessage(await BufferMessageStreamAsync(stream, bufferManager, maxBufferSize), bufferManager, contentType);
+            return ReadMessage(BufferMessageStream(stream, bufferManager, maxBufferSize), bufferManager, contentType);
         }
 
         public override string ToString()
@@ -102,12 +98,12 @@ namespace System.ServiceModel.Channels
 
         public virtual IAsyncResult BeginWriteMessage(Message message, Stream stream, AsyncCallback callback, object state)
         {
-            return this.WriteMessageAsync(message, stream).ToApm(callback, state);
+            return new WriteMessageAsyncResult(message, stream, this, callback, state);
         }
 
         public virtual void EndWriteMessage(IAsyncResult result)
         {
-            result.ToApmEnd();
+            WriteMessageAsyncResult.End(result);
         }
 
         public ArraySegment<byte> WriteMessage(Message message, int maxMessageSize, BufferManager bufferManager)
@@ -118,18 +114,6 @@ namespace System.ServiceModel.Channels
 
         public abstract ArraySegment<byte> WriteMessage(Message message, int maxMessageSize,
             BufferManager bufferManager, int messageOffset);
-
-        public virtual Task WriteMessageAsync(Message message, Stream stream)
-        {
-            WriteMessage(message, stream);
-            return TaskHelpers.CompletedTask();
-        }
-
-        public virtual Task<ArraySegment<byte>> WriteMessageAsync(Message message, int maxMessageSize,
-            BufferManager bufferManager, int messageOffset)
-        {
-            return Task.FromResult(WriteMessage(message, maxMessageSize, bufferManager, messageOffset));
-        }
 
         public virtual bool IsContentTypeSupported(string contentType)
         {
@@ -194,8 +178,23 @@ namespace System.ServiceModel.Channels
 
             // sometimes we get a contentType that has parameters, but our encoders
             // merely expose the base content-type, so we will check a stripped version
+            try
+            {
+                ContentType parsedContentType = new ContentType(contentType);
 
-            throw ExceptionHelper.PlatformNotSupported("MessageEncoder content type parsing is not supported.");
+                if (supportedMediaType.Length > 0 && !supportedMediaType.Equals(parsedContentType.MediaType, StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!IsCharSetSupported(parsedContentType.CharSet))
+                    return false;
+            }
+            catch (FormatException)
+            {
+                // bad content type, so we definitely don't support it!
+                return false;
+            }
+
+            return true;
         }
 
         internal virtual bool IsCharSetSupported(string charset)
@@ -208,8 +207,42 @@ namespace System.ServiceModel.Channels
             if (message.Version != MessageVersion)
             {
                 throw TraceUtility.ThrowHelperError(
-                    new ProtocolException(SR.Format(SR.EncoderMessageVersionMismatch, message.Version, MessageVersion)),
+                    new ProtocolException(SR.GetString(SR.EncoderMessageVersionMismatch, message.Version, MessageVersion)),
                     message);
+            }
+        }
+
+        internal string GetTraceSourceString()
+        {
+            if (this.traceSourceString == null)
+            {
+                this.traceSourceString = DiagnosticTraceBase.CreateDefaultSourceString(this);
+            }
+
+            return this.traceSourceString;
+        }
+
+        class WriteMessageAsyncResult : ScheduleActionItemAsyncResult
+        {
+            MessageEncoder encoder;
+            Message message;
+            Stream stream;
+
+            public WriteMessageAsyncResult(Message message, Stream stream, MessageEncoder encoder, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                Fx.Assert(encoder != null, "encoder should never be null");
+
+                this.encoder = encoder;
+                this.message = message;
+                this.stream = stream;
+
+                Schedule();
+            }
+
+            protected override void OnDoWork()
+            {
+                this.encoder.WriteMessage(this.message, this.stream);
             }
         }
     }

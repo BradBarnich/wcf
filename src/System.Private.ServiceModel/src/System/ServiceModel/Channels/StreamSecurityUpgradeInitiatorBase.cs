@@ -1,35 +1,33 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Security;
-using System.Threading.Tasks;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal abstract class StreamSecurityUpgradeInitiatorBase : StreamSecurityUpgradeInitiator
+    using System.IO;
+    using System.ServiceModel;
+    using System.ServiceModel.Security;
+
+    abstract class StreamSecurityUpgradeInitiatorBase : StreamSecurityUpgradeInitiator
     {
-        private EndpointAddress _remoteAddress;
-        private Uri _via;
-        private SecurityMessageProperty _remoteSecurity;
-        private bool _securityUpgraded;
-        private string _nextUpgrade;
-        private bool _isOpen;
+        EndpointAddress remoteAddress;
+        Uri via;
+        SecurityMessageProperty remoteSecurity;
+        bool securityUpgraded;
+        string nextUpgrade;
+        bool isOpen;
 
         protected StreamSecurityUpgradeInitiatorBase(string upgradeString, EndpointAddress remoteAddress, Uri via)
         {
-            _remoteAddress = remoteAddress;
-            _via = via;
-            _nextUpgrade = upgradeString;
+            this.remoteAddress = remoteAddress;
+            this.via = via;
+            this.nextUpgrade = upgradeString;
         }
 
         protected EndpointAddress RemoteAddress
         {
             get
             {
-                return _remoteAddress;
+                return this.remoteAddress;
             }
         }
 
@@ -37,25 +35,51 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _via;
+                return this.via;
             }
+        }
+
+        public override IAsyncResult BeginInitiateUpgrade(Stream stream, AsyncCallback callback, object state)
+        {
+            if (stream == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("stream");
+            }
+
+            if (!this.isOpen)
+            {
+                this.Open(TimeSpan.Zero);
+            }
+
+            return this.OnBeginInitiateUpgrade(stream, callback, state);
+        }
+
+        public override Stream EndInitiateUpgrade(IAsyncResult result)
+        {
+            if (result == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("result");
+            }
+            Stream retValue = this.OnEndInitiateUpgrade(result, out this.remoteSecurity);
+            this.securityUpgraded = true;
+            return retValue;
         }
 
         public override string GetNextUpgrade()
         {
-            string result = _nextUpgrade;
-            _nextUpgrade = null;
+            string result = this.nextUpgrade;
+            this.nextUpgrade = null;
             return result;
         }
 
         public override SecurityMessageProperty GetRemoteSecurity()
         {
-            if (!_securityUpgraded)
+            if (!securityUpgraded)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.OperationInvalidBeforeSecurityNegotiation));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.OperationInvalidBeforeSecurityNegotiation)));
             }
 
-            return _remoteSecurity;
+            return this.remoteSecurity;
         }
 
         public override Stream InitiateUpgrade(Stream stream)
@@ -65,58 +89,43 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("stream");
             }
 
-            if (!_isOpen)
+            if (!this.isOpen)
             {
                 this.Open(TimeSpan.Zero);
             }
 
-            Stream result = this.OnInitiateUpgrade(stream, out _remoteSecurity);
-            _securityUpgraded = true;
+            Stream result = this.OnInitiateUpgrade(stream, out this.remoteSecurity);
+            this.securityUpgraded = true;
             return result;
         }
 
-        internal override async Task<Stream> InitiateUpgradeAsync(Stream stream)
+        internal override void EndOpen(IAsyncResult result)
         {
-            if (stream == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("stream");
-            }
-
-            if (!_isOpen)
-            {
-                 Open(TimeSpan.Zero);
-            }
-
-            var remoteSecurityWrapper = new OutWrapper<SecurityMessageProperty>();
-            Stream result = await OnInitiateUpgradeAsync(stream, remoteSecurityWrapper);
-            _remoteSecurity = remoteSecurityWrapper;
-            _securityUpgraded = true;
-            return result;
+            base.EndOpen(result);
+            this.isOpen = true;
         }
 
         internal override void Open(TimeSpan timeout)
         {
-            _isOpen = true;
+            base.Open(timeout);
+            this.isOpen = true;
         }
 
-        internal override Task OpenAsync(TimeSpan timeout)
+        internal override void EndClose(IAsyncResult result)
         {
-            _isOpen = true;
-            return Task.CompletedTask;
+            base.EndClose(result);
+            this.isOpen = false;
         }
 
         internal override void Close(TimeSpan timeout)
         {
-            _isOpen = false;
+            base.Close(timeout);
+            this.isOpen = false;
         }
 
-        internal override Task CloseAsync(TimeSpan timeout)
-        {
-            _isOpen = false;
-            return Task.CompletedTask;
-        }
-
+        protected abstract IAsyncResult OnBeginInitiateUpgrade(Stream stream, AsyncCallback callback, object state);
+        protected abstract Stream OnEndInitiateUpgrade(IAsyncResult result,
+            out SecurityMessageProperty remoteSecurity);
         protected abstract Stream OnInitiateUpgrade(Stream stream, out SecurityMessageProperty remoteSecurity);
-        protected abstract Task<Stream> OnInitiateUpgradeAsync(Stream stream, OutWrapper<SecurityMessageProperty> remoteSecurity);
     }
 }

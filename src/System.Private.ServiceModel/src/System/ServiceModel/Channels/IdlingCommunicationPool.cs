@@ -1,49 +1,49 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-using System.Threading;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public abstract class IdlingCommunicationPool<TKey, TItem>
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel.Diagnostics;
+    using System.Threading;
+    using System.ServiceModel.Diagnostics.Application;
+
+    abstract class IdlingCommunicationPool<TKey, TItem>
         : CommunicationPool<TKey, TItem>
         where TKey : class
         where TItem : class
     {
-        private TimeSpan _idleTimeout;
-        private TimeSpan _leaseTimeout;
+        TimeSpan idleTimeout;
+        TimeSpan leaseTimeout;
 
         protected IdlingCommunicationPool(int maxCount, TimeSpan idleTimeout, TimeSpan leaseTimeout)
             : base(maxCount)
         {
-            _idleTimeout = idleTimeout;
-            _leaseTimeout = leaseTimeout;
+            this.idleTimeout = idleTimeout;
+            this.leaseTimeout = leaseTimeout;
         }
 
         public TimeSpan IdleTimeout
         {
-            get { return _idleTimeout; }
+            get { return this.idleTimeout; }
         }
 
         protected TimeSpan LeaseTimeout
         {
-            get { return _leaseTimeout; }
+            get { return this.leaseTimeout; }
         }
 
         protected override void CloseItemAsync(TItem item, TimeSpan timeout)
         {
-            // Default behavior is sync. Derived classes can override.
+            // Default behavior is [....]. Derived classes can override.
             this.CloseItem(item, timeout);
         }
 
         protected override EndpointConnectionPool CreateEndpointConnectionPool(TKey key)
         {
-            if (_idleTimeout != TimeSpan.MaxValue || _leaseTimeout != TimeSpan.MaxValue)
+            if (idleTimeout != TimeSpan.MaxValue || leaseTimeout != TimeSpan.MaxValue)
             {
                 return new IdleTimeoutEndpointConnectionPool(this, key);
             }
@@ -55,42 +55,42 @@ namespace System.ServiceModel.Channels
 
         protected class IdleTimeoutEndpointConnectionPool : EndpointConnectionPool
         {
-            private IdleTimeoutIdleConnectionPool _connections;
+            IdleTimeoutIdleConnectionPool connections;
 
             public IdleTimeoutEndpointConnectionPool(IdlingCommunicationPool<TKey, TItem> parent, TKey key)
                 : base(parent, key)
             {
-                _connections = new IdleTimeoutIdleConnectionPool(this, this.ThisLock);
+                this.connections = new IdleTimeoutIdleConnectionPool(this, this.ThisLock);
             }
 
             protected override IdleConnectionPool GetIdleConnectionPool()
             {
-                return _connections;
+                return this.connections;
             }
 
             protected override void AbortItem(TItem item)
             {
-                _connections.OnItemClosing(item);
+                this.connections.OnItemClosing(item);
                 base.AbortItem(item);
             }
 
             protected override void CloseItemAsync(TItem item, TimeSpan timeout)
             {
-                _connections.OnItemClosing(item);
+                this.connections.OnItemClosing(item);
                 base.CloseItemAsync(item, timeout);
             }
 
             protected override void CloseItem(TItem item, TimeSpan timeout)
             {
-                _connections.OnItemClosing(item);
+                this.connections.OnItemClosing(item);
                 base.CloseItem(item, timeout);
             }
 
             public override void Prune(List<TItem> itemsToClose)
             {
-                if (_connections != null)
+                if (this.connections != null)
                 {
-                    _connections.Prune(itemsToClose, false);
+                    this.connections.Prune(itemsToClose, false);
                 }
             }
 
@@ -98,29 +98,29 @@ namespace System.ServiceModel.Channels
             {
                 // for performance reasons we don't just blindly start a timer up to clean up 
                 // idle connections. However, if we're above a certain threshold of connections
-                private const int timerThreshold = 1;
+                const int timerThreshold = 1;
 
-                private IdleTimeoutEndpointConnectionPool _parent;
-                private TimeSpan _idleTimeout;
-                private TimeSpan _leaseTimeout;
-                private Timer _idleTimer;
-                private static Action<object> s_onIdle;
-                private object _thisLock;
-                private Exception _pendingException;
+                IdleTimeoutEndpointConnectionPool parent;
+                TimeSpan idleTimeout;
+                TimeSpan leaseTimeout;
+                IOThreadTimer idleTimer;
+                static Action<object> onIdle;
+                object thisLock;
+                Exception pendingException;
 
                 // Note that Take/Add/Return are already synchronized by ThisLock, so we don't need an extra
                 // lock around our Dictionary access
-                private Dictionary<TItem, IdlingConnectionSettings> _connectionMapping;
+                Dictionary<TItem, IdlingConnectionSettings> connectionMapping;
 
                 public IdleTimeoutIdleConnectionPool(IdleTimeoutEndpointConnectionPool parent, object thisLock)
                     : base(parent.Parent.MaxIdleConnectionPoolCount)
                 {
-                    _parent = parent;
+                    this.parent = parent;
                     IdlingCommunicationPool<TKey, TItem> idlingCommunicationPool = ((IdlingCommunicationPool<TKey, TItem>)parent.Parent);
-                    _idleTimeout = idlingCommunicationPool._idleTimeout;
-                    _leaseTimeout = idlingCommunicationPool._leaseTimeout;
-                    _thisLock = thisLock;
-                    _connectionMapping = new Dictionary<TItem, IdlingConnectionSettings>();
+                    this.idleTimeout = idlingCommunicationPool.idleTimeout;
+                    this.leaseTimeout = idlingCommunicationPool.leaseTimeout;
+                    this.thisLock = thisLock;
+                    this.connectionMapping = new Dictionary<TItem, IdlingConnectionSettings>();
                 }
 
                 public override bool Add(TItem connection)
@@ -130,7 +130,7 @@ namespace System.ServiceModel.Channels
                     bool result = base.Add(connection);
                     if (result)
                     {
-                        _connectionMapping.Add(connection, new IdlingConnectionSettings());
+                        this.connectionMapping.Add(connection, new IdlingConnectionSettings());
                         StartTimerIfNecessary();
                     }
                     return result;
@@ -140,7 +140,7 @@ namespace System.ServiceModel.Channels
                 {
                     this.ThrowPendingException();
 
-                    if (!_connectionMapping.ContainsKey(connection))
+                    if (!this.connectionMapping.ContainsKey(connection))
                     {
                         return false;
                     }
@@ -148,7 +148,7 @@ namespace System.ServiceModel.Channels
                     bool result = base.Return(connection);
                     if (result)
                     {
-                        _connectionMapping[connection].LastUsage = DateTime.UtcNow;
+                        this.connectionMapping[connection].LastUsage = DateTime.UtcNow;
                         StartTimerIfNecessary();
                     }
                     return result;
@@ -172,50 +172,48 @@ namespace System.ServiceModel.Channels
                 {
                     this.ThrowPendingException();
 
-                    lock (_thisLock)
+                    lock (thisLock)
                     {
-                        _connectionMapping.Remove(connection);
+                        this.connectionMapping.Remove(connection);
                     }
                 }
 
-                private void CancelTimer()
+                void CancelTimer()
                 {
-                    if (_idleTimer != null)
+                    if (this.idleTimer != null)
                     {
-                        _idleTimer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
+                        this.idleTimer.Cancel();
                     }
                 }
 
-                private void StartTimerIfNecessary()
+                void StartTimerIfNecessary()
                 {
                     if (this.Count > timerThreshold)
                     {
-                        if (_idleTimer == null)
+                        if (idleTimer == null)
                         {
-                            if (s_onIdle == null)
+                            if (onIdle == null)
                             {
-                                s_onIdle = new Action<object>(OnIdle);
+                                onIdle = new Action<object>(OnIdle);
                             }
 
-                            _idleTimer = new Timer(new TimerCallback(new Action<object>(s_onIdle)), this, _idleTimeout, TimeSpan.FromMilliseconds(-1));
+                            idleTimer = new IOThreadTimer(onIdle, this, false);
                         }
-                        else
-                        {
-                            _idleTimer.Change(_idleTimeout, TimeSpan.FromMilliseconds(-1));
-                        }
+
+                        idleTimer.Set(idleTimeout);
                     }
                 }
 
-                private static void OnIdle(object state)
+                static void OnIdle(object state)
                 {
                     IdleTimeoutIdleConnectionPool pool = (IdleTimeoutIdleConnectionPool)state;
                     pool.OnIdle();
                 }
 
-                private void OnIdle()
+                void OnIdle()
                 {
                     List<TItem> itemsToClose = new List<TItem>();
-                    lock (_thisLock)
+                    lock (thisLock)
                     {
                         try
                         {
@@ -227,16 +225,16 @@ namespace System.ServiceModel.Channels
                             {
                                 throw;
                             }
-                            _pendingException = e;
+                            this.pendingException = e;
                             this.CancelTimer();
                         }
                     }
 
-                    // allocate half the idle timeout for our graceful shutdowns
-                    TimeoutHelper timeoutHelper = new TimeoutHelper(TimeoutHelper.Divide(_idleTimeout, 2));
+                    // allocate half the idle timeout for our g----ful shutdowns
+                    TimeoutHelper timeoutHelper = new TimeoutHelper(TimeoutHelper.Divide(this.idleTimeout, 2));
                     for (int i = 0; i < itemsToClose.Count; i++)
                     {
-                        _parent.CloseIdleConnection(itemsToClose[i], timeoutHelper.RemainingTime());
+                        parent.CloseIdleConnection(itemsToClose[i], timeoutHelper.RemainingTime());
                     }
                 }
 
@@ -253,7 +251,7 @@ namespace System.ServiceModel.Channels
                     DateTime now = DateTime.UtcNow;
                     bool setTimer = false;
 
-                    lock (_thisLock)
+                    lock (thisLock)
                     {
                         TItem[] connectionsCopy = new TItem[this.Count];
                         for (int i = 0; i < connectionsCopy.Length; i++)
@@ -282,11 +280,11 @@ namespace System.ServiceModel.Channels
 
                     if (calledFromTimer && setTimer)
                     {
-                        _idleTimer.Change(_idleTimeout, TimeSpan.FromMilliseconds(-1));
+                        idleTimer.Set(idleTimeout);
                     }
                 }
 
-                private bool IdleOutConnection(TItem connection, DateTime now)
+                bool IdleOutConnection(TItem connection, DateTime now)
                 {
                     if (connection == null)
                     {
@@ -294,13 +292,13 @@ namespace System.ServiceModel.Channels
                     }
 
                     bool result = false;
-                    IdlingConnectionSettings idlingSettings = _connectionMapping[connection];
-                    if (now > (idlingSettings.LastUsage + _idleTimeout))
+                    IdlingConnectionSettings idlingSettings = this.connectionMapping[connection];
+                    if (now > (idlingSettings.LastUsage + this.idleTimeout))
                     {
                         TraceConnectionIdleTimeoutExpired();
                         result = true;
                     }
-                    else if (now - idlingSettings.CreationTime >= _leaseTimeout)
+                    else if (now - idlingSettings.CreationTime >= this.leaseTimeout)
                     {
                         TraceConnectionLeaseTimeoutExpired();
                         result = true;
@@ -309,58 +307,72 @@ namespace System.ServiceModel.Channels
                     return result;
                 }
 
-                private void ThrowPendingException()
+                void ThrowPendingException()
                 {
-                    if (_pendingException != null)
+                    if (this.pendingException != null)
                     {
-                        lock (_thisLock)
+                        lock (thisLock)
                         {
-                            if (_pendingException != null)
+                            if (this.pendingException != null)
                             {
-                                Exception exceptionToThrow = _pendingException;
-                                _pendingException = null;
+                                Exception exceptionToThrow = this.pendingException;
+                                this.pendingException = null;
                                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(exceptionToThrow);
                             }
                         }
                     }
                 }
 
-                private void TraceConnectionLeaseTimeoutExpired()
+                void TraceConnectionLeaseTimeoutExpired()
                 {
                     if (TD.LeaseTimeoutIsEnabled())
                     {
-                        TD.LeaseTimeout(SR.Format(SR.TraceCodeConnectionPoolLeaseTimeoutReached, _leaseTimeout), _parent.Key.ToString());
+                        TD.LeaseTimeout(SR.GetString(SR.TraceCodeConnectionPoolLeaseTimeoutReached, this.leaseTimeout), this.parent.Key.ToString());
+                    }
+                    if (DiagnosticUtility.ShouldTraceInformation)
+                    {
+                        TraceUtility.TraceEvent(TraceEventType.Information,
+                            TraceCode.ConnectionPoolLeaseTimeoutReached,
+                            SR.GetString(SR.TraceCodeConnectionPoolLeaseTimeoutReached, this.leaseTimeout),
+                            this);
                     }
                 }
 
-                private void TraceConnectionIdleTimeoutExpired()
+                void TraceConnectionIdleTimeoutExpired()
                 {
                     if (TD.IdleTimeoutIsEnabled())
                     {
-                        TD.IdleTimeout(SR.Format(SR.TraceCodeConnectionPoolIdleTimeoutReached, _idleTimeout), _parent.Key.ToString());
+                        TD.IdleTimeout(SR.GetString(SR.TraceCodeConnectionPoolIdleTimeoutReached, this.idleTimeout), this.parent.Key.ToString());
+                    }
+                    if (DiagnosticUtility.ShouldTraceInformation)
+                    {
+                        TraceUtility.TraceEvent(TraceEventType.Information,
+                            TraceCode.ConnectionPoolIdleTimeoutReached,
+                            SR.GetString(SR.TraceCodeConnectionPoolIdleTimeoutReached, this.idleTimeout),
+                            this);
                     }
                 }
 
-                internal class IdlingConnectionSettings
+                class IdlingConnectionSettings
                 {
-                    private DateTime _creationTime;
-                    private DateTime _lastUsage;
+                    DateTime creationTime;
+                    DateTime lastUsage;
 
                     public IdlingConnectionSettings()
                     {
-                        _creationTime = DateTime.UtcNow;
-                        _lastUsage = _creationTime;
+                        this.creationTime = DateTime.UtcNow;
+                        this.lastUsage = this.creationTime;
                     }
 
                     public DateTime CreationTime
                     {
-                        get { return _creationTime; }
+                        get { return this.creationTime; }
                     }
 
                     public DateTime LastUsage
                     {
-                        get { return _lastUsage; }
-                        set { _lastUsage = value; }
+                        get { return this.lastUsage; }
+                        set { this.lastUsage = value; }
                     }
                 }
             }

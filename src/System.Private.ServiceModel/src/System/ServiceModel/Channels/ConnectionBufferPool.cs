@@ -1,17 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics.Contracts;
-using System.Runtime;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal class ConnectionBufferPool : QueuedObjectPool<byte[]>
+    using System.Runtime;
+
+    class ConnectionBufferPool : QueuedObjectPool<byte[]>
     {
-        private const int SingleBatchSize = 128 * 1024;
-        private const int MaxBatchCount = 16;
-        private const int MaxFreeCountFactor = 4;
-        private int _bufferSize;
+        const int SingleBatchSize = 128 * 1024;
+        const int MaxBatchCount = 16;
+        const int MaxFreeCountFactor = 4;
+        int bufferSize;
 
         public ConnectionBufferPool(int bufferSize)
         {
@@ -24,13 +23,13 @@ namespace System.ServiceModel.Channels
             this.Initialize(bufferSize, ComputeBatchCount(bufferSize), maxFreeCount);
         }
 
-        private void Initialize(int bufferSize, int batchCount, int maxFreeCount)
+        void Initialize(int bufferSize, int batchCount, int maxFreeCount)
         {
-            Contract.Assert(bufferSize >= 0, "bufferSize must be non-negative");
-            Contract.Assert(batchCount > 0, "batchCount must be positive");
-            Contract.Assert(maxFreeCount >= 0, "maxFreeCount must be non-negative");
+            Fx.Assert(bufferSize >= 0, "bufferSize must be non-negative");
+            Fx.Assert(batchCount > 0, "batchCount must be positive");
+            Fx.Assert(maxFreeCount >= 0, "maxFreeCount must be non-negative");
 
-            _bufferSize = bufferSize;
+            this.bufferSize = bufferSize;
             if (maxFreeCount < batchCount)
             {
                 maxFreeCount = batchCount;
@@ -42,16 +41,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _bufferSize;
+                return this.bufferSize;
             }
         }
 
         protected override byte[] Create()
         {
-            return Fx.AllocateByteArray(_bufferSize);
+            return DiagnosticUtility.Utility.AllocateByteArray(this.bufferSize);
         }
 
-        private static int ComputeBatchCount(int bufferSize)
+        static int ComputeBatchCount(int bufferSize)
         {
             int batchCount;
             if (bufferSize != 0)

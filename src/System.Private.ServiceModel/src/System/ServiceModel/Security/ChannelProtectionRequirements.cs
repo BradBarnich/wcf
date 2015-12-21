@@ -1,35 +1,37 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net.Security;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Net.Security;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+    using System.Xml;
+
     public class ChannelProtectionRequirements
-    {
-        private ScopedMessagePartSpecification _incomingSignatureParts;
-        private ScopedMessagePartSpecification _incomingEncryptionParts;
-        private ScopedMessagePartSpecification _outgoingSignatureParts;
-        private ScopedMessagePartSpecification _outgoingEncryptionParts;
-        private bool _isReadOnly;
+    {       
+        ScopedMessagePartSpecification incomingSignatureParts;
+        ScopedMessagePartSpecification incomingEncryptionParts;
+        ScopedMessagePartSpecification outgoingSignatureParts;
+        ScopedMessagePartSpecification outgoingEncryptionParts;
+        bool isReadOnly;
 
         public ChannelProtectionRequirements()
         {
-            _incomingSignatureParts = new ScopedMessagePartSpecification();
-            _incomingEncryptionParts = new ScopedMessagePartSpecification();
-            _outgoingSignatureParts = new ScopedMessagePartSpecification();
-            _outgoingEncryptionParts = new ScopedMessagePartSpecification();
+            this.incomingSignatureParts = new ScopedMessagePartSpecification();
+            this.incomingEncryptionParts = new ScopedMessagePartSpecification();
+            this.outgoingSignatureParts = new ScopedMessagePartSpecification();
+            this.outgoingEncryptionParts = new ScopedMessagePartSpecification();
         }
 
         public bool IsReadOnly
         {
             get
             {
-                return _isReadOnly;
+                return this.isReadOnly;
             }
         }
 
@@ -38,10 +40,10 @@ namespace System.ServiceModel.Security
             if (other == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("other"));
 
-            _incomingSignatureParts = new ScopedMessagePartSpecification(other._incomingSignatureParts);
-            _incomingEncryptionParts = new ScopedMessagePartSpecification(other._incomingEncryptionParts);
-            _outgoingSignatureParts = new ScopedMessagePartSpecification(other._outgoingSignatureParts);
-            _outgoingEncryptionParts = new ScopedMessagePartSpecification(other._outgoingEncryptionParts);
+            this.incomingSignatureParts = new ScopedMessagePartSpecification(other.incomingSignatureParts);
+            this.incomingEncryptionParts = new ScopedMessagePartSpecification(other.incomingEncryptionParts);
+            this.outgoingSignatureParts = new ScopedMessagePartSpecification(other.outgoingSignatureParts);
+            this.outgoingEncryptionParts = new ScopedMessagePartSpecification(other.outgoingEncryptionParts);
         }
 
         internal ChannelProtectionRequirements(ChannelProtectionRequirements other, ProtectionLevel newBodyProtectionLevel)
@@ -49,17 +51,17 @@ namespace System.ServiceModel.Security
             if (other == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("other"));
 
-            _incomingSignatureParts = new ScopedMessagePartSpecification(other._incomingSignatureParts, newBodyProtectionLevel != ProtectionLevel.None);
-            _incomingEncryptionParts = new ScopedMessagePartSpecification(other._incomingEncryptionParts, newBodyProtectionLevel == ProtectionLevel.EncryptAndSign);
-            _outgoingSignatureParts = new ScopedMessagePartSpecification(other._outgoingSignatureParts, newBodyProtectionLevel != ProtectionLevel.None);
-            _outgoingEncryptionParts = new ScopedMessagePartSpecification(other._outgoingEncryptionParts, newBodyProtectionLevel == ProtectionLevel.EncryptAndSign);
+            this.incomingSignatureParts = new ScopedMessagePartSpecification(other.incomingSignatureParts, newBodyProtectionLevel != ProtectionLevel.None);
+            this.incomingEncryptionParts = new ScopedMessagePartSpecification(other.incomingEncryptionParts, newBodyProtectionLevel == ProtectionLevel.EncryptAndSign);
+            this.outgoingSignatureParts = new ScopedMessagePartSpecification(other.outgoingSignatureParts, newBodyProtectionLevel != ProtectionLevel.None);
+            this.outgoingEncryptionParts = new ScopedMessagePartSpecification(other.outgoingEncryptionParts, newBodyProtectionLevel == ProtectionLevel.EncryptAndSign);
         }
 
         public ScopedMessagePartSpecification IncomingSignatureParts
         {
             get
             {
-                return _incomingSignatureParts;
+                return this.incomingSignatureParts;
             }
         }
 
@@ -67,7 +69,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _incomingEncryptionParts;
+                return this.incomingEncryptionParts;
             }
         }
 
@@ -75,7 +77,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _outgoingSignatureParts;
+                return this.outgoingSignatureParts;
             }
         }
 
@@ -83,7 +85,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _outgoingEncryptionParts;
+                return this.outgoingEncryptionParts;
             }
         }
 
@@ -97,25 +99,25 @@ namespace System.ServiceModel.Security
             if (protectionRequirements == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("protectionRequirements"));
 
-            if (protectionRequirements._incomingSignatureParts != null)
-                _incomingSignatureParts.AddParts(protectionRequirements._incomingSignatureParts.ChannelParts);
-            if (protectionRequirements._incomingEncryptionParts != null)
-                _incomingEncryptionParts.AddParts(protectionRequirements._incomingEncryptionParts.ChannelParts);
-            if (protectionRequirements._outgoingSignatureParts != null)
-                _outgoingSignatureParts.AddParts(protectionRequirements._outgoingSignatureParts.ChannelParts);
-            if (protectionRequirements._outgoingEncryptionParts != null)
-                _outgoingEncryptionParts.AddParts(protectionRequirements._outgoingEncryptionParts.ChannelParts);
+            if (protectionRequirements.incomingSignatureParts != null)
+                this.incomingSignatureParts.AddParts(protectionRequirements.incomingSignatureParts.ChannelParts);
+            if (protectionRequirements.incomingEncryptionParts != null)
+                this.incomingEncryptionParts.AddParts(protectionRequirements.incomingEncryptionParts.ChannelParts);
+            if (protectionRequirements.outgoingSignatureParts != null)
+                this.outgoingSignatureParts.AddParts(protectionRequirements.outgoingSignatureParts.ChannelParts);
+            if (protectionRequirements.outgoingEncryptionParts != null)
+                this.outgoingEncryptionParts.AddParts(protectionRequirements.outgoingEncryptionParts.ChannelParts);
 
             if (!channelScopeOnly)
             {
-                AddActionParts(_incomingSignatureParts, protectionRequirements._incomingSignatureParts);
-                AddActionParts(_incomingEncryptionParts, protectionRequirements._incomingEncryptionParts);
-                AddActionParts(_outgoingSignatureParts, protectionRequirements._outgoingSignatureParts);
-                AddActionParts(_outgoingEncryptionParts, protectionRequirements._outgoingEncryptionParts);
+                AddActionParts(this.incomingSignatureParts, protectionRequirements.incomingSignatureParts);
+                AddActionParts(this.incomingEncryptionParts, protectionRequirements.incomingEncryptionParts);
+                AddActionParts(this.outgoingSignatureParts, protectionRequirements.outgoingSignatureParts);
+                AddActionParts(this.outgoingEncryptionParts, protectionRequirements.outgoingEncryptionParts);
             }
         }
 
-        private static void AddActionParts(ScopedMessagePartSpecification to, ScopedMessagePartSpecification from)
+        static void AddActionParts(ScopedMessagePartSpecification to, ScopedMessagePartSpecification from)
         {
             foreach (string action in from.Actions)
             {
@@ -127,13 +129,13 @@ namespace System.ServiceModel.Security
 
         public void MakeReadOnly()
         {
-            if (!_isReadOnly)
+            if (!this.isReadOnly)
             {
-                _incomingSignatureParts.MakeReadOnly();
-                _incomingEncryptionParts.MakeReadOnly();
-                _outgoingSignatureParts.MakeReadOnly();
-                _outgoingEncryptionParts.MakeReadOnly();
-                _isReadOnly = true;
+                this.incomingSignatureParts.MakeReadOnly();
+                this.incomingEncryptionParts.MakeReadOnly();
+                this.outgoingSignatureParts.MakeReadOnly();
+                this.outgoingEncryptionParts.MakeReadOnly();
+                this.isReadOnly = true;
             }
         }
 
@@ -142,10 +144,10 @@ namespace System.ServiceModel.Security
             ChannelProtectionRequirements result = new ChannelProtectionRequirements();
 
             result.Add(this, true);
-            result._incomingSignatureParts = new ScopedMessagePartSpecification(this.OutgoingSignatureParts);
-            result._outgoingSignatureParts = new ScopedMessagePartSpecification(this.IncomingSignatureParts);
-            result._incomingEncryptionParts = new ScopedMessagePartSpecification(this.OutgoingEncryptionParts);
-            result._outgoingEncryptionParts = new ScopedMessagePartSpecification(this.IncomingEncryptionParts);
+            result.incomingSignatureParts = new ScopedMessagePartSpecification(this.OutgoingSignatureParts);
+            result.outgoingSignatureParts = new ScopedMessagePartSpecification(this.IncomingSignatureParts);
+            result.incomingEncryptionParts = new ScopedMessagePartSpecification(this.OutgoingEncryptionParts);
+            result.outgoingEncryptionParts = new ScopedMessagePartSpecification(this.IncomingEncryptionParts);
 
             return result;
         }
@@ -155,7 +157,7 @@ namespace System.ServiceModel.Security
             return CreateFromContract(contract, bindingElement.SupportedRequestProtectionLevel, bindingElement.SupportedResponseProtectionLevel, isForClient);
         }
 
-        private static MessagePartSpecification UnionMessagePartSpecifications(ScopedMessagePartSpecification actionParts)
+        static MessagePartSpecification UnionMessagePartSpecifications(ScopedMessagePartSpecification actionParts)
         {
             MessagePartSpecification result = new MessagePartSpecification(false);
             foreach (string action in actionParts.Actions)
@@ -184,21 +186,20 @@ namespace System.ServiceModel.Security
             ChannelProtectionRequirements contractRequirements = CreateFromContract(contract, bindingElement.SupportedRequestProtectionLevel, bindingElement.SupportedResponseProtectionLevel, isForClient);
             // union all the protection requirements for the response actions
             ChannelProtectionRequirements result = new ChannelProtectionRequirements();
-
-            if (isForClient)
-            {
-                result.IncomingEncryptionParts.AddParts(UnionMessagePartSpecifications(contractRequirements.IncomingEncryptionParts), MessageHeaders.WildcardAction);
-                result.IncomingSignatureParts.AddParts(UnionMessagePartSpecifications(contractRequirements.IncomingSignatureParts), MessageHeaders.WildcardAction);
-                contractRequirements.OutgoingEncryptionParts.CopyTo(result.OutgoingEncryptionParts);
-                contractRequirements.OutgoingSignatureParts.CopyTo(result.OutgoingSignatureParts);
-            }
-            else
-            {
+            //if (isForClient)
+            //{
+            //    result.IncomingEncryptionParts.AddParts(UnionMessagePartSpecifications(contractRequirements.IncomingEncryptionParts), MessageHeaders.WildcardAction);
+            //    result.IncomingSignatureParts.AddParts(UnionMessagePartSpecifications(contractRequirements.IncomingSignatureParts), MessageHeaders.WildcardAction);
+            //    contractRequirements.OutgoingEncryptionParts.CopyTo(result.OutgoingEncryptionParts);
+            //    contractRequirements.OutgoingSignatureParts.CopyTo(result.OutgoingSignatureParts);
+            //}
+            //else
+            //{
                 result.OutgoingEncryptionParts.AddParts(UnionMessagePartSpecifications(contractRequirements.OutgoingEncryptionParts), MessageHeaders.WildcardAction);
                 result.OutgoingSignatureParts.AddParts(UnionMessagePartSpecifications(contractRequirements.OutgoingSignatureParts), MessageHeaders.WildcardAction);
                 contractRequirements.IncomingEncryptionParts.CopyTo(result.IncomingEncryptionParts);
                 contractRequirements.IncomingSignatureParts.CopyTo(result.IncomingSignatureParts);
-            }
+            //}
             return result;
         }
 
@@ -226,10 +227,16 @@ namespace System.ServiceModel.Security
             {
                 ProtectionLevel operationScopeDefaultRequestProtectionLevel;
                 ProtectionLevel operationScopeDefaultResponseProtectionLevel;
-
-                operationScopeDefaultRequestProtectionLevel = contractScopeDefaultRequestProtectionLevel;
-                operationScopeDefaultResponseProtectionLevel = contractScopeDefaultResponseProtectionLevel;
-
+                if (operation.HasProtectionLevel)
+                {
+                    operationScopeDefaultRequestProtectionLevel = operation.ProtectionLevel;
+                    operationScopeDefaultResponseProtectionLevel = operation.ProtectionLevel;
+                }
+                else
+                {
+                    operationScopeDefaultRequestProtectionLevel = contractScopeDefaultRequestProtectionLevel;
+                    operationScopeDefaultResponseProtectionLevel = contractScopeDefaultResponseProtectionLevel;
+                } 
                 foreach (MessageDescription message in operation.Messages)
                 {
                     ProtectionLevel messageScopeDefaultProtectionLevel;
@@ -268,7 +275,7 @@ namespace System.ServiceModel.Security
                         if (!(message.Body.ReturnValue.GetType().Equals(typeof(MessagePartDescription))))
                         {
                             Fx.Assert("Only body return values are supported currently");
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.OnlyBodyReturnValuesSupported));
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.OnlyBodyReturnValuesSupported)));
                         }
                         MessagePartDescription desc = message.Body.ReturnValue;
                         bodyProtectionLevel = desc.HasProtectionLevel ? desc.ProtectionLevel : messageScopeDefaultProtectionLevel;
@@ -311,7 +318,7 @@ namespace System.ServiceModel.Security
                 if (operation.Faults != null)
                 {
                     if (operation.IsServerInitiated())
-                    {
+                    {                        
                         AddFaultProtectionRequirements(operation.Faults, requirements, operationScopeDefaultRequestProtectionLevel, true);
                     }
                     else
@@ -324,7 +331,7 @@ namespace System.ServiceModel.Security
             return requirements;
         }
 
-        private static void AddHeaderProtectionRequirements(MessageHeaderDescription header, MessagePartSpecification signedParts,
+        static void AddHeaderProtectionRequirements(MessageHeaderDescription header, MessagePartSpecification signedParts,
             MessagePartSpecification encryptedParts, ProtectionLevel defaultProtectionLevel)
         {
             ProtectionLevel p = header.HasProtectionLevel ? header.ProtectionLevel : defaultProtectionLevel;
@@ -337,7 +344,7 @@ namespace System.ServiceModel.Security
             }
         }
 
-        private static void AddFaultProtectionRequirements(FaultDescriptionCollection faults, ChannelProtectionRequirements requirements, ProtectionLevel defaultProtectionLevel, bool addToIncoming)
+        static void AddFaultProtectionRequirements(FaultDescriptionCollection faults, ChannelProtectionRequirements requirements, ProtectionLevel defaultProtectionLevel, bool addToIncoming)
         {
             if (faults == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("faults"));

@@ -1,25 +1,29 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.ServiceModel;
-using System.IdentityModel.Claims;
-using System.IdentityModel.Policy;
-using System.Runtime.Serialization;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Xml;
-using System.Security.Principal;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal abstract class SecureConversationDriver
+    using System;
+    using System.ServiceModel;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.Runtime.Serialization;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Xml;
+    using System.Security.Principal;
+    
+
+    abstract class SecureConversationDriver
     {
         public virtual XmlDictionaryString CloseAction
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SecureConversationDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+                #pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SecureConversationDriverVersionDoesNotSupportSession)));
             }
         }
 
@@ -27,7 +31,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SecureConversationDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+                #pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SecureConversationDriverVersionDoesNotSupportSession)));
             }
         }
 
@@ -38,7 +44,7 @@ namespace System.ServiceModel.Security
                 return false;
             }
         }
-
+        
         public abstract XmlDictionaryString IssueAction { get; }
 
         public abstract XmlDictionaryString IssueResponseAction { get; }
@@ -47,7 +53,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SecureConversationDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+                #pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SecureConversationDriverVersionDoesNotSupportSession)));
             }
         }
 
@@ -55,7 +63,9 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SecureConversationDriverVersionDoesNotSupportSession));
+                // PreSharp Bug: Property get methods should not throw exceptions.
+                #pragma warning suppress 56503
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SecureConversationDriverVersionDoesNotSupportSession)));
             }
         }
 

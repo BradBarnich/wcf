@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿// <copyright>
+//   Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
@@ -10,7 +11,7 @@ namespace System.ServiceModel.Channels
             this.ApplicationContainerSettings = new ApplicationContainerSettings();
         }
 
-        private NamedPipeSettings(NamedPipeSettings elementToBeCloned)
+        NamedPipeSettings(NamedPipeSettings elementToBeCloned)
         {
             if (elementToBeCloned.ApplicationContainerSettings != null)
             {

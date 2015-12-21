@@ -1,17 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Globalization;
-using System.ServiceModel.Channels;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal sealed class RequestSecurityTokenResponseCollection : BodyWriter
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.Xml;
+    using System.Collections.Generic;
+    using System.ServiceModel.Security;
+    using System.Globalization;
+
+    sealed class RequestSecurityTokenResponseCollection : BodyWriter
     {
-        private IEnumerable<RequestSecurityTokenResponse> _rstrCollection;
-        private SecurityStandardsManager _standardsManager;
+        IEnumerable<RequestSecurityTokenResponse> rstrCollection;
+        SecurityStandardsManager standardsManager;
 
         public RequestSecurityTokenResponseCollection(IEnumerable<RequestSecurityTokenResponse> rstrCollection)
             : this(rstrCollection, SecurityStandardsManager.DefaultInstance)
@@ -29,25 +34,25 @@ namespace System.ServiceModel.Security
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull(String.Format(CultureInfo.InvariantCulture, "rstrCollection[{0}]", index));
                 ++index;
             }
-            _rstrCollection = rstrCollection;
+            this.rstrCollection = rstrCollection;
             if (standardsManager == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("standardsManager"));
             }
-            _standardsManager = standardsManager;
+            this.standardsManager = standardsManager;
         }
 
         public IEnumerable<RequestSecurityTokenResponse> RstrCollection
         {
             get
             {
-                return _rstrCollection;
+                return this.rstrCollection;
             }
         }
 
         public void WriteTo(XmlWriter writer)
         {
-            _standardsManager.TrustDriver.WriteRequestSecurityTokenResponseCollection(this, writer);
+            this.standardsManager.TrustDriver.WriteRequestSecurityTokenResponseCollection(this, writer);
         }
 
         protected override void OnWriteBodyContents(XmlDictionaryWriter writer)

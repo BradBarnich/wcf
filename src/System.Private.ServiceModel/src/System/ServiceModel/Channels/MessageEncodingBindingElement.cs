@@ -1,8 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Description;
+    using System.Runtime.Serialization;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+
+    using System.Xml;
+
     public abstract class MessageEncodingBindingElement : BindingElement
     {
         protected MessageEncodingBindingElement()
@@ -29,6 +38,7 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("context"));
             }
 
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters never be null
             context.BindingParameters.Add(this);
             return context.BuildInnerChannelFactory<TChannel>();
         }
@@ -40,8 +50,35 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("context"));
             }
 
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters never be null
             context.BindingParameters.Add(this);
             return context.CanBuildInnerChannelFactory<TChannel>();
+        }
+
+        internal IChannelListener<TChannel> InternalBuildChannelListener<TChannel>(BindingContext context)
+            where TChannel : class, IChannel
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("context"));
+            }
+
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters never be null
+            context.BindingParameters.Add(this);
+            return context.BuildInnerChannelListener<TChannel>();
+        }
+
+        internal bool InternalCanBuildChannelListener<TChannel>(BindingContext context)
+            where TChannel : class, IChannel
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("context"));
+            }
+
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters never be null
+            context.BindingParameters.Add(this);
+            return context.CanBuildInnerChannelListener<TChannel>();
         }
 
         public abstract MessageEncoderFactory CreateMessageEncoderFactory();

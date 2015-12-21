@@ -1,58 +1,59 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Contracts;
-using System.Globalization;
-using System.Linq;
-using System.Reflection;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Dispatcher;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
-    internal class TypeLoader
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics.CodeAnalysis;
+    using System.Globalization;
+    using System.Reflection;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Dispatcher;
+    using System.Xml;
+
+    class TypeLoader
     {
-        private static Type[] s_messageContractMemberAttributes = {
+        static Type[] messageContractMemberAttributes = {
             typeof(MessageHeaderAttribute),
-            typeof(MessageBodyMemberAttribute),
+            typeof(MessageBodyMemberAttribute), 
+            typeof(MessagePropertyAttribute),
         };
 
-        private static Type[] s_formatterAttributes = {
+        static Type[] formatterAttributes = {
             typeof(XmlSerializerFormatAttribute),
             typeof(DataContractFormatAttribute)
         };
 
-        private static Type[] s_knownTypesMethodParamType = new Type[] { typeof(CustomAttributeProvider) };
+        static Type[] knownTypesMethodParamType = new Type[] { typeof(ICustomAttributeProvider) };
 
         internal static DataContractFormatAttribute DefaultDataContractFormatAttribute = new DataContractFormatAttribute();
         internal static XmlSerializerFormatAttribute DefaultXmlSerializerFormatAttribute = new XmlSerializerFormatAttribute();
 
-        private static readonly Type s_OperationContractAttributeType = typeof(OperationContractAttribute);
+        static readonly Type OperationContractAttributeType = typeof(OperationContractAttribute);
 
         internal const string ReturnSuffix = "Result";
         internal const string ResponseSuffix = "Response";
         internal const string FaultSuffix = "Fault";
         internal const BindingFlags DefaultBindingFlags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public;
 
-        private readonly object _thisLock;
-        private readonly Dictionary<Type, ContractDescription> _contracts;
-        private readonly Dictionary<Type, MessageDescriptionItems> _messages;
+        readonly object thisLock;
+        readonly Dictionary<Type, ContractDescription> contracts;
+        readonly Dictionary<Type, MessageDescriptionItems> messages;
 
         public TypeLoader()
         {
-            _thisLock = new object();
-            _contracts = new Dictionary<Type, ContractDescription>();
-            _messages = new Dictionary<Type, MessageDescriptionItems>();
+            this.thisLock = new object();
+            this.contracts = new Dictionary<Type, ContractDescription>();
+            this.messages = new Dictionary<Type, MessageDescriptionItems>();
         }
-        [SuppressMessage(FxCop.Category.Usage, "CA2301:EmbeddableTypesInContainersRule", MessageId = "contracts", Justification = "No need to support type equivalence here.")]
 
-        private ContractDescription LoadContractDescriptionHelper(Type contractType, Type serviceType, object serviceImplementation)
+        [SuppressMessage(FxCop.Category.Usage, "CA2301:EmbeddableTypesInContainersRule", MessageId = "contracts", Justification = "No need to support type equivalence here.")]
+        ContractDescription LoadContractDescriptionHelper(Type contractType, Type serviceType, object serviceImplementation)
         {
             ContractDescription contractDescription;
             if (contractType == typeof(IOutputChannel))
@@ -67,9 +68,9 @@ namespace System.ServiceModel.Description
             {
                 ServiceContractAttribute actualContractAttribute;
                 Type actualContractType = ServiceReflector.GetContractTypeAndAttribute(contractType, out actualContractAttribute);
-                lock (_thisLock)
+                lock (this.thisLock)
                 {
-                    if (!_contracts.TryGetValue(actualContractType, out contractDescription))
+                    if (!contracts.TryGetValue(actualContractType, out contractDescription))
                     {
                         EnsureNoInheritanceWithContractClasses(actualContractType);
                         EnsureNoOperationContractsOnNonServiceContractTypes(actualContractType);
@@ -91,60 +92,60 @@ namespace System.ServiceModel.Description
                         UpdateOperationsWithInterfaceAttributes(contractDescription, reflectionInfo);
                         AddBehaviors(contractDescription, serviceType, false, reflectionInfo);
 
-                        _contracts.Add(actualContractType, contractDescription);
+                        this.contracts.Add(actualContractType, contractDescription);
                     }
                 }
             }
             return contractDescription;
         }
 
-        private void EnsureNoInheritanceWithContractClasses(Type actualContractType)
+        void EnsureNoInheritanceWithContractClasses(Type actualContractType)
         {
-            if (actualContractType.IsClass())
+            if (actualContractType.IsClass)
             {
                 // we only need to check base _classes_ here, the check for interfaces happens elsewhere
-                for (Type service = actualContractType.BaseType(); service != null; service = service.BaseType())
+                for (Type service = actualContractType.BaseType; service != null; service = service.BaseType)
                 {
                     if (ServiceReflector.GetSingleAttribute<ServiceContractAttribute>(service) != null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                            SR.Format(SR.SFxContractInheritanceRequiresInterfaces, actualContractType, service)));
+                            SR.GetString(SR.SFxContractInheritanceRequiresInterfaces, actualContractType, service)));
                     }
                 }
             }
         }
 
-        private void EnsureNoOperationContractsOnNonServiceContractTypes(Type actualContractType)
+        void EnsureNoOperationContractsOnNonServiceContractTypes(Type actualContractType)
         {
             foreach (Type t in actualContractType.GetInterfaces())
             {
                 EnsureNoOperationContractsOnNonServiceContractTypes_Helper(t);
             }
-            for (Type u = actualContractType.BaseType(); u != null; u = u.BaseType())
+            for (Type u = actualContractType.BaseType; u != null; u = u.BaseType)
             {
                 EnsureNoOperationContractsOnNonServiceContractTypes_Helper(u);
             }
         }
 
-        private void EnsureNoOperationContractsOnNonServiceContractTypes_Helper(Type aParentType)
+        void EnsureNoOperationContractsOnNonServiceContractTypes_Helper(Type aParentType)
         {
             // if not [ServiceContract]
             if (ServiceReflector.GetSingleAttribute<ServiceContractAttribute>(aParentType) == null)
             {
-                foreach (MethodInfo methodInfo in aParentType.GetRuntimeMethods().Where(m => !m.IsStatic))
+                foreach (MethodInfo methodInfo in aParentType.GetMethods(DefaultBindingFlags))
                 {
                     // but does have an OperationContractAttribute
                     Type operationContractProviderType = ServiceReflector.GetOperationContractProviderType(methodInfo);
                     if (operationContractProviderType != null)
                     {
-                        if (operationContractProviderType == s_OperationContractAttributeType)
+                        if (operationContractProviderType == OperationContractAttributeType)
                         {
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(
                                 SR.SFxOperationContractOnNonServiceContract, methodInfo.Name, aParentType.Name)));
                         }
                         else
                         {
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(
                                 SR.SFxOperationContractProviderOnNonServiceContract, operationContractProviderType.Name, methodInfo.Name, aParentType.Name)));
                         }
                     }
@@ -176,7 +177,7 @@ namespace System.ServiceModel.Description
             return LoadContractDescriptionHelper(contractType, serviceType, serviceImplementation);
         }
 
-        private ContractDescription LoadOutputChannelContractDescription()
+        ContractDescription LoadOutputChannelContractDescription()
         {
             Type channelType = typeof(IOutputChannel);
             XmlQualifiedName contractName = NamingHelper.GetContractName(channelType, null, NamingHelper.MSNamespace);
@@ -191,7 +192,7 @@ namespace System.ServiceModel.Description
             return contract;
         }
 
-        private ContractDescription LoadRequestChannelContractDescription()
+        ContractDescription LoadRequestChannelContractDescription()
         {
             Type channelType = typeof(IRequestChannel);
             XmlQualifiedName contractName = NamingHelper.GetContractName(channelType, null, NamingHelper.MSNamespace);
@@ -208,7 +209,7 @@ namespace System.ServiceModel.Description
             return contract;
         }
 
-        private void AddBehaviors(ContractDescription contractDesc, Type implType, bool implIsCallback, ContractReflectionInfo reflectionInfo)
+        void AddBehaviors(ContractDescription contractDesc, Type implType, bool implIsCallback, ContractReflectionInfo reflectionInfo)
         {
             ServiceContractAttribute contractAttr = ServiceReflector.GetRequiredSingleAttribute<ServiceContractAttribute>(reflectionInfo.iface);
             for (int i = 0; i < contractDesc.Operations.Count; i++)
@@ -242,7 +243,7 @@ namespace System.ServiceModel.Description
                     // look for IOperationBehaviors on implementation methods in service class hierarchy
                     ApplyServiceInheritance<IOperationBehavior, KeyedByTypeCollection<IOperationBehavior>>(
                         implType, opDesc.Behaviors,
-                        delegate (Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
+                        delegate(Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
                         {
                             KeyedByTypeCollection<IOperationBehavior> toAdd =
                                 GetIOperationBehaviorAttributesFromType(opDesc, targetIface, currentType);
@@ -256,7 +257,7 @@ namespace System.ServiceModel.Description
                     {
                         AddBehaviorsAtOneScope<IOperationBehavior, KeyedByTypeCollection<IOperationBehavior>>(
                             targetIface, opDesc.Behaviors,
-                            delegate (Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
+                            delegate(Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
                             {
                                 KeyedByTypeCollection<IOperationBehavior> toAdd =
                                     GetIOperationBehaviorAttributesFromType(opDesc, targetIface, null);
@@ -266,6 +267,17 @@ namespace System.ServiceModel.Description
                                 }
                             });
                     }
+                }
+            }
+
+            for (int i = 0; i < contractDesc.Operations.Count; i++)
+            {
+                OperationDescription opDesc = contractDesc.Operations[i];
+                OperationBehaviorAttribute operationBehavior = opDesc.Behaviors.Find<OperationBehaviorAttribute>();
+                if (operationBehavior == null)
+                {
+                    operationBehavior = new OperationBehaviorAttribute();
+                    opDesc.Behaviors.Add(operationBehavior);
                 }
             }
 
@@ -288,6 +300,7 @@ namespace System.ServiceModel.Description
                     if (!isInherited)
                     {
                         operationDescription.Behaviors.Add(new DataContractSerializerOperationBehavior(operationDescription, dataContractFormatAttribute, true));
+                        operationDescription.Behaviors.Add(new DataContractSerializerOperationGenerator());
                     }
                 }
                 else if (formattingAttribute != null && formattingAttribute is XmlSerializerFormatAttribute)
@@ -301,7 +314,7 @@ namespace System.ServiceModel.Description
             }
         }
 
-        private void GetIContractBehaviorsFromInterfaceType(Type interfaceType, KeyedByTypeCollection<IContractBehavior> behaviors)
+        void GetIContractBehaviorsFromInterfaceType(Type interfaceType, KeyedByTypeCollection<IContractBehavior> behaviors)
         {
             object[] ifaceAttributes = ServiceReflector.GetCustomAttributes(interfaceType, typeof(IContractBehavior), false);
             for (int i = 0; i < ifaceAttributes.Length; i++)
@@ -311,20 +324,27 @@ namespace System.ServiceModel.Description
             }
         }
 
-        private static void UpdateContractDescriptionWithAttributesFromServiceType(ContractDescription description, Type serviceType)
+        static void UpdateContractDescriptionWithAttributesFromServiceType(ContractDescription description, Type serviceType)
         {
             ApplyServiceInheritance<IContractBehavior, KeyedByTypeCollection<IContractBehavior>>(
                 serviceType, description.Behaviors,
-                delegate (Type currentType, KeyedByTypeCollection<IContractBehavior> behaviors)
+                delegate(Type currentType, KeyedByTypeCollection<IContractBehavior> behaviors)
                 {
+
                     foreach (IContractBehavior iContractBehavior in ServiceReflector.GetCustomAttributes(currentType, typeof(IContractBehavior), false))
                     {
-                        throw ExceptionHelper.PlatformNotSupported();
+                        IContractBehaviorAttribute iContractBehaviorAttribute = iContractBehavior as IContractBehaviorAttribute;
+                        if (iContractBehaviorAttribute == null
+                            || (iContractBehaviorAttribute.TargetContract == null)
+                            || (iContractBehaviorAttribute.TargetContract == description.ContractType))
+                        {
+                            behaviors.Add(iContractBehavior);
+                        }
                     }
                 });
         }
 
-        private void UpdateOperationsWithInterfaceAttributes(ContractDescription contractDesc, ContractReflectionInfo reflectionInfo)
+        void UpdateOperationsWithInterfaceAttributes(ContractDescription contractDesc, ContractReflectionInfo reflectionInfo)
         {
             object[] customAttributes = ServiceReflector.GetCustomAttributes(reflectionInfo.iface, typeof(ServiceKnownTypeAttribute), false);
             IEnumerable<Type> knownTypes = GetKnownTypes(customAttributes, reflectionInfo.iface);
@@ -352,7 +372,7 @@ namespace System.ServiceModel.Description
             }
         }
 
-        private IEnumerable<Type> GetKnownTypes(object[] knownTypeAttributes, CustomAttributeProvider provider)
+        private IEnumerable<Type> GetKnownTypes(object[] knownTypeAttributes, ICustomAttributeProvider provider)
         {
             if (knownTypeAttributes.Length == 1)
             {
@@ -362,16 +382,16 @@ namespace System.ServiceModel.Description
                     Type type = knownTypeAttribute.DeclaringType;
                     if (type == null)
                     {
-                        type = provider.Type;
-                        if (type == null && provider.MethodInfo != null)
-                            type = provider.MethodInfo.DeclaringType;
+                        type = provider as Type;
+                        if (type == null)
+                            type = ((MethodInfo)provider).DeclaringType;
                     }
-                    MethodInfo method = type.GetRuntimeMethod(knownTypeAttribute.MethodName, s_knownTypesMethodParamType);
+                    MethodInfo method = type.GetMethod(knownTypeAttribute.MethodName, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public, null, knownTypesMethodParamType, null);
                     if (method == null)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxKnownTypeAttributeUnknownMethod3, provider, knownTypeAttribute.MethodName, type.FullName)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxKnownTypeAttributeUnknownMethod3, provider, knownTypeAttribute.MethodName, type.FullName)));
 
                     if (!typeof(IEnumerable<Type>).IsAssignableFrom(method.ReturnType))
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxKnownTypeAttributeReturnType3, provider, knownTypeAttribute.MethodName, type.FullName)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxKnownTypeAttributeReturnType3, provider, knownTypeAttribute.MethodName, type.FullName)));
 
                     return (IEnumerable<Type>)method.Invoke(null, new object[] { provider });
                 }
@@ -382,20 +402,22 @@ namespace System.ServiceModel.Description
             {
                 ServiceKnownTypeAttribute knownTypeAttribute = (ServiceKnownTypeAttribute)knownTypeAttributes[i];
                 if (knownTypeAttribute.Type == null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxKnownTypeAttributeInvalid1, provider.ToString())));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxKnownTypeAttributeInvalid1, provider.ToString())));
                 knownTypes.Add(knownTypeAttribute.Type);
             }
             return knownTypes;
         }
 
-        private KeyedByTypeCollection<IOperationBehavior> GetIOperationBehaviorAttributesFromType(OperationDescription opDesc, Type targetIface, Type implType)
+        KeyedByTypeCollection<IOperationBehavior> GetIOperationBehaviorAttributesFromType(OperationDescription opDesc, Type targetIface, Type implType)
         {
             KeyedByTypeCollection<IOperationBehavior> result = new KeyedByTypeCollection<IOperationBehavior>();
+            InterfaceMapping ifaceMap = default(InterfaceMapping);
             bool useImplAttrs = false;
             if (implType != null)
             {
-                if (targetIface.IsAssignableFrom(implType) && targetIface.IsInterface())
+                if (targetIface.IsAssignableFrom(implType) && targetIface.IsInterface)
                 {
+                    ifaceMap = implType.GetInterfaceMap(targetIface);
                     useImplAttrs = true;
                 }
                 else
@@ -405,35 +427,37 @@ namespace System.ServiceModel.Description
                 }
             }
             MethodInfo opMethod = opDesc.OperationMethod;
-            ProcessOpMethod(opMethod, true, opDesc, result, targetIface, implType, useImplAttrs);
+            ProcessOpMethod(opMethod, true, opDesc, result, ifaceMap, useImplAttrs);
             if (opDesc.SyncMethod != null && opDesc.BeginMethod != null)
             {
-                ProcessOpMethod(opDesc.BeginMethod, false, opDesc, result, targetIface, implType, useImplAttrs);
+                ProcessOpMethod(opDesc.BeginMethod, false, opDesc, result, ifaceMap, useImplAttrs);
             }
             else if (opDesc.SyncMethod != null && opDesc.TaskMethod != null)
             {
-                ProcessOpMethod(opDesc.TaskMethod, false, opDesc, result, targetIface, implType, useImplAttrs);
+                ProcessOpMethod(opDesc.TaskMethod, false, opDesc, result, ifaceMap, useImplAttrs);
             }
             else if (opDesc.TaskMethod != null && opDesc.BeginMethod != null)
             {
-                ProcessOpMethod(opDesc.BeginMethod, false, opDesc, result, targetIface, implType, useImplAttrs);
+                ProcessOpMethod(opDesc.BeginMethod, false, opDesc, result, ifaceMap, useImplAttrs);
             }
             return result;
         }
 
-        private void ProcessOpMethod(MethodInfo opMethod, bool canHaveBehaviors,
-                     OperationDescription opDesc, KeyedByTypeCollection<IOperationBehavior> result,
-                     Type ifaceType, Type implType, bool useImplAttrs)
+        void ProcessOpMethod(MethodInfo opMethod, bool canHaveBehaviors,
+                             OperationDescription opDesc, KeyedByTypeCollection<IOperationBehavior> result,
+                             InterfaceMapping ifaceMap, bool useImplAttrs)
         {
             MethodInfo method = null;
             if (useImplAttrs)
             {
-                MethodInfo ifaceMethod = GetCorrespondingMethodFromType(ifaceType, opMethod);
-                // if opMethod doesn't exist in the interface, it means opMethod was on
+                int methodIndex = Array.IndexOf(ifaceMap.InterfaceMethods, opMethod);
+                // if opMethod doesn't exist in the interfacemap, it means opMethod was on
                 // the "other" interface (not the one implemented by implType)
-                if (ifaceMethod != null)
+                if (methodIndex != -1)
                 {
-                    MethodInfo implMethod = GetCorrespondingMethodFromType(implType, opMethod);
+                    MethodInfo implMethod = ifaceMap.TargetMethods[methodIndex];
+                    // C++ allows you to create abstract classes that have missing interface method
+                    // implementations, which shows up as nulls in the interfacemapping
                     if (implMethod != null)
                     {
                         method = implMethod;
@@ -462,7 +486,7 @@ namespace System.ServiceModel.Description
                     if (opDesc.SyncMethod != null && opDesc.BeginMethod != null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Attributes6,
+                            new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Attributes6,
                                                                        opDesc.SyncMethod.Name,
                                                                        opDesc.SyncMethod.DeclaringType,
                                                                        opDesc.BeginMethod.Name,
@@ -473,7 +497,7 @@ namespace System.ServiceModel.Description
                     else if (opDesc.SyncMethod != null && opDesc.TaskMethod != null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Attributes6,
+                            new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Attributes6,
                                                                        opDesc.SyncMethod.Name,
                                                                        opDesc.SyncMethod.DeclaringType,
                                                                        opDesc.TaskMethod.Name,
@@ -483,7 +507,7 @@ namespace System.ServiceModel.Description
                     else if (opDesc.TaskMethod != null && opDesc.BeginMethod != null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Attributes6,
+                            new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Attributes6,
                                                                        opDesc.TaskMethod.Name,
                                                                        opDesc.TaskMethod.DeclaringType,
                                                                        opDesc.BeginMethod.Name,
@@ -494,87 +518,6 @@ namespace System.ServiceModel.Description
                     Fx.Assert("Invalid state. No exception for canHaveBehaviors = false");
                 }
             }
-        }
-
-        // Given a MethodInfo which could be from any type, return a MethodInfo declared by the given type 
-        // that matches in name and parameter types.  Null is returned if there is no match.
-        private static MethodInfo GetCorrespondingMethodFromType(Type type, MethodInfo methodInfo)
-        {
-            Contract.Assert(type != null);
-            Contract.Assert(methodInfo != null);
-
-            if (methodInfo.DeclaringType == type)
-            {
-                return methodInfo;
-            }
-
-            MethodInfo matchingMethod = type.GetTypeInfo().DeclaredMethods.SingleOrDefault(m => MethodsMatch(m, methodInfo));
-            return matchingMethod;
-        }
-
-        // Returns true if the given methods match in name and parameter types
-        private static bool MethodsMatch(MethodInfo method1, MethodInfo method2)
-        {
-            Contract.Assert(method1 != null);
-            Contract.Assert(method2 != null);
-
-            if (method1.Equals(method2))
-            {
-                return true;
-            }
-
-            if (method1.ReturnType != method2.ReturnType ||
-                !String.Equals(method1.Name, method2.Name, StringComparison.Ordinal) ||
-                !ParameterInfosMatch(method1.ReturnParameter, method2.ReturnParameter))
-            {
-                return false;
-            }
-
-            ParameterInfo[] parameters1 = method1.GetParameters();
-            ParameterInfo[] parameters2 = method2.GetParameters();
-            if (parameters1.Length != parameters2.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < parameters1.Length; ++i)
-            {
-                if (!ParameterInfosMatch(parameters1[i], parameters2[i]))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        // Returns true if 2 ParameterInfo's match in signature with respect
-        // to the MemberInfo's in which they are declared. Position is required
-        // to match but name is not.
-        private static bool ParameterInfosMatch(ParameterInfo parameterInfo1, ParameterInfo parameterInfo2)
-        {
-            // Null is possible for a ParameterInfo from MethodInfo.ReturnParameter.
-            // If both are null, we have no information to compare and say they are equal.
-            if (parameterInfo1 == null && parameterInfo2 == null)
-            {
-                return true;
-            }
-
-            if (parameterInfo1 == null || parameterInfo2 == null)
-            {
-                return false;
-            }
-
-            if (parameterInfo1.Equals(parameterInfo2))
-            {
-                return true;
-            }
-
-            return ((parameterInfo1.ParameterType == parameterInfo2.ParameterType) &&
-                    (parameterInfo1.IsIn == parameterInfo2.IsIn) &&
-                    (parameterInfo1.IsOut == parameterInfo2.IsOut) &&
-                    (parameterInfo1.IsRetval == parameterInfo2.IsRetval) &&
-                    (parameterInfo1.Position == parameterInfo2.Position));
         }
 
         internal void AddBehaviorsSFx(ServiceEndpoint serviceEndpoint, Type contractType)
@@ -593,8 +536,14 @@ namespace System.ServiceModel.Description
         {
             foreach (IEndpointBehavior behaviorAttribute in ServiceReflector.GetCustomAttributes(implementationType, typeof(IEndpointBehavior), false))
             {
-                // 
-                throw ExceptionHelper.PlatformNotSupported();
+                if (behaviorAttribute is CallbackBehaviorAttribute)
+                {
+                    serviceEndpoint.Behaviors.Insert(0, behaviorAttribute);
+                }
+                else
+                {
+                    serviceEndpoint.Behaviors.Add(behaviorAttribute);
+                }
             }
             foreach (IContractBehavior behaviorAttribute in ServiceReflector.GetCustomAttributes(implementationType, typeof(IContractBehavior), false))
             {
@@ -608,7 +557,7 @@ namespace System.ServiceModel.Description
                 // look for IOperationBehaviors on implementation methods in callback class hierarchy
                 ApplyServiceInheritance<IOperationBehavior, KeyedByTypeCollection<IOperationBehavior>>(
                     implementationType, opBehaviors,
-                    delegate (Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
+                    delegate(Type currentType, KeyedByTypeCollection<IOperationBehavior> behaviors)
                     {
                         KeyedByTypeCollection<IOperationBehavior> toAdd =
                             GetIOperationBehaviorAttributesFromType(opDesc, targetIface, currentType);
@@ -661,7 +610,7 @@ namespace System.ServiceModel.Description
             return new XmlName(operationName.EncodedName + ResponseSuffix, true /*isEncoded*/);
         }
 
-        private void CreateOperationDescriptions(ContractDescription contractDescription,
+        void CreateOperationDescriptions(ContractDescription contractDescription,
                                          ContractReflectionInfo reflectionInfo,
                                          Type contractToGetMethodsFrom,
                                          ContractDescription declaringContract,
@@ -677,8 +626,17 @@ namespace System.ServiceModel.Description
                     ));
             }
 
-            foreach (MethodInfo methodInfo in contractToGetMethodsFrom.GetRuntimeMethods().Where(m => !m.IsStatic))
+            foreach (MethodInfo methodInfo in contractToGetMethodsFrom.GetMethods(DefaultBindingFlags))
             {
+                if (contractToGetMethodsFrom.IsInterface)
+                {
+                    object[] attrs = ServiceReflector.GetCustomAttributes(methodInfo, typeof(OperationBehaviorAttribute), false);
+                    if (attrs.Length != 0)
+                    {
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
+                            SR.GetString(SR.SFxOperationBehaviorAttributeOnlyOnServiceClass, methodInfo.Name, contractToGetMethodsFrom.Name)));
+                    }
+                }
                 ServiceReflector.ValidateParameterMetadata(methodInfo);
                 OperationDescription operation = CreateOperationDescription(contractDescription, methodInfo, direction, reflectionInfo, declaringContract);
                 if (operation != null)
@@ -693,9 +651,9 @@ namespace System.ServiceModel.Description
         //2. If its a class then it needs to implement MarshallByRefObject
         internal static void EnsureCallbackType(Type callbackType)
         {
-            if (callbackType != null && !callbackType.IsInterface() && !callbackType.IsMarshalByRef())
+            if (callbackType != null && !callbackType.IsInterface && !callbackType.IsMarshalByRef)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.SFxInvalidCallbackContractType, callbackType.Name)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.SFxInvalidCallbackContractType, callbackType.Name)));
             }
         }
 
@@ -715,20 +673,20 @@ namespace System.ServiceModel.Description
                     if (callbackType == null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                            SR.Format(SR.InAContractInheritanceHierarchyIfParentHasCallbackChildMustToo,
+                            SR.GetString(SR.InAContractInheritanceHierarchyIfParentHasCallbackChildMustToo,
                             inheritedContractType.Name, inheritedContractAttr.CallbackContract.Name, contractType.Name)));
                     }
                     if (!inheritedContractAttr.CallbackContract.IsAssignableFrom(callbackType))
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                            SR.Format(SR.InAContractInheritanceHierarchyTheServiceContract3_2,
+                            SR.GetString(SR.InAContractInheritanceHierarchyTheServiceContract3_2,
                             inheritedContractType.Name, contractType.Name)));
                     }
                 }
             }
         }
 
-        private ContractDescription CreateContractDescription(ServiceContractAttribute contractAttr, Type contractType, Type serviceType, out ContractReflectionInfo reflectionInfo, object serviceImplementation)
+        ContractDescription CreateContractDescription(ServiceContractAttribute contractAttr, Type contractType, Type serviceType, out ContractReflectionInfo reflectionInfo, object serviceImplementation)
         {
             reflectionInfo = new ContractReflectionInfo();
 
@@ -773,7 +731,7 @@ namespace System.ServiceModel.Description
                             if (existingOp.Messages[0].Direction == op.Messages[0].Direction)
                             {
                                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                                    SR.Format(SR.CannotInheritTwoOperationsWithTheSameName3,
+                                    SR.GetString(SR.CannotInheritTwoOperationsWithTheSameName3,
                                         op.Name, inheritedContractDescription.Name, existingOp.DeclaringContract.Name)));
                             }
                         }
@@ -797,30 +755,30 @@ namespace System.ServiceModel.Description
             return contractDescription;
         }
 
-        internal static Attribute GetFormattingAttribute(CustomAttributeProvider attrProvider, Attribute defaultFormatAttribute)
+        internal static Attribute GetFormattingAttribute(ICustomAttributeProvider attrProvider, Attribute defaultFormatAttribute)
         {
             if (attrProvider != null)
             {
                 if (attrProvider.IsDefined(typeof(XmlSerializerFormatAttribute), false))
                 {
-                    return ServiceReflector.GetSingleAttribute<XmlSerializerFormatAttribute>(attrProvider, s_formatterAttributes);
+                    return ServiceReflector.GetSingleAttribute<XmlSerializerFormatAttribute>(attrProvider, formatterAttributes);
                 }
                 if (attrProvider.IsDefined(typeof(DataContractFormatAttribute), false))
                 {
-                    return ServiceReflector.GetSingleAttribute<DataContractFormatAttribute>(attrProvider, s_formatterAttributes);
+                    return ServiceReflector.GetSingleAttribute<DataContractFormatAttribute>(attrProvider, formatterAttributes);
                 }
             }
             return defaultFormatAttribute;
         }
 
-        //Sync and Async should follow the rules:
+        //[....] and Async should follow the rules:
         //    1. Parameter match
         //    2. Async cannot have behaviors (verification happens later in ProcessOpMethod - behaviors haven't yet been loaded here)
         //    3. Async cannot have known types
         //    4. Async cannot have known faults
-        //    5. Sync and Async have to match on OneWay status
-        //    6. Sync and Async have to match Action and ReplyAction
-        private void VerifyConsistency(OperationConsistencyVerifier verifier)
+        //    5. [....] and Async have to match on OneWay status
+        //    6. [....] and Async have to match Action and ReplyAction
+        void VerifyConsistency(OperationConsistencyVerifier verifier)
         {
             verifier.VerifyParameterLength();
             verifier.VerifyParameterType();
@@ -837,7 +795,7 @@ namespace System.ServiceModel.Description
         //    callback interface on client: MessageDirection.Output
         //    service interface (or class) on server: MessageDirection.Input
         //    callback interface on server: MessageDirection.Output
-        private OperationDescription CreateOperationDescription(ContractDescription contractDescription, MethodInfo methodInfo, MessageDirection direction,
+        OperationDescription CreateOperationDescription(ContractDescription contractDescription, MethodInfo methodInfo, MessageDirection direction,
                                                         ContractReflectionInfo reflectionInfo, ContractDescription declaringContract)
         {
             OperationContractAttribute opAttr = ServiceReflector.GetOperationContractAttribute(methodInfo);
@@ -849,7 +807,7 @@ namespace System.ServiceModel.Description
             if (ServiceReflector.HasEndMethodShape(methodInfo))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.EndMethodsCannotBeDecoratedWithOperationContractAttribute,
+                    SR.GetString(SR.EndMethodsCannotBeDecoratedWithOperationContractAttribute,
                                  methodInfo.Name, reflectionInfo.iface)));
             }
 
@@ -872,19 +830,19 @@ namespace System.ServiceModel.Description
                     {
                         string method1Name = existingOp.OperationMethod.Name;
                         string method2Name = methodInfo.Name;
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
                     }
                     if (isAsync && (existingOp.BeginMethod != null))
                     {
                         string method1Name = existingOp.BeginMethod.Name;
                         string method2Name = methodInfo.Name;
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
                     }
                     if (!isAsync && !isTask && (existingOp.SyncMethod != null))
                     {
                         string method1Name = existingOp.SyncMethod.Name;
                         string method2Name = methodInfo.Name;
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.CannotHaveTwoOperationsWithTheSameName3, method1Name, method2Name, reflectionInfo.iface)));
                     }
 
                     contractDescription.Operations.Remove(existingOp);
@@ -902,7 +860,7 @@ namespace System.ServiceModel.Description
                         existingOp.TaskTResult = newOp.TaskTResult;
                         if (existingOp.SyncMethod != null)
                         {
-                            // Task vs. Sync 
+                            // Task vs. [....] 
                             VerifyConsistency(new SyncTaskOperationConsistencyVerifier(existingOp, newOp));
                         }
                         else
@@ -918,7 +876,7 @@ namespace System.ServiceModel.Description
                         existingOp.EndMethod = newOp.EndMethod;
                         if (existingOp.SyncMethod != null)
                         {
-                            // Async vs. Sync
+                            // Async vs. [....]
                             VerifyConsistency(new SyncAsyncOperationConsistencyVerifier(existingOp, newOp));
                         }
                         else
@@ -936,12 +894,12 @@ namespace System.ServiceModel.Description
                         newOp.TaskTResult = existingOp.TaskTResult;
                         if (existingOp.TaskMethod != null)
                         {
-                            // Sync vs. Task
+                            // [....] vs. Task
                             VerifyConsistency(new SyncTaskOperationConsistencyVerifier(newOp, existingOp));
                         }
                         else
                         {
-                            // Sync vs. Async
+                            // [....] vs. Async
                             VerifyConsistency(new SyncAsyncOperationConsistencyVerifier(newOp, existingOp));
                         }
                         return newOp;
@@ -951,13 +909,14 @@ namespace System.ServiceModel.Description
 
             OperationDescription operationDescription = new OperationDescription(operationName.EncodedName, declaringContract);
             operationDescription.IsInitiating = opAttr.IsInitiating;
+            operationDescription.IsTerminating = opAttr.IsTerminating;
             operationDescription.IsSessionOpenNotificationEnabled = opAttr.IsSessionOpenNotificationEnabled;
 
             operationDescription.HasNoDisposableParameters = ServiceReflector.HasNoDisposableParameters(methodInfo);
 
             if (opAttr.HasProtectionLevel)
             {
-                throw ExceptionHelper.PlatformNotSupported("security: protectionLevel");
+                operationDescription.ProtectionLevel = opAttr.ProtectionLevel;
             }
 
             XmlQualifiedName contractQname = new XmlQualifiedName(declaringContract.Name, declaringContract.Namespace);
@@ -966,7 +925,7 @@ namespace System.ServiceModel.Description
 
             if (opAttr.IsOneWay && methodAttributes.Length > 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.OneWayAndFaultsIncompatible2, methodInfo.DeclaringType.FullName, operationName.EncodedName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.OneWayAndFaultsIncompatible2, methodInfo.DeclaringType.FullName, operationName.EncodedName)));
             }
 
             for (int i = 0; i < methodAttributes.Length; i++)
@@ -1047,12 +1006,12 @@ namespace System.ServiceModel.Description
                 if ((!isTask && outputMethod.ReturnType != ServiceReflector.VoidType) || (isTask && taskTResult != ServiceReflector.VoidType) ||
                     ServiceReflector.HasOutputParameters(outputMethod, isAsync))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ServiceOperationsMarkedWithIsOneWayTrueMust0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ServiceOperationsMarkedWithIsOneWayTrueMust0)));
                 }
 
                 if (opAttr.ReplyAction != null)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.OneWayOperationShouldNotSpecifyAReplyAction1, operationName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.OneWayOperationShouldNotSpecifyAReplyAction1, operationName)));
                 }
             }
 
@@ -1078,14 +1037,14 @@ namespace System.ServiceModel.Description
             {
                 if (XmlName.IsNullOrEmpty(existingFault.ElementName) && XmlName.IsNullOrEmpty(fault.ElementName) && existingFault.DetailType == fault.DetailType)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.SFxFaultContractDuplicateDetailType, operationName, fault.DetailType)));
+                        SR.GetString(SR.SFxFaultContractDuplicateDetailType, operationName, fault.DetailType)));
                 if (!XmlName.IsNullOrEmpty(existingFault.ElementName) && !XmlName.IsNullOrEmpty(fault.ElementName) && existingFault.ElementName == fault.ElementName && existingFault.Namespace == fault.Namespace)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.SFxFaultContractDuplicateElement, operationName, fault.ElementName, fault.Namespace)));
+                        SR.GetString(SR.SFxFaultContractDuplicateElement, operationName, fault.ElementName, fault.Namespace)));
             }
         }
 
-        private FaultDescription CreateFaultDescription(FaultContractAttribute attr,
+        FaultDescription CreateFaultDescription(FaultContractAttribute attr,
                                                 XmlQualifiedName contractName,
                                                 string contractNamespace,
                                                 XmlName operationName)
@@ -1105,7 +1064,7 @@ namespace System.ServiceModel.Description
             return fault;
         }
 
-        private MessageDescription CreateMessageDescription(MethodInfo methodInfo,
+        MessageDescription CreateMessageDescription(MethodInfo methodInfo,
                                                            bool isAsync,
                                                            bool isTask,
                                                            Type taskTResult,
@@ -1151,7 +1110,7 @@ namespace System.ServiceModel.Description
                 if (responseType.IsDefined(typeof(MessageContractAttribute), false) && parameters.Length == 0)
                 {
                     messageDescription = CreateTypedMessageDescription(responseType,
-                                                         methodInfo.ReturnParameter,
+                                                         methodInfo.ReturnTypeCustomAttributes,
                                                          returnValueName,
                                                          defaultNS,
                                                          action,
@@ -1161,7 +1120,7 @@ namespace System.ServiceModel.Description
                 {
                     messageDescription = CreateParameterMessageDescription(parameters,
                                                          responseType,
-                                                         methodInfo.ReturnParameter,
+                                                         methodInfo.ReturnTypeCustomAttributes,
                                                          returnValueName,
                                                          methodName,
                                                          defaultNS,
@@ -1180,7 +1139,7 @@ namespace System.ServiceModel.Description
                 {
                     if (hasUnknownHeaders)
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxMultipleUnknownHeaders, methodInfo, methodInfo.DeclaringType)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxMultipleUnknownHeaders, methodInfo, methodInfo.DeclaringType)));
                     }
                     else
                     {
@@ -1191,9 +1150,9 @@ namespace System.ServiceModel.Description
             return messageDescription;
         }
 
-        private MessageDescription CreateParameterMessageDescription(ParameterInfo[] parameters,
+        MessageDescription CreateParameterMessageDescription(ParameterInfo[] parameters,
                                                   Type returnType,
-                                                  CustomAttributeProvider returnAttrProvider,
+                                                  ICustomAttributeProvider returnAttrProvider,
                                                   XmlName returnValueName,
                                                   string methodName,
                                                   string defaultNS,
@@ -1206,12 +1165,12 @@ namespace System.ServiceModel.Description
             {
                 if (GetParameterType(param).IsDefined(typeof(MessageContractAttribute), false/*inherit*/))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidMessageContractSignature, methodName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidMessageContractSignature, methodName)));
                 }
             }
             if (returnType != null && returnType.IsDefined(typeof(MessageContractAttribute), false/*inherit*/))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidMessageContractSignature, methodName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidMessageContractSignature, methodName)));
             }
 
             MessageDescription messageDescription = new MessageDescription(action, direction);
@@ -1220,7 +1179,7 @@ namespace System.ServiceModel.Description
             {
                 MessagePartDescription partDescription = CreateParameterPartDescription(new XmlName(parameters[index].Name), defaultNS, index, parameters[index], GetParameterType(parameters[index]));
                 if (partDescriptionCollection.Contains(new XmlQualifiedName(partDescription.Name, partDescription.Namespace)))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidMessageContractException(SR.Format(SR.SFxDuplicateMessageParts, partDescription.Name, partDescription.Namespace)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidMessageContractException(SR.GetString(SR.SFxDuplicateMessageParts, partDescription.Name, partDescription.Namespace)));
                 messageDescription.Body.Parts.Add(partDescription);
             }
 
@@ -1242,7 +1201,7 @@ namespace System.ServiceModel.Description
             return messageDescription;
         }
 
-        private static MessagePartDescription CreateParameterPartDescription(XmlName defaultName, string defaultNS, int index, CustomAttributeProvider attrProvider, Type type)
+        private static MessagePartDescription CreateParameterPartDescription(XmlName defaultName, string defaultNS, int index, ICustomAttributeProvider attrProvider, Type type)
         {
             MessagePartDescription parameterPart;
             MessageParameterAttribute paramAttr = ServiceReflector.GetSingleAttribute<MessageParameterAttribute>(attrProvider);
@@ -1257,17 +1216,19 @@ namespace System.ServiceModel.Description
 
         [SuppressMessage(FxCop.Category.Usage, "CA2301:EmbeddableTypesInContainersRule", MessageId = "messages", Justification = "No need to support type equivalence here.")]
         internal MessageDescription CreateTypedMessageDescription(Type typedMessageType,
-                                                  CustomAttributeProvider returnAttrProvider,
+                                                  ICustomAttributeProvider returnAttrProvider,
                                                   XmlName returnValueName,
                                                   string defaultNS,
                                                   string action,
                                                   MessageDirection direction)
         {
+
+
             MessageDescription messageDescription;
             bool messageItemsInitialized = false;
             MessageDescriptionItems messageItems;
             MessageContractAttribute messageContractAttribute = ServiceReflector.GetSingleAttribute<MessageContractAttribute>(typedMessageType);
-            if (_messages.TryGetValue(typedMessageType, out messageItems))
+            if (messages.TryGetValue(typedMessageType, out messageItems))
             {
                 messageDescription = new MessageDescription(action, direction, messageItems);
                 messageItemsInitialized = true;
@@ -1283,11 +1244,11 @@ namespace System.ServiceModel.Description
             }
             List<MemberInfo> contractMembers = new List<MemberInfo>();
 
-            for (Type baseType = typedMessageType; baseType != null && baseType != typeof(object) && baseType != typeof(ValueType); baseType = baseType.BaseType())
+            for (Type baseType = typedMessageType; baseType != null && baseType != typeof(object) && baseType != typeof(ValueType); baseType = baseType.BaseType)
             {
                 if (!baseType.IsDefined(typeof(MessageContractAttribute), false/*inherit*/))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxMessageContractBaseTypeNotValid, baseType, typedMessageType)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxMessageContractBaseTypeNotValid, baseType, typedMessageType)));
                 }
                 if (!messageDescription.HasProtectionLevel)
                 {
@@ -1300,9 +1261,10 @@ namespace System.ServiceModel.Description
 
                 if (messageItemsInitialized)
                     continue;
-                foreach (MemberInfo memberInfo in baseType.GetTypeInfo().DeclaredMembers)
+                foreach (MemberInfo memberInfo in baseType.GetMembers(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
                 {
-                    if (!(memberInfo is FieldInfo || memberInfo is PropertyInfo))
+                    if (memberInfo.MemberType != MemberTypes.Field &&
+                        memberInfo.MemberType != MemberTypes.Property)
                     {
                         continue;
                     }
@@ -1310,28 +1272,21 @@ namespace System.ServiceModel.Description
                     if (property != null)
                     {
                         MethodInfo getMethod = property.GetGetMethod(true);
-                        if (getMethod != null && (getMethod.IsStatic || IsMethodOverriding(getMethod)))
+                        if (getMethod != null && IsMethodOverriding(getMethod))
                         {
                             continue;
                         }
                         MethodInfo setMethod = property.GetSetMethod(true);
-                        if (setMethod != null && (setMethod.IsStatic || IsMethodOverriding(setMethod)))
+                        if (setMethod != null && IsMethodOverriding(setMethod))
                         {
                             continue;
                         }
                     }
-                    else
-                    {
-                        Contract.Assert(memberInfo is FieldInfo);
-                        if (((FieldInfo)memberInfo).IsStatic)
-                        {
-                            continue;
-                        }
-                    }
-
 
                     if (memberInfo.IsDefined(typeof(MessageBodyMemberAttribute), false) ||
-                        memberInfo.IsDefined(typeof(MessageHeaderAttribute), false)
+                        memberInfo.IsDefined(typeof(MessageHeaderAttribute), false) ||
+                        memberInfo.IsDefined(typeof(MessageHeaderArrayAttribute), false) ||
+                        memberInfo.IsDefined(typeof(MessagePropertyAttribute), false)
                         )
                     {
                         contractMembers.Add(memberInfo);
@@ -1349,7 +1304,7 @@ namespace System.ServiceModel.Description
                 MemberInfo memberInfo = contractMembers[i];
 
                 Type memberType;
-                if (memberInfo is PropertyInfo)
+                if (memberInfo.MemberType == MemberTypes.Property)
                 {
                     memberType = ((PropertyInfo)memberInfo).PropertyType;
                 }
@@ -1358,7 +1313,8 @@ namespace System.ServiceModel.Description
                     memberType = ((FieldInfo)memberInfo).FieldType;
                 }
 
-                if (memberInfo.IsDefined(typeof(MessageHeaderAttribute), false))
+                if (memberInfo.IsDefined(typeof(MessageHeaderArrayAttribute), false)
+                    || memberInfo.IsDefined(typeof(MessageHeaderAttribute), false))
                 {
                     headerPartDescriptionList.Add(CreateMessageHeaderDescription(memberType,
                                                                               memberInfo,
@@ -1367,14 +1323,20 @@ namespace System.ServiceModel.Description
                                                                               i,
                                                                               -1));
                 }
+                else if (memberInfo.IsDefined(typeof(MessagePropertyAttribute), false))
+                {
+                    messageDescription.Properties.Add(CreateMessagePropertyDescription(memberInfo,
+                                                                              new XmlName(memberInfo.Name),
+                                                                              i));
+                }
                 else
                 {
                     bodyPartDescriptionList.Add(CreateMessagePartDescription(memberType,
-                                                                            memberInfo,
-                                                                            new XmlName(memberInfo.Name),
-                                                                            defaultNS,
-                                                                            i,
-                                                                            -1));
+                                                                         memberInfo,
+                                                                         new XmlName(memberInfo.Name),
+                                                                         defaultNS,
+                                                                         i,
+                                                                         -1));
                 }
             }
 
@@ -1390,12 +1352,12 @@ namespace System.ServiceModel.Description
 
             AddSortedParts<MessagePartDescription>(bodyPartDescriptionList, messageDescription.Body.Parts);
             AddSortedParts<MessageHeaderDescription>(headerPartDescriptionList, messageDescription.Headers);
-            _messages.Add(typedMessageType, messageDescription.Items);
+            messages.Add(typedMessageType, messageDescription.Items);
 
             return messageDescription;
         }
 
-        private static bool IsMethodOverriding(MethodInfo method)
+        static bool IsMethodOverriding(MethodInfo method)
         {
             return method.IsVirtual && ((method.Attributes & MethodAttributes.NewSlot) == 0);
         }
@@ -1403,15 +1365,15 @@ namespace System.ServiceModel.Description
 
 
 
-        private MessagePartDescription CreateMessagePartDescription(Type bodyType,
-                                                         CustomAttributeProvider attrProvider,
+        MessagePartDescription CreateMessagePartDescription(Type bodyType,
+                                                         ICustomAttributeProvider attrProvider,
                                                          XmlName defaultName,
                                                          string defaultNS,
                                                          int parameterIndex,
                                                          int serializationIndex)
         {
             MessagePartDescription partDescription = null;
-            MessageBodyMemberAttribute bodyAttr = ServiceReflector.GetSingleAttribute<MessageBodyMemberAttribute>(attrProvider, s_messageContractMemberAttributes);
+            MessageBodyMemberAttribute bodyAttr = ServiceReflector.GetSingleAttribute<MessageBodyMemberAttribute>(attrProvider, messageContractMemberAttributes);
 
             if (bodyAttr == null)
             {
@@ -1430,9 +1392,9 @@ namespace System.ServiceModel.Description
                 }
             }
 
-            if (attrProvider.MemberInfo != null)
+            if (attrProvider is MemberInfo)
             {
-                partDescription.MemberInfo = attrProvider.MemberInfo;
+                partDescription.MemberInfo = (MemberInfo)attrProvider;
             }
             partDescription.Type = bodyType;
             partDescription.Index = parameterIndex;
@@ -1440,28 +1402,35 @@ namespace System.ServiceModel.Description
         }
 
         MessageHeaderDescription CreateMessageHeaderDescription(Type headerParameterType,
-                                                                    CustomAttributeProvider attrProvider,
+                                                                    ICustomAttributeProvider attrProvider,
                                                                     XmlName defaultName,
                                                                     string defaultNS,
                                                                     int parameterIndex,
                                                                     int serializationPosition)
         {
             MessageHeaderDescription headerDescription = null;
-            MessageHeaderAttribute headerAttr = ServiceReflector.GetRequiredSingleAttribute<MessageHeaderAttribute>(attrProvider, s_messageContractMemberAttributes);
+            MessageHeaderAttribute headerAttr = ServiceReflector.GetRequiredSingleAttribute<MessageHeaderAttribute>(attrProvider, messageContractMemberAttributes);
             XmlName headerName = headerAttr.IsNameSetExplicit ? new XmlName(headerAttr.Name) : defaultName;
             string headerNs = headerAttr.IsNamespaceSetExplicit ? headerAttr.Namespace : defaultNS;
             headerDescription = new MessageHeaderDescription(headerName.EncodedName, headerNs);
             headerDescription.UniquePartName = defaultName.EncodedName;
 
-            // check on MessageHeaderArrayAttribute is omitted.
-
+            if (headerAttr is MessageHeaderArrayAttribute)
+            {
+                if (!headerParameterType.IsArray || headerParameterType.GetArrayRank() != 1)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidMessageHeaderArrayType, defaultName)));
+                }
+                headerDescription.Multiple = true;
+                headerParameterType = headerParameterType.GetElementType();
+            }
             headerDescription.Type = TypedHeaderManager.GetHeaderType(headerParameterType);
             headerDescription.TypedHeader = (headerParameterType != headerDescription.Type);
             if (headerDescription.TypedHeader)
             {
                 if (headerAttr.IsMustUnderstandSet || headerAttr.IsRelaySet || headerAttr.Actor != null)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxStaticMessageHeaderPropertiesNotAllowed, defaultName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxStaticMessageHeaderPropertiesNotAllowed, defaultName)));
                 }
             }
             else
@@ -1475,26 +1444,27 @@ namespace System.ServiceModel.Description
             {
                 headerDescription.ProtectionLevel = headerAttr.ProtectionLevel;
             }
-            if (attrProvider.MemberInfo != null)
+            if (attrProvider is MemberInfo)
             {
-                headerDescription.MemberInfo = attrProvider.MemberInfo;
+                headerDescription.MemberInfo = (MemberInfo)attrProvider;
             }
 
             headerDescription.Index = parameterIndex;
             return headerDescription;
         }
 
-        private MessagePropertyDescription CreateMessagePropertyDescription(CustomAttributeProvider attrProvider,
+        MessagePropertyDescription CreateMessagePropertyDescription(ICustomAttributeProvider attrProvider,
                                                             XmlName defaultName,
                                                             int parameterIndex)
         {
-            XmlName propertyName = defaultName;
+            MessagePropertyAttribute attr = ServiceReflector.GetSingleAttribute<MessagePropertyAttribute>(attrProvider, messageContractMemberAttributes);
+            XmlName propertyName = attr.IsNameSetExplicit ? new XmlName(attr.Name) : defaultName;
             MessagePropertyDescription propertyDescription = new MessagePropertyDescription(propertyName.EncodedName);
             propertyDescription.Index = parameterIndex;
 
-            if (attrProvider.MemberInfo != null)
+            if (attrProvider is MemberInfo)
             {
-                propertyDescription.MemberInfo = attrProvider.MemberInfo;
+                propertyDescription.MemberInfo = (MemberInfo)attrProvider;
             }
 
             return propertyDescription;
@@ -1530,7 +1500,7 @@ namespace System.ServiceModel.Description
             return new XmlName(wrapperName);
         }
 
-        private void AddSortedParts<T>(List<T> partDescriptionList, KeyedCollection<XmlQualifiedName, T> partDescriptionCollection)
+        void AddSortedParts<T>(List<T> partDescriptionList, KeyedCollection<XmlQualifiedName, T> partDescriptionCollection)
             where T : MessagePartDescription
         {
             MessagePartDescription[] partDescriptions = partDescriptionList.ToArray();
@@ -1542,7 +1512,7 @@ namespace System.ServiceModel.Description
             {
                 if (partDescriptionCollection.Contains(new XmlQualifiedName(partDescription.Name, partDescription.Namespace)))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidMessageContractException(SR.Format(SR.SFxDuplicateMessageParts, partDescription.Name, partDescription.Namespace)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidMessageContractException(SR.GetString(SR.SFxDuplicateMessageParts, partDescription.Name, partDescription.Namespace)));
                 }
                 partDescriptionCollection.Add(partDescription);
             }
@@ -1562,143 +1532,144 @@ namespace System.ServiceModel.Description
 
         private class SyncAsyncOperationConsistencyVerifier : OperationConsistencyVerifier
         {
-            private OperationDescription _syncOperation;
-            private OperationDescription _asyncOperation;
-            private ParameterInfo[] _syncInputs;
-            private ParameterInfo[] _asyncInputs;
-            private ParameterInfo[] _syncOutputs;
-            private ParameterInfo[] _asyncOutputs;
+            OperationDescription syncOperation;
+            OperationDescription asyncOperation;
+            ParameterInfo[] syncInputs;
+            ParameterInfo[] asyncInputs;
+            ParameterInfo[] syncOutputs;
+            ParameterInfo[] asyncOutputs;
 
             public SyncAsyncOperationConsistencyVerifier(OperationDescription syncOperation, OperationDescription asyncOperation)
             {
-                _syncOperation = syncOperation;
-                _asyncOperation = asyncOperation;
-                _syncInputs = ServiceReflector.GetInputParameters(_syncOperation.SyncMethod, false);
-                _asyncInputs = ServiceReflector.GetInputParameters(_asyncOperation.BeginMethod, true);
-                _syncOutputs = ServiceReflector.GetOutputParameters(_syncOperation.SyncMethod, false);
-                _asyncOutputs = ServiceReflector.GetOutputParameters(_asyncOperation.EndMethod, true);
+                this.syncOperation = syncOperation;
+                this.asyncOperation = asyncOperation;
+                this.syncInputs = ServiceReflector.GetInputParameters(this.syncOperation.SyncMethod, false);
+                this.asyncInputs = ServiceReflector.GetInputParameters(this.asyncOperation.BeginMethod, true);
+                this.syncOutputs = ServiceReflector.GetOutputParameters(this.syncOperation.SyncMethod, false);
+                this.asyncOutputs = ServiceReflector.GetOutputParameters(this.asyncOperation.EndMethod, true);
             }
 
             public override void VerifyParameterLength()
             {
-                if (_syncInputs.Length != _asyncInputs.Length || _syncOutputs.Length != _asyncOutputs.Length)
+                if (this.syncInputs.Length != this.asyncInputs.Length || this.syncOutputs.Length != this.asyncOutputs.Length)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Parameters5,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _syncOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Parameters5,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.syncOperation.Name)));
                 }
             }
 
             public override void VerifyParameterType()
             {
-                for (int i = 0; i < _syncInputs.Length; i++)
+                for (int i = 0; i < this.syncInputs.Length; i++)
                 {
-                    if (_syncInputs[i].ParameterType != _asyncInputs[i].ParameterType)
+                    if (this.syncInputs[i].ParameterType != this.asyncInputs[i].ParameterType)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Parameters5,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _syncOperation.Name)));
+                            new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Parameters5,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.syncOperation.Name)));
                     }
                 }
             }
 
             public override void VerifyOutParameterType()
             {
-                for (int i = 0; i < _syncOutputs.Length; i++)
+                for (int i = 0; i < this.syncOutputs.Length; i++)
                 {
-                    if (_syncOutputs[i].ParameterType != _asyncOutputs[i].ParameterType)
+                    if (this.syncOutputs[i].ParameterType != this.asyncOutputs[i].ParameterType)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Parameters5,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _syncOperation.Name)));
+                            new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Parameters5,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.syncOperation.Name)));
                     }
                 }
             }
 
             public override void VerifyReturnType()
             {
-                if (_syncOperation.SyncMethod.ReturnType != _syncOperation.EndMethod.ReturnType)
+                if (this.syncOperation.SyncMethod.ReturnType != this.syncOperation.EndMethod.ReturnType)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_ReturnType5,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _syncOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_ReturnType5,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.syncOperation.Name)));
                 }
             }
 
             public override void VerifyFaultContractAttribute()
             {
-                if (_asyncOperation.Faults.Count != 0)
+                if (this.asyncOperation.Faults.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Attributes6,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _syncOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Attributes6,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.syncOperation.Name,
                                                                    typeof(FaultContractAttribute).Name)));
+
                 }
             }
 
             public override void VerifyKnownTypeAttribute()
             {
-                if (_asyncOperation.KnownTypes.Count != 0)
+                if (this.asyncOperation.KnownTypes.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Attributes6,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _syncOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Attributes6,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.syncOperation.Name,
                                                                    typeof(ServiceKnownTypeAttribute).Name)));
                 }
             }
 
             public override void VerifyIsOneWayStatus()
             {
-                if (_syncOperation.Messages.Count != _asyncOperation.Messages.Count)
+                if (this.syncOperation.Messages.Count != this.asyncOperation.Messages.Count)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Property6,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _syncOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Property6,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.syncOperation.Name,
                                                                        "IsOneWay")));
                 }
             }
 
             public override void VerifyActionAndReplyAction()
             {
-                for (int index = 0; index < _syncOperation.Messages.Count; ++index)
+                for (int index = 0; index < this.syncOperation.Messages.Count; ++index)
                 {
-                    if (_syncOperation.Messages[index].Action != _asyncOperation.Messages[index].Action)
+                    if (this.syncOperation.Messages[index].Action != this.asyncOperation.Messages[index].Action)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncAsyncMatchConsistency_Property6,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _syncOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.SyncAsyncMatchConsistency_Property6,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.syncOperation.Name,
                                                                        index == 0 ? "Action" : "ReplyAction")));
                     }
                 }
@@ -1707,115 +1678,116 @@ namespace System.ServiceModel.Description
 
         private class SyncTaskOperationConsistencyVerifier : OperationConsistencyVerifier
         {
-            private OperationDescription _syncOperation;
-            private OperationDescription _taskOperation;
-            private ParameterInfo[] _syncInputs;
-            private ParameterInfo[] _taskInputs;
+            OperationDescription syncOperation;
+            OperationDescription taskOperation;
+            ParameterInfo[] syncInputs;
+            ParameterInfo[] taskInputs;
 
             public SyncTaskOperationConsistencyVerifier(OperationDescription syncOperation, OperationDescription taskOperation)
             {
-                _syncOperation = syncOperation;
-                _taskOperation = taskOperation;
-                _syncInputs = ServiceReflector.GetInputParameters(_syncOperation.SyncMethod, false);
-                _taskInputs = ServiceReflector.GetInputParameters(_taskOperation.TaskMethod, false);
+                this.syncOperation = syncOperation;
+                this.taskOperation = taskOperation;
+                this.syncInputs = ServiceReflector.GetInputParameters(this.syncOperation.SyncMethod, false);
+                this.taskInputs = ServiceReflector.GetInputParameters(this.taskOperation.TaskMethod, false);
             }
 
             public override void VerifyParameterLength()
             {
-                if (_syncInputs.Length != _taskInputs.Length)
+                if (this.syncInputs.Length != this.taskInputs.Length)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Parameters5,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _syncOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Parameters5,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.syncOperation.Name)));
                 }
             }
 
             public override void VerifyParameterType()
             {
-                for (int i = 0; i < _syncInputs.Length; i++)
+                for (int i = 0; i < this.syncInputs.Length; i++)
                 {
-                    if (_syncInputs[i].ParameterType != _taskInputs[i].ParameterType)
+                    if (this.syncInputs[i].ParameterType != this.taskInputs[i].ParameterType)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Parameters5,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _syncOperation.Name)));
+                            new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Parameters5,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.syncOperation.Name)));
                     }
                 }
             }
 
             public override void VerifyReturnType()
             {
-                if (_syncOperation.SyncMethod.ReturnType != _syncOperation.TaskTResult)
+                if (this.syncOperation.SyncMethod.ReturnType != this.syncOperation.TaskTResult)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_ReturnType5,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _syncOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_ReturnType5,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.syncOperation.Name)));
                 }
             }
 
             public override void VerifyFaultContractAttribute()
             {
-                if (_taskOperation.Faults.Count != 0)
+                if (this.taskOperation.Faults.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Attributes6,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _syncOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Attributes6,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.syncOperation.Name,
                                                                    typeof(FaultContractAttribute).Name)));
+
                 }
             }
 
             public override void VerifyKnownTypeAttribute()
             {
-                if (_taskOperation.KnownTypes.Count != 0)
+                if (this.taskOperation.KnownTypes.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Attributes6,
-                                                                   _syncOperation.SyncMethod.Name,
-                                                                   _syncOperation.SyncMethod.DeclaringType,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _syncOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Attributes6,
+                                                                   this.syncOperation.SyncMethod.Name,
+                                                                   this.syncOperation.SyncMethod.DeclaringType,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.syncOperation.Name,
                                                                    typeof(ServiceKnownTypeAttribute).Name)));
                 }
             }
 
             public override void VerifyIsOneWayStatus()
             {
-                if (_syncOperation.Messages.Count != _taskOperation.Messages.Count)
+                if (this.syncOperation.Messages.Count != this.taskOperation.Messages.Count)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Property6,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _syncOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Property6,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.syncOperation.Name,
                                                                        "IsOneWay")));
                 }
             }
 
             public override void VerifyActionAndReplyAction()
             {
-                for (int index = 0; index < _syncOperation.Messages.Count; ++index)
+                for (int index = 0; index < this.syncOperation.Messages.Count; ++index)
                 {
-                    if (_syncOperation.Messages[index].Action != _taskOperation.Messages[index].Action)
+                    if (this.syncOperation.Messages[index].Action != this.taskOperation.Messages[index].Action)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SyncTaskMatchConsistency_Property6,
-                                                                       _syncOperation.SyncMethod.Name,
-                                                                       _syncOperation.SyncMethod.DeclaringType,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _syncOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.SyncTaskMatchConsistency_Property6,
+                                                                       this.syncOperation.SyncMethod.Name,
+                                                                       this.syncOperation.SyncMethod.DeclaringType,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.syncOperation.Name,
                                                                        index == 0 ? "Action" : "ReplyAction")));
                     }
                 }
@@ -1824,129 +1796,130 @@ namespace System.ServiceModel.Description
 
         private class TaskAsyncOperationConsistencyVerifier : OperationConsistencyVerifier
         {
-            private OperationDescription _taskOperation;
-            private OperationDescription _asyncOperation;
-            private ParameterInfo[] _taskInputs;
-            private ParameterInfo[] _asyncInputs;
+            OperationDescription taskOperation;
+            OperationDescription asyncOperation;
+            ParameterInfo[] taskInputs;
+            ParameterInfo[] asyncInputs;
 
             public TaskAsyncOperationConsistencyVerifier(OperationDescription taskOperation, OperationDescription asyncOperation)
             {
-                _taskOperation = taskOperation;
-                _asyncOperation = asyncOperation;
-                _taskInputs = ServiceReflector.GetInputParameters(_taskOperation.TaskMethod, false);
-                _asyncInputs = ServiceReflector.GetInputParameters(_asyncOperation.BeginMethod, true);
+                this.taskOperation = taskOperation;
+                this.asyncOperation = asyncOperation;
+                this.taskInputs = ServiceReflector.GetInputParameters(this.taskOperation.TaskMethod, false);
+                this.asyncInputs = ServiceReflector.GetInputParameters(this.asyncOperation.BeginMethod, true);
             }
 
             public override void VerifyParameterLength()
             {
-                if (_taskInputs.Length != _asyncInputs.Length)
+                if (this.taskInputs.Length != this.asyncInputs.Length)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Parameters5,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _taskOperation.TaskMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _taskOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Parameters5,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.taskOperation.TaskMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.taskOperation.Name)));
                 }
             }
 
             public override void VerifyParameterType()
             {
-                for (int i = 0; i < _taskInputs.Length; i++)
+                for (int i = 0; i < this.taskInputs.Length; i++)
                 {
-                    if (_taskInputs[i].ParameterType != _asyncInputs[i].ParameterType)
+                    if (this.taskInputs[i].ParameterType != this.asyncInputs[i].ParameterType)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Parameters5,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _taskOperation.TaskMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _taskOperation.Name)));
+                            new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Parameters5,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.taskOperation.TaskMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.taskOperation.Name)));
                     }
                 }
             }
 
             public override void VerifyReturnType()
             {
-                if (_taskOperation.TaskTResult != _asyncOperation.EndMethod.ReturnType)
+                if (this.taskOperation.TaskTResult != this.asyncOperation.EndMethod.ReturnType)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_ReturnType5,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _taskOperation.TaskMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _taskOperation.Name)));
+                        new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_ReturnType5,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.taskOperation.TaskMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.taskOperation.Name)));
                 }
             }
 
             public override void VerifyFaultContractAttribute()
             {
-                if (_asyncOperation.Faults.Count != 0)
+                if (this.asyncOperation.Faults.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Attributes6,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _taskOperation.TaskMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _taskOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Attributes6,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.taskOperation.TaskMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.taskOperation.Name,
                                                                    typeof(FaultContractAttribute).Name)));
+
                 }
             }
 
             public override void VerifyKnownTypeAttribute()
             {
-                if (_asyncOperation.KnownTypes.Count != 0)
+                if (this.asyncOperation.KnownTypes.Count != 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Attributes6,
-                                                                   _taskOperation.TaskMethod.Name,
-                                                                   _taskOperation.TaskMethod.DeclaringType,
-                                                                   _asyncOperation.BeginMethod.Name,
-                                                                   _asyncOperation.EndMethod.Name,
-                                                                   _taskOperation.Name,
+                        new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Attributes6,
+                                                                   this.taskOperation.TaskMethod.Name,
+                                                                   this.taskOperation.TaskMethod.DeclaringType,
+                                                                   this.asyncOperation.BeginMethod.Name,
+                                                                   this.asyncOperation.EndMethod.Name,
+                                                                   this.taskOperation.Name,
                                                                    typeof(ServiceKnownTypeAttribute).Name)));
                 }
             }
 
             public override void VerifyIsOneWayStatus()
             {
-                if (_taskOperation.Messages.Count != _asyncOperation.Messages.Count)
+                if (this.taskOperation.Messages.Count != this.asyncOperation.Messages.Count)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Property6,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _taskOperation.TaskMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _taskOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Property6,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.taskOperation.TaskMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.taskOperation.Name,
                                                                        "IsOneWay")));
                 }
             }
 
             public override void VerifyActionAndReplyAction()
             {
-                for (int index = 0; index < _taskOperation.Messages.Count; ++index)
+                for (int index = 0; index < this.taskOperation.Messages.Count; ++index)
                 {
-                    if (_taskOperation.Messages[index].Action != _asyncOperation.Messages[index].Action)
+                    if (this.taskOperation.Messages[index].Action != this.asyncOperation.Messages[index].Action)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.TaskAsyncMatchConsistency_Property6,
-                                                                       _taskOperation.TaskMethod.Name,
-                                                                       _taskOperation.TaskMethod.DeclaringType,
-                                                                       _asyncOperation.BeginMethod.Name,
-                                                                       _asyncOperation.EndMethod.Name,
-                                                                       _taskOperation.Name,
+                            new InvalidOperationException(SR.GetString(SR.TaskAsyncMatchConsistency_Property6,
+                                                                       this.taskOperation.TaskMethod.Name,
+                                                                       this.taskOperation.TaskMethod.DeclaringType,
+                                                                       this.asyncOperation.BeginMethod.Name,
+                                                                       this.asyncOperation.EndMethod.Name,
+                                                                       this.taskOperation.Name,
                                                                        index == 0 ? "Action" : "ReplyAction")));
                     }
                 }
             }
         }
 
-        private class ContractReflectionInfo
+        class ContractReflectionInfo
         {
             internal Type iface;
             internal Type callbackiface;
@@ -1973,7 +1946,7 @@ namespace System.ServiceModel.Description
         {
             // work our way up the class hierarchy, looking for attributes; adding "bottom up" so that for each
             // type of attribute, we only pick up the bottom-most one (the one attached to most-derived class)
-            for (Type currentType = serviceType; currentType != null; currentType = currentType.BaseType())
+            for (Type currentType = serviceType; currentType != null; currentType = currentType.BaseType)
             {
                 AddBehaviorsAtOneScope(currentType, descriptionBehaviors, callback);
             }
@@ -1990,7 +1963,7 @@ namespace System.ServiceModel.Description
         //    find desired behavior attributes on this type, and add them to "behaviors"
         // AddBehaviorsAtOneScope then uses the logic you provide for getting behavior attributes from a single type, 
         // and it does the override logic for you (only add the behavior if it wasn't already in the descriptionBehaviors)
-        private static void AddBehaviorsAtOneScope<IBehavior, TBehaviorCollection>(
+        static void AddBehaviorsAtOneScope<IBehavior, TBehaviorCollection>(
                      Type type,
                      TBehaviorCollection descriptionBehaviors,
                      ServiceInheritanceCallback<IBehavior, TBehaviorCollection> callback)
@@ -2006,8 +1979,16 @@ namespace System.ServiceModel.Description
                 IBehavior behavior = toAdd[i];
                 if (!descriptionBehaviors.Contains(behavior.GetType()))
                 {
-                    // 
-                    throw ExceptionHelper.PlatformNotSupported();
+                    // if we didn't already see this type of attribute at a previous scope
+                    // then it belongs in the final result
+                    if (behavior is ServiceBehaviorAttribute || behavior is CallbackBehaviorAttribute)
+                    {
+                        descriptionBehaviors.Insert(0, behavior);
+                    }
+                    else
+                    {
+                        descriptionBehaviors.Add(behavior);
+                    }
                 }
             }
         }

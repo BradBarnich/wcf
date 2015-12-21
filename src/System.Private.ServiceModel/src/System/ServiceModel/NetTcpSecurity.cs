@@ -1,76 +1,71 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-using System.Diagnostics.Contracts;
-using System.Runtime;
-using System.ServiceModel.Channels;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.ComponentModel;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Configuration;
+
     public sealed class NetTcpSecurity
     {
         internal const SecurityMode DefaultMode = SecurityMode.Transport;
 
-        private SecurityMode _mode;
-        private TcpTransportSecurity _transportSecurity;
-        private MessageSecurityOverTcp _messageSecurity;
+        SecurityMode mode;
+        TcpTransportSecurity transportSecurity;
+        MessageSecurityOverTcp messageSecurity;
 
         public NetTcpSecurity()
             : this(DefaultMode, new TcpTransportSecurity(), new MessageSecurityOverTcp())
         {
         }
 
-        private NetTcpSecurity(SecurityMode mode, TcpTransportSecurity transportSecurity, MessageSecurityOverTcp messageSecurity)
+        NetTcpSecurity(SecurityMode mode, TcpTransportSecurity transportSecurity, MessageSecurityOverTcp messageSecurity)
         {
-            Contract.Assert(SecurityModeHelper.IsDefined(mode),
-                            string.Format("Invalid SecurityMode value: {0} = {1} (default is {2} = {3}).",
-                                            (int)mode,
-                                            mode.ToString(),
-                                            (int)SecurityMode.Transport,
-                                            SecurityMode.Transport.ToString()));
+            Fx.Assert(SecurityModeHelper.IsDefined(mode), string.Format("Invalid SecurityMode value: {0}.", mode.ToString()));
 
-            _mode = mode;
-            _transportSecurity = transportSecurity == null ? new TcpTransportSecurity() : transportSecurity;
-            _messageSecurity = messageSecurity == null ? new MessageSecurityOverTcp() : messageSecurity;
+            this.mode = mode;
+            this.transportSecurity = transportSecurity == null ? new TcpTransportSecurity() : transportSecurity;
+            this.messageSecurity = messageSecurity == null ? new MessageSecurityOverTcp() : messageSecurity;
         }
 
         [DefaultValue(DefaultMode)]
         public SecurityMode Mode
         {
-            get { return _mode; }
+            get { return this.mode; }
             set
             {
                 if (!SecurityModeHelper.IsDefined(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
                 }
-                _mode = value;
+                this.mode = value;
             }
         }
 
         public TcpTransportSecurity Transport
         {
-            get { return _transportSecurity; }
-            set { _transportSecurity = value; }
+            get { return this.transportSecurity; }
+            set { this.transportSecurity = value; }
         }
 
         public MessageSecurityOverTcp Message
         {
-            get { return _messageSecurity; }
-            set { _messageSecurity = value; }
+            get { return this.messageSecurity; }
+            set { this.messageSecurity = value; }
         }
 
 
         internal BindingElement CreateTransportSecurity()
         {
-            if (_mode == SecurityMode.TransportWithMessageCredential)
+            if (this.mode == SecurityMode.TransportWithMessageCredential)
             {
-                return _transportSecurity.CreateTransportProtectionOnly();
+                return this.transportSecurity.CreateTransportProtectionOnly();
             }
-            else if (_mode == SecurityMode.Transport)
+            else if (this.mode == SecurityMode.Transport)
             {
-                return _transportSecurity.CreateTransportProtectionAndAuthentication();
+                return this.transportSecurity.CreateTransportProtectionAndAuthentication();
             }
             else
             {
@@ -101,6 +96,47 @@ namespace System.ServiceModel
                 return TcpTransportSecurity.SetTransportProtectionAndAuthentication(transport, transportSecurity);
             }
             return transport == null;
+        }
+
+        internal SecurityBindingElement CreateMessageSecurity(bool isReliableSessionEnabled)
+        {
+            if (this.mode == SecurityMode.Message)
+            {
+                return this.messageSecurity.CreateSecurityBindingElement(false, isReliableSessionEnabled, null);
+            }
+            else if (this.mode == SecurityMode.TransportWithMessageCredential)
+            {
+                return this.messageSecurity.CreateSecurityBindingElement(true, isReliableSessionEnabled, this.CreateTransportSecurity());
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        internal static bool TryCreate(SecurityBindingElement wsSecurity, SecurityMode mode, bool isReliableSessionEnabled, BindingElement transportSecurity, TcpTransportSecurity tcpTransportSecurity, out NetTcpSecurity security)
+        {
+            security = null;
+            MessageSecurityOverTcp messageSecurity = null;
+            if (mode == SecurityMode.Message)
+            {
+                if (!MessageSecurityOverTcp.TryCreate(wsSecurity, isReliableSessionEnabled, null, out messageSecurity))
+                    return false;
+            }
+            else if (mode == SecurityMode.TransportWithMessageCredential)
+            {
+                if (!MessageSecurityOverTcp.TryCreate(wsSecurity, isReliableSessionEnabled, transportSecurity, out messageSecurity))
+                    return false;
+            }
+            security = new NetTcpSecurity(mode, tcpTransportSecurity, messageSecurity);
+            return SecurityElement.AreBindingsMatching(security.CreateMessageSecurity(isReliableSessionEnabled), wsSecurity, false);
+        }
+
+        internal bool InternalShouldSerialize()
+        {
+            return this.Mode != NetTcpSecurity.DefaultMode
+                || this.Transport.InternalShouldSerialize()
+                || this.Message.InternalShouldSerialize();
         }
     }
 }

@@ -1,10 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
-using System.ComponentModel;
 
 namespace System.ServiceModel.Security.Tokens
 {
+    using System.ComponentModel;
+
     public enum X509KeyIdentifierClauseType
     {
         Any = 0,
@@ -14,7 +16,7 @@ namespace System.ServiceModel.Security.Tokens
         RawDataKeyIdentifier = 4
     }
 
-    internal static class X509SecurityTokenReferenceStyleHelper
+    static class X509SecurityTokenReferenceStyleHelper
     {
         public static bool IsDefined(X509KeyIdentifierClauseType value)
         {
@@ -33,5 +35,6 @@ namespace System.ServiceModel.Security.Tokens
                     typeof(X509KeyIdentifierClauseType)));
             }
         }
+
     }
 }

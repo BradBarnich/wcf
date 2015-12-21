@@ -1,50 +1,54 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Globalization;
-using System.ServiceModel.Channels;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Address={_address}")]
-    [DebuggerDisplay("Name={_name}")]
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Globalization;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Dispatcher;
+
+    [DebuggerDisplay("Address={address}")]
+    [DebuggerDisplay("Name={name}")]
     public class ServiceEndpoint
     {
-        private EndpointAddress _address;
-        private Binding _binding;
-        private ContractDescription _contract;
-        private Uri _listenUri;
-        private ListenUriMode _listenUriMode = ListenUriMode.Explicit;
-        private KeyedByTypeCollection<IEndpointBehavior> _behaviors;
-        private string _id;
-        private XmlName _name;
-        private bool _isEndpointFullyConfigured = false;
+        EndpointAddress address;
+        Binding binding;
+        ContractDescription contract;
+        Uri listenUri;
+        ListenUriMode listenUriMode = ListenUriMode.Explicit;
+        KeyedByTypeCollection<IEndpointBehavior> behaviors;
+        string id;
+        XmlName name;
+        bool isEndpointFullyConfigured = false;
 
         public ServiceEndpoint(ContractDescription contract)
         {
             if (contract == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("contract");
-            _contract = contract;
+            this.contract = contract;
         }
 
         public ServiceEndpoint(ContractDescription contract, Binding binding, EndpointAddress address)
         {
             if (contract == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("contract");
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("contract");            
 
-            _contract = contract;
-            _binding = binding;
-            _address = address;
+            this.contract = contract;
+            this.binding = binding;
+            this.address = address;
         }
 
         public EndpointAddress Address
         {
-            get { return _address; }
-            set { _address = value; }
+            get { return this.address; }
+            set { this.address = value; }
         }
 
         public KeyedCollection<Type, IEndpointBehavior> EndpointBehaviors
@@ -57,31 +61,31 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_behaviors == null)
+                if (this.behaviors == null)
                 {
-                    _behaviors = new KeyedByTypeCollection<IEndpointBehavior>();
+                    this.behaviors = new KeyedByTypeCollection<IEndpointBehavior>();
                 }
 
-                return _behaviors;
+                return this.behaviors;
             }
         }
 
         public Binding Binding
         {
-            get { return _binding; }
-            set { _binding = value; }
+            get { return this.binding; }
+            set { this.binding = value; }
         }
 
         public ContractDescription Contract
         {
-            get { return _contract; }
+            get { return this.contract; }
             set
             {
                 if (value == null)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
-                _contract = value;
+                this.contract = value;
             }
         }
 
@@ -95,12 +99,13 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (!XmlName.IsNullOrEmpty(_name))
+                if (!XmlName.IsNullOrEmpty(name))
                 {
-                    return _name.EncodedName;
+                    return name.EncodedName;
                 }
-                else if (_binding != null)
+                else if (binding != null)
                 {
+                    // [....]: composing names have potential problem of generating name that looks like an encoded name, consider avoiding '_'
                     return String.Format(CultureInfo.InvariantCulture, "{0}_{1}", new XmlName(Binding.Name).EncodedName, Contract.Name);
                 }
                 else
@@ -110,60 +115,60 @@ namespace System.ServiceModel.Description
             }
             set
             {
-                _name = new XmlName(value, true /*isEncoded*/);
+                name = new XmlName(value, true /*isEncoded*/);
             }
         }
 
         public Uri ListenUri
         {
-            get
+            get 
             {
-                if (_listenUri == null)
+                if (this.listenUri == null)
                 {
-                    if (_address == null)
+                    if (this.address == null)
                     {
                         return null;
                     }
                     else
                     {
-                        return _address.Uri;
+                        return this.address.Uri;
                     }
                 }
                 else
                 {
-                    return _listenUri;
+                    return this.listenUri;
                 }
             }
             set
             {
                 if (value != null && !value.IsAbsoluteUri)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("value", SR.UriMustBeAbsolute);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("value", SR.GetString(SR.UriMustBeAbsolute));
                 }
-                _listenUri = value;
+                this.listenUri = value;
             }
         }
 
         public ListenUriMode ListenUriMode
         {
-            get { return _listenUriMode; }
+            get { return this.listenUriMode; }
             set
             {
                 if (!ListenUriModeHelper.IsDefined(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
                 }
-                _listenUriMode = value;
+                this.listenUriMode = value;
             }
         }
 
         internal string Id
         {
-            get
-            {
-                if (_id == null)
-                    _id = Guid.NewGuid().ToString();
-                return _id;
+            get 
+            { 
+                if (id == null)
+                    id = Guid.NewGuid().ToString();
+                return id; 
             }
         }
 
@@ -185,11 +190,11 @@ namespace System.ServiceModel.Description
         {
             if (Binding == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.AChannelServiceEndpointSBindingIsNull0));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.AChannelServiceEndpointSBindingIsNull0)));
             }
             if (Contract == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.AChannelServiceEndpointSContractIsNull0));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.AChannelServiceEndpointSContractIsNull0)));
             }
             this.Contract.EnsureInvariants();
             this.Binding.EnsureInvariants(this.Contract.Name);
@@ -205,15 +210,25 @@ namespace System.ServiceModel.Description
             Validate(runOperationValidators, true);
         }
 
-        internal bool IsFullyConfigured
+        internal bool IsFullyConfigured 
         {
-            get { return _isEndpointFullyConfigured; }
-            set { _isEndpointFullyConfigured = value; }
+            get { return this.isEndpointFullyConfigured; }
+            set { this.isEndpointFullyConfigured = value; }
+        }
+
+        // for V1 legacy reasons, a mex endpoint is considered a system endpoint even if IsSystemEndpoint = false
+        internal bool InternalIsSystemEndpoint(ServiceDescription description)
+        {
+            if (ServiceMetadataBehavior.IsMetadataEndpoint(description, this))
+            {
+                return true;
+            }
+            return this.IsSystemEndpoint;
         }
 
         // This method runs validators (both builtin and ones in description).  
         // Precondition: EnsureInvariants() should already have been called.
-        private void Validate(bool runOperationValidators, bool isForService)
+        void Validate(bool runOperationValidators, bool isForService)
         {
             // contract behaviors
             ContractDescription contract = this.Contract;
@@ -225,6 +240,13 @@ namespace System.ServiceModel.Description
             // endpoint behaviors
             if (!isForService)
             {
+                (PartialTrustValidationBehavior.Instance as IEndpointBehavior).Validate(this);
+#pragma warning disable 0618
+                (PeerValidationBehavior.Instance as IEndpointBehavior).Validate(this);
+#pragma warning restore 0618
+                (TransactionValidationBehavior.Instance as IEndpointBehavior).Validate(this);
+                (SecurityValidationBehavior.Instance as IEndpointBehavior).Validate(this);
+                (System.ServiceModel.MsmqIntegration.MsmqIntegrationValidationBehavior.Instance as IEndpointBehavior).Validate(this);
             }
             for (int j = 0; j < this.Behaviors.Count; j++)
             {
@@ -237,8 +259,7 @@ namespace System.ServiceModel.Description
                 for (int j = 0; j < contract.Operations.Count; j++)
                 {
                     OperationDescription op = contract.Operations[j];
-
-
+                    TaskOperationDescriptionValidator.Validate(op, isForService);
                     for (int k = 0; k < op.Behaviors.Count; k++)
                     {
                         IOperationBehavior iob = op.Behaviors[k];

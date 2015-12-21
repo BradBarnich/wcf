@@ -1,19 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Text;
-using System.Xml;
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public sealed class TextMessageEncodingBindingElement : MessageEncodingBindingElement
+    using System.Collections.Generic;
+    using System.ServiceModel.Description;
+    using System.Text;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.Xml;
+    using System.ComponentModel;
+
+    public sealed class TextMessageEncodingBindingElement : MessageEncodingBindingElement, IWsdlExportExtension, IPolicyExportExtension
     {
-        private int _maxReadPoolSize;
-        private int _maxWritePoolSize;
-        private XmlDictionaryReaderQuotas _readerQuotas;
-        private MessageVersion _messageVersion;
-        private Encoding _writeEncoding;
+        int maxReadPoolSize;
+        int maxWritePoolSize;
+        XmlDictionaryReaderQuotas readerQuotas;
+        MessageVersion messageVersion;
+        Encoding writeEncoding;
 
         public TextMessageEncodingBindingElement()
             : this(MessageVersion.Default, TextEncoderDefaults.Encoding)
@@ -30,23 +36,23 @@ namespace System.ServiceModel.Channels
 
             TextEncoderDefaults.ValidateEncoding(writeEncoding);
 
-            _maxReadPoolSize = EncoderDefaults.MaxReadPoolSize;
-            _maxWritePoolSize = EncoderDefaults.MaxWritePoolSize;
-            _readerQuotas = new XmlDictionaryReaderQuotas();
-            EncoderDefaults.ReaderQuotas.CopyTo(_readerQuotas);
-            _messageVersion = messageVersion;
-            _writeEncoding = writeEncoding;
+            this.maxReadPoolSize = EncoderDefaults.MaxReadPoolSize;
+            this.maxWritePoolSize = EncoderDefaults.MaxWritePoolSize;
+            this.readerQuotas = new XmlDictionaryReaderQuotas();
+            EncoderDefaults.ReaderQuotas.CopyTo(this.readerQuotas);
+            this.messageVersion = messageVersion;
+            this.writeEncoding = writeEncoding;
         }
 
-        private TextMessageEncodingBindingElement(TextMessageEncodingBindingElement elementToBeCloned)
+        TextMessageEncodingBindingElement(TextMessageEncodingBindingElement elementToBeCloned)
             : base(elementToBeCloned)
         {
-            _maxReadPoolSize = elementToBeCloned._maxReadPoolSize;
-            _maxWritePoolSize = elementToBeCloned._maxWritePoolSize;
-            _readerQuotas = new XmlDictionaryReaderQuotas();
-            elementToBeCloned._readerQuotas.CopyTo(_readerQuotas);
-            _writeEncoding = elementToBeCloned._writeEncoding;
-            _messageVersion = elementToBeCloned._messageVersion;
+            this.maxReadPoolSize = elementToBeCloned.maxReadPoolSize;
+            this.maxWritePoolSize = elementToBeCloned.maxWritePoolSize;
+            this.readerQuotas = new XmlDictionaryReaderQuotas();
+            elementToBeCloned.readerQuotas.CopyTo(this.readerQuotas);
+            this.writeEncoding = elementToBeCloned.writeEncoding;
+            this.messageVersion = elementToBeCloned.messageVersion;
         }
 
         [DefaultValue(EncoderDefaults.MaxReadPoolSize)]
@@ -54,16 +60,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxReadPoolSize;
+                return this.maxReadPoolSize;
             }
             set
             {
                 if (value <= 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.ValueMustBePositive));
+                                                    SR.GetString(SR.ValueMustBePositive)));
                 }
-                _maxReadPoolSize = value;
+                this.maxReadPoolSize = value;
             }
         }
 
@@ -72,16 +78,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxWritePoolSize;
+                return this.maxWritePoolSize;
             }
             set
             {
                 if (value <= 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.ValueMustBePositive));
+                                                    SR.GetString(SR.ValueMustBePositive)));
                 }
-                _maxWritePoolSize = value;
+                this.maxWritePoolSize = value;
             }
         }
 
@@ -89,13 +95,13 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _readerQuotas;
+                return this.readerQuotas;
             }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                value.CopyTo(_readerQuotas);
+                value.CopyTo(this.readerQuotas);
             }
         }
 
@@ -103,7 +109,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _messageVersion;
+                return this.messageVersion;
             }
             set
             {
@@ -112,15 +118,16 @@ namespace System.ServiceModel.Channels
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                _messageVersion = value;
+                this.messageVersion = value;
             }
         }
 
+        [TypeConverter(typeof(System.ServiceModel.Configuration.EncodingConverter))]
         public Encoding WriteEncoding
         {
             get
             {
-                return _writeEncoding;
+                return this.writeEncoding;
             }
             set
             {
@@ -130,13 +137,23 @@ namespace System.ServiceModel.Channels
                 }
 
                 TextEncoderDefaults.ValidateEncoding(value);
-                _writeEncoding = value;
+                this.writeEncoding = value;
             }
         }
 
         public override IChannelFactory<TChannel> BuildChannelFactory<TChannel>(BindingContext context)
         {
             return InternalBuildChannelFactory<TChannel>(context);
+        }
+
+        public override IChannelListener<TChannel> BuildChannelListener<TChannel>(BindingContext context)
+        {
+            return InternalBuildChannelListener<TChannel>(context);
+        }
+
+        public override bool CanBuildChannelListener<TChannel>(BindingContext context)
+        {
+            return InternalCanBuildChannelListener<TChannel>(context);
         }
 
         public override BindingElement Clone()
@@ -157,7 +174,7 @@ namespace System.ServiceModel.Channels
             }
             if (typeof(T) == typeof(XmlDictionaryReaderQuotas))
             {
-                return (T)(object)_readerQuotas;
+                return (T)(object)this.readerQuotas;
             }
             else
             {
@@ -165,9 +182,28 @@ namespace System.ServiceModel.Channels
             }
         }
 
+        void IPolicyExportExtension.ExportPolicy(MetadataExporter exporter, PolicyConversionContext context)
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+        }
+
+        void IWsdlExportExtension.ExportContract(WsdlExporter exporter, WsdlContractConversionContext context) { }
+        void IWsdlExportExtension.ExportEndpoint(WsdlExporter exporter, WsdlEndpointConversionContext context)
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+            SoapHelper.SetSoapVersion(context, exporter, this.messageVersion.Envelope);
+        }
+
         internal override bool CheckEncodingVersion(EnvelopeVersion version)
         {
-            return _messageVersion.Envelope == version;
+            return messageVersion.Envelope == version;
         }
 
         internal override bool IsMatch(BindingElement b)
@@ -178,29 +214,41 @@ namespace System.ServiceModel.Channels
             TextMessageEncodingBindingElement text = b as TextMessageEncodingBindingElement;
             if (text == null)
                 return false;
-            if (_maxReadPoolSize != text.MaxReadPoolSize)
+            if (this.maxReadPoolSize != text.MaxReadPoolSize)
                 return false;
-            if (_maxWritePoolSize != text.MaxWritePoolSize)
+            if (this.maxWritePoolSize != text.MaxWritePoolSize)
                 return false;
 
             // compare XmlDictionaryReaderQuotas
-            if (_readerQuotas.MaxStringContentLength != text.ReaderQuotas.MaxStringContentLength)
+            if (this.readerQuotas.MaxStringContentLength != text.ReaderQuotas.MaxStringContentLength)
                 return false;
-            if (_readerQuotas.MaxArrayLength != text.ReaderQuotas.MaxArrayLength)
+            if (this.readerQuotas.MaxArrayLength != text.ReaderQuotas.MaxArrayLength)
                 return false;
-            if (_readerQuotas.MaxBytesPerRead != text.ReaderQuotas.MaxBytesPerRead)
+            if (this.readerQuotas.MaxBytesPerRead != text.ReaderQuotas.MaxBytesPerRead)
                 return false;
-            if (_readerQuotas.MaxDepth != text.ReaderQuotas.MaxDepth)
+            if (this.readerQuotas.MaxDepth != text.ReaderQuotas.MaxDepth)
                 return false;
-            if (_readerQuotas.MaxNameTableCharCount != text.ReaderQuotas.MaxNameTableCharCount)
+            if (this.readerQuotas.MaxNameTableCharCount != text.ReaderQuotas.MaxNameTableCharCount)
                 return false;
 
-            if (this.WriteEncoding.WebName != text.WriteEncoding.WebName)
+            if (this.WriteEncoding.EncodingName != text.WriteEncoding.EncodingName)
                 return false;
             if (!this.MessageVersion.IsMatch(text.MessageVersion))
                 return false;
 
             return true;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeReaderQuotas()
+        {
+            return (!EncoderDefaults.IsDefaultReaderQuotas(this.ReaderQuotas));
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeWriteEncoding()
+        {
+            return (this.WriteEncoding != TextEncoderDefaults.Encoding);
         }
     }
 }

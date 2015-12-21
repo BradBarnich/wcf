@@ -1,37 +1,42 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections;
-using System.Collections.Generic;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Xml;
+    using System.ServiceModel;
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Runtime.Serialization;
+
     public sealed class UnderstoodHeaders : IEnumerable<MessageHeaderInfo>
     {
-        private MessageHeaders _messageHeaders;
-        private bool _modified;
+        MessageHeaders messageHeaders;
+        bool modified;
 
         internal UnderstoodHeaders(MessageHeaders messageHeaders, bool modified)
         {
-            _messageHeaders = messageHeaders;
-            _modified = modified;
+            this.messageHeaders = messageHeaders;
+            this.modified = modified;
         }
 
         internal bool Modified
         {
-            get { return _modified; }
-            set { _modified = value; }
+            get { return modified; }
+            set { modified = value; }
         }
 
         public void Add(MessageHeaderInfo headerInfo)
         {
-            _messageHeaders.AddUnderstood(headerInfo);
-            _modified = true;
+            messageHeaders.AddUnderstood(headerInfo);
+            modified = true;
         }
 
         public bool Contains(MessageHeaderInfo headerInfo)
         {
-            return _messageHeaders.IsUnderstood(headerInfo);
+            return messageHeaders.IsUnderstood(headerInfo);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -41,13 +46,13 @@ namespace System.ServiceModel.Channels
 
         public IEnumerator<MessageHeaderInfo> GetEnumerator()
         {
-            return _messageHeaders.GetUnderstoodEnumerator();
+            return messageHeaders.GetUnderstoodEnumerator();
         }
 
         public void Remove(MessageHeaderInfo headerInfo)
         {
-            _messageHeaders.RemoveUnderstood(headerInfo);
-            _modified = true;
+            messageHeaders.RemoveUnderstood(headerInfo);
+            modified = true;
         }
     }
 }

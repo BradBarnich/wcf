@@ -1,14 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.ServiceModel.Diagnostics;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Diagnostics;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+
     public abstract class ChannelBase : CommunicationObject, IChannel, IDefaultCommunicationTimeouts
     {
-        private ChannelManagerBase _channelManager;
+        ChannelManagerBase channelManager;
 
         protected ChannelBase(ChannelManagerBase channelManager)
         {
@@ -17,7 +18,13 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("channelManager");
             }
 
-            _channelManager = channelManager;
+            this.channelManager = channelManager;
+
+            if (DiagnosticUtility.ShouldTraceVerbose)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.ChannelCreated,
+                    SR.GetString(SR.TraceCodeChannelCreated, TraceUtility.CreateSourceString(this)), this);
+            }
         }
 
         TimeSpan IDefaultCommunicationTimeouts.CloseTimeout
@@ -42,41 +49,41 @@ namespace System.ServiceModel.Channels
 
         protected override TimeSpan DefaultCloseTimeout
         {
-            get { return ((IDefaultCommunicationTimeouts)_channelManager).CloseTimeout; }
+            get { return ((IDefaultCommunicationTimeouts)this.channelManager).CloseTimeout; }
         }
 
         protected override TimeSpan DefaultOpenTimeout
         {
-            get { return ((IDefaultCommunicationTimeouts)_channelManager).OpenTimeout; }
+            get { return ((IDefaultCommunicationTimeouts)this.channelManager).OpenTimeout; }
         }
 
         protected TimeSpan DefaultReceiveTimeout
         {
-            get { return ((IDefaultCommunicationTimeouts)_channelManager).ReceiveTimeout; }
+            get { return ((IDefaultCommunicationTimeouts)this.channelManager).ReceiveTimeout; }
         }
 
         protected TimeSpan DefaultSendTimeout
         {
-            get { return ((IDefaultCommunicationTimeouts)_channelManager).SendTimeout; }
+            get { return ((IDefaultCommunicationTimeouts)this.channelManager).SendTimeout; }
         }
 
         protected ChannelManagerBase Manager
         {
             get
             {
-                return _channelManager;
+                return channelManager;
             }
         }
 
         public virtual T GetProperty<T>() where T : class
         {
-            IChannelFactory factory = _channelManager as IChannelFactory;
+            IChannelFactory factory = this.channelManager as IChannelFactory;
             if (factory != null)
             {
                 return factory.GetProperty<T>();
             }
 
-            IChannelListener listener = _channelManager as IChannelListener;
+            IChannelListener listener = this.channelManager as IChannelListener;
             if (listener != null)
             {
                 return listener.GetProperty<T>();
@@ -88,6 +95,12 @@ namespace System.ServiceModel.Channels
         protected override void OnClosed()
         {
             base.OnClosed();
+
+            if (DiagnosticUtility.ShouldTraceVerbose)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.ChannelDisposed,
+                    SR.GetString(SR.TraceCodeChannelDisposed, TraceUtility.CreateSourceString(this)), this);
+            }
         }
     }
 }

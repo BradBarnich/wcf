@@ -1,6 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
     /*
@@ -75,7 +75,7 @@ namespace System.ServiceModel.Channels
         preamble-end-record-type = octet (0xC)
     */
 
-    internal enum FramingRecordType
+    enum FramingRecordType
     {
         Version = 0x0,
         Mode = 0x1,
@@ -92,7 +92,7 @@ namespace System.ServiceModel.Channels
         PreambleEnd = 0xC,
     }
 
-    internal enum FramingMode
+    enum FramingMode
     {
         Singleton = 0x1,
         Duplex = 0x2,
@@ -100,13 +100,13 @@ namespace System.ServiceModel.Channels
         SingletonSized = 0x4,
     }
 
-    internal static class FramingUpgradeString
+    static class FramingUpgradeString
     {
         public const string SslOrTls = "application/ssl-tls";
         public const string Negotiate = "application/negotiate";
     }
 
-    internal enum FramingEncodingType
+    enum FramingEncodingType
     {
         Soap11Utf8 = 0x0,
         Soap11Utf16 = 0x1,
@@ -119,7 +119,7 @@ namespace System.ServiceModel.Channels
         BinarySession = 0x8,
     }
 
-    internal static class FramingEncodingString
+    static class FramingEncodingString
     {
         public const string Soap11Utf8 = "text/xml; charset=utf-8";
         public const string Soap11Utf16 = "text/xml; charset=utf16";
@@ -135,7 +135,7 @@ namespace System.ServiceModel.Channels
         public const string ExtendedBinaryDeflate = Binary + "+deflate";
         public const string ExtendedBinarySessionDeflate = BinarySession + "+deflate";
         public const string NamespaceUri = "http://schemas.microsoft.com/ws/2006/05/framing";
-        private const string FaultBaseUri = NamespaceUri + "/faults/";
+        const string FaultBaseUri = NamespaceUri + "/faults/";
         public const string ContentTypeInvalidFault = FaultBaseUri + "ContentTypeInvalid";
         public const string ContentTypeTooLongFault = FaultBaseUri + "ContentTypeTooLong";
         public const string ConnectionDispatchFailedFault = FaultBaseUri + "ConnectionDispatchFailed";
@@ -149,7 +149,7 @@ namespace System.ServiceModel.Channels
         public const string UpgradeInvalidFault = FaultBaseUri + "UpgradeInvalid";
         public const string ViaTooLongFault = FaultBaseUri + "ViaTooLong";
 
-        private const string ExceptionKey = "FramingEncodingString";
+        const string ExceptionKey = "FramingEncodingString";
         public static bool TryGetFaultString(Exception exception, out string framingFault)
         {
             framingFault = null;
@@ -171,7 +171,7 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal static class FramingVersion
+    static class FramingVersion
     {
         public const int Major = 0x1;
         public const int Minor = 0x0;

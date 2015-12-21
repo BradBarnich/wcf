@@ -1,10 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Runtime.Serialization;
+
     public class UriSchemeKeyedCollection : SynchronizedKeyedCollection<string, Uri>
     {
         internal UriSchemeKeyedCollection(object syncRoot)
@@ -32,7 +35,7 @@ namespace System.ServiceModel
         {
             ValidateBaseAddress(item, "item");
             if (this.Contains(item.Scheme))
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.Format(SR.BaseAddressDuplicateScheme, item.Scheme));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.GetString(SR.BaseAddressDuplicateScheme, item.Scheme));
 
             base.InsertItem(index, item);
         }
@@ -43,7 +46,7 @@ namespace System.ServiceModel
             if (this[index].Scheme != item.Scheme)
             {
                 if (this.Contains(item.Scheme))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.Format(SR.BaseAddressDuplicateScheme, item.Scheme));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.GetString(SR.BaseAddressDuplicateScheme, item.Scheme));
             }
             base.SetItem(index, item);
         }
@@ -57,22 +60,22 @@ namespace System.ServiceModel
 
             if (!uri.IsAbsoluteUri)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.BaseAddressMustBeAbsolute);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.GetString(SR.BaseAddressMustBeAbsolute));
             }
 
             if (!string.IsNullOrEmpty(uri.UserInfo))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.BaseAddressCannotHaveUserInfo);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.GetString(SR.BaseAddressCannotHaveUserInfo));
             }
 
             if (!string.IsNullOrEmpty(uri.Query))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.BaseAddressCannotHaveQuery);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.GetString(SR.BaseAddressCannotHaveQuery));
             }
 
             if (!string.IsNullOrEmpty(uri.Fragment))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.BaseAddressCannotHaveFragment);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(argumentName, SR.GetString(SR.BaseAddressCannotHaveFragment));
             }
         }
     }

@@ -58,6 +58,10 @@ namespace System.ServiceModel
             get { return DiagnosticUtility.s_shouldUseActivity; }
         }
 
+        static internal bool ShouldTraceWarning
+        {
+            get { return false; }
+        }
 
         [Conditional("DEBUG")]
         internal static void DebugAssert(bool condition, string message)

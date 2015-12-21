@@ -1,34 +1,38 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
+
+using System;
+using System.Globalization;
 
 namespace System.ServiceModel.Description
 {
     public sealed class PolicyVersion
     {
-        private string _policyNamespace;
+        string policyNamespace;
 
-        private static PolicyVersion s_policyVersion12;
-        private static PolicyVersion s_policyVersion15;
+        static PolicyVersion policyVersion12;
+        static PolicyVersion policyVersion15;
 
         static PolicyVersion()
         {
-            s_policyVersion12 = new PolicyVersion(MetadataStrings.WSPolicy.NamespaceUri);
-            s_policyVersion15 = new PolicyVersion(MetadataStrings.WSPolicy.NamespaceUri15);
+            policyVersion12 = new PolicyVersion(MetadataStrings.WSPolicy.NamespaceUri);
+            policyVersion15 = new PolicyVersion(MetadataStrings.WSPolicy.NamespaceUri15);
         }
 
-        private PolicyVersion(string policyNamespace)
+        PolicyVersion(string policyNamespace)
         {
-            _policyNamespace = policyNamespace;
+            this.policyNamespace = policyNamespace;
         }
 
-        public static PolicyVersion Policy12 { get { return s_policyVersion12; } }
-        public static PolicyVersion Policy15 { get { return s_policyVersion15; } }
-        public static PolicyVersion Default { get { return s_policyVersion12; } }
-        public string Namespace { get { return _policyNamespace; } }
+        public static PolicyVersion Policy12 { get { return policyVersion12; } }
+        public static PolicyVersion Policy15 { get { return policyVersion15; } }
+        public static PolicyVersion Default { get { return policyVersion12; } }
+        public string Namespace { get { return policyNamespace; } }
 
         public override string ToString()
         {
-            return _policyNamespace;
+            return policyNamespace;
         }
     }
 }

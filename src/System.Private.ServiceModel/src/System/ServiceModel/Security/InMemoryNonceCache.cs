@@ -1,38 +1,39 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections;
-using System.Globalization;
-using System.IO;
-using System.Runtime;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections;
+    using System.Globalization;
+    using System.IO;
+    using System.Runtime;
+
     /// <summary>
     /// This is the in-memory nonce-cache used for turnkey replay detection.
     /// The nonce cache is based on a hashtable implementation for fast lookups.
     /// The hashcode is computed based on the nonce byte array.
     /// The nonce cache periodically purges stale nonce entries.
     /// </summary>
-    internal sealed class InMemoryNonceCache : NonceCache
+    sealed class InMemoryNonceCache : NonceCache
     {
-        private NonceCacheImpl _cacheImpl;
+        NonceCacheImpl cacheImpl;
 
-        public InMemoryNonceCache(TimeSpan cachingTime, int maxCachedNonces)
+        public InMemoryNonceCache(TimeSpan cachingTime, int maxCachedNonces) 
         {
             this.CacheSize = maxCachedNonces;
             this.CachingTimeSpan = cachingTime;
-            _cacheImpl = new NonceCacheImpl(cachingTime, maxCachedNonces);
+            this.cacheImpl = new NonceCacheImpl(cachingTime, maxCachedNonces);
         }
 
         public override bool CheckNonce(byte[] nonce)
         {
-            return _cacheImpl.CheckNonce(nonce);
+            return this.cacheImpl.CheckNonce(nonce);
         }
 
         public override bool TryAddNonce(byte[] nonce)
         {
-            return _cacheImpl.TryAddNonce(nonce);
+            return this.cacheImpl.TryAddNonce(nonce);
         }
 
         public override string ToString()
@@ -46,37 +47,37 @@ namespace System.ServiceModel.Security
 
         internal sealed class NonceCacheImpl : TimeBoundedCache
         {
-            private static NonceKeyComparer s_comparer = new NonceKeyComparer();
-            private static object s_dummyItem = new Object();
+            static NonceKeyComparer comparer = new NonceKeyComparer();
+            static object dummyItem = new Object();
             // if there are less than lowWaterMark entries, no purging is done
-            private static int s_lowWaterMark = 50;
+            static int lowWaterMark = 50;
             // We created a key for the nonce using the first 4 bytes, and hence the minimum length of nonce
             // that can be added to the cache.
-            private static int s_minimumNonceLength = 4;
-            private TimeSpan _cachingTimeSpan;
+            static int minimumNonceLength = 4;
+            TimeSpan cachingTimeSpan;
 
             public NonceCacheImpl(TimeSpan cachingTimeSpan, int maxCachedNonces)
-                : base(s_lowWaterMark, maxCachedNonces, s_comparer, PurgingMode.AccessBasedPurge, TimeSpan.FromTicks(cachingTimeSpan.Ticks >> 2), false)
+                : base(lowWaterMark, maxCachedNonces, comparer, PurgingMode.AccessBasedPurge, TimeSpan.FromTicks(cachingTimeSpan.Ticks >> 2), false)
             {
-                _cachingTimeSpan = cachingTimeSpan;
+                this.cachingTimeSpan = cachingTimeSpan;
             }
 
             public bool TryAddNonce(byte[] nonce)
             {
                 if (nonce == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("nonce");
-                if (nonce.Length < s_minimumNonceLength)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.NonceLengthTooShort);
-                DateTime expirationTime = TimeoutHelper.Add(DateTime.UtcNow, _cachingTimeSpan);
-                return base.TryAddItem(nonce, s_dummyItem, expirationTime, false);
+                if (nonce.Length < minimumNonceLength)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.NonceLengthTooShort));
+                DateTime expirationTime = TimeoutHelper.Add(DateTime.UtcNow, this.cachingTimeSpan);
+                return base.TryAddItem(nonce, dummyItem, expirationTime, false);
             }
 
             public bool CheckNonce(byte[] nonce)
             {
                 if (nonce == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("nonce");
-                if (nonce.Length < s_minimumNonceLength)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.NonceLengthTooShort);
+                if (nonce.Length < minimumNonceLength)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.NonceLengthTooShort));
                 if (base.GetItem(nonce) != null)
                     return true;
                 else
@@ -105,7 +106,7 @@ namespace System.ServiceModel.Security
                 {
                     return Compare((byte[])x, (byte[])y);
                 }
-
+                
                 public int Compare(byte[] x, byte[] y)
                 {
                     if (Object.ReferenceEquals(x, y))
@@ -149,7 +150,7 @@ namespace System.ServiceModel.Security
                 {
                     return (Compare(x, y) == 0);
                 }
-
+                
                 public bool Equals(byte[] x, byte[] y)
                 {
                     return (Compare(x, y) == 0);

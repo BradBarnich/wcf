@@ -1,53 +1,56 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net.Security;
-using System.ServiceModel.Security;
-using System.ServiceModel.Description;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Reflection;
+    using System.ServiceModel.Channels;
+    using System.Net.Security;
+    using System.ServiceModel.Security;
+    using System.ServiceModel.Description;
+
     [AttributeUsage(ServiceModelAttributeTargets.MessageContract, AllowMultiple = false)]
     public sealed class MessageContractAttribute : Attribute
     {
-        private bool _isWrapped = true;
-        private string _wrappedName;
-        private string _wrappedNs;
-        private ProtectionLevel _protectionLevel = ProtectionLevel.None;
-        private bool _hasProtectionLevel = false;
+        bool isWrapped = true;
+        string wrappedName;
+        string wrappedNs;
+        ProtectionLevel protectionLevel = ProtectionLevel.None;
+        bool hasProtectionLevel = false;
 
         internal const string ProtectionLevelPropertyName = "ProtectionLevel";
         public ProtectionLevel ProtectionLevel
         {
             get
             {
-                return _protectionLevel;
+                return this.protectionLevel;
             }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         public bool IsWrapped
         {
-            get { return _isWrapped; }
-            set { _isWrapped = value; }
+            get { return isWrapped; }
+            set { isWrapped = value; }
         }
 
         public string WrapperName
         {
             get
             {
-                return _wrappedName;
+                return wrappedName;
             }
             set
             {
@@ -55,8 +58,8 @@ namespace System.ServiceModel
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 if (value == string.Empty)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxWrapperNameCannotBeEmpty));
-                _wrappedName = value;
+                        SR.GetString(SR.SFxWrapperNameCannotBeEmpty)));
+                wrappedName = value;
             }
         }
 
@@ -64,13 +67,13 @@ namespace System.ServiceModel
         {
             get
             {
-                return _wrappedNs;
+                return wrappedNs;
             }
             set
             {
                 if (!string.IsNullOrEmpty(value))
                     NamingHelper.CheckUriProperty(value, "WrapperNamespace");
-                _wrappedNs = value;
+                wrappedNs = value;
             }
         }
     }

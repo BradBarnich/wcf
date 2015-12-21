@@ -1,29 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Net.Security;
-using System.ServiceModel.Security;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Name={_name}, Namespace={_ns}, ContractType={_contractType}")]
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Net.Security;
+    using System.ServiceModel.Security;
+
+    [DebuggerDisplay("Name={name}, Namespace={ns}, ContractType={contractType}")]
     public class ContractDescription
     {
-        private Type _callbackContractType;
-        private string _configurationName;
-        private Type _contractType;
-        private XmlName _name;
-        private string _ns;
-        private OperationDescriptionCollection _operations;
-        private SessionMode _sessionMode;
-        private KeyedByTypeCollection<IContractBehavior> _behaviors = new KeyedByTypeCollection<IContractBehavior>();
-        private ProtectionLevel _protectionLevel;
-        private bool _hasProtectionLevel;
+        Type callbackContractType;
+        string configurationName;
+        Type contractType;
+        XmlName name;
+        string ns;
+        OperationDescriptionCollection operations;
+        SessionMode sessionMode;
+        KeyedByTypeCollection<IContractBehavior> behaviors = new KeyedByTypeCollection<IContractBehavior>();
+        ProtectionLevel protectionLevel;
+        bool hasProtectionLevel;
 
         public ContractDescription(string name)
             : this(name, null)
@@ -37,37 +38,37 @@ namespace System.ServiceModel.Description
             if (!string.IsNullOrEmpty(ns))
                 NamingHelper.CheckUriParameter(ns, "ns");
 
-            _operations = new OperationDescriptionCollection();
-            _ns = ns ?? NamingHelper.DefaultNamespace; // ns can be ""
+            this.operations = new OperationDescriptionCollection();
+            this.ns = ns ?? NamingHelper.DefaultNamespace; // ns can be ""
         }
 
         internal string CodeName
         {
-            get { return _name.DecodedName; }
+            get { return this.name.DecodedName; }
         }
 
         [DefaultValue(null)]
         public string ConfigurationName
         {
-            get { return _configurationName; }
-            set { _configurationName = value; }
+            get { return this.configurationName; }
+            set { this.configurationName = value; }
         }
 
         public Type ContractType
         {
-            get { return _contractType; }
-            set { _contractType = value; }
+            get { return this.contractType; }
+            set { this.contractType = value; }
         }
 
         public Type CallbackContractType
         {
-            get { return _callbackContractType; }
-            set { _callbackContractType = value; }
+            get { return this.callbackContractType; }
+            set { this.callbackContractType = value; }
         }
 
         public string Name
         {
-            get { return _name.EncodedName; }
+            get { return this.name.EncodedName; }
             set
             {
                 if (value == null)
@@ -78,37 +79,37 @@ namespace System.ServiceModel.Description
                 if (value.Length == 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new ArgumentOutOfRangeException("value", SR.SFxContractDescriptionNameCannotBeEmpty));
+                        new ArgumentOutOfRangeException("value", SR.GetString(SR.SFxContractDescriptionNameCannotBeEmpty)));
                 }
-                _name = new XmlName(value, true /*isEncoded*/);
+                this.name = new XmlName(value, true /*isEncoded*/);
             }
         }
 
         public string Namespace
         {
-            get { return _ns; }
+            get { return this.ns; }
             set
             {
                 if (!string.IsNullOrEmpty(value))
                     NamingHelper.CheckUriProperty(value, "Namespace");
-                _ns = value;
+                this.ns = value;
             }
         }
 
         public OperationDescriptionCollection Operations
         {
-            get { return _operations; }
+            get { return this.operations; }
         }
 
         public ProtectionLevel ProtectionLevel
         {
-            get { return _protectionLevel; }
+            get { return this.protectionLevel; }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
@@ -119,13 +120,13 @@ namespace System.ServiceModel.Description
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         [DefaultValue(SessionMode.Allowed)]
         public SessionMode SessionMode
         {
-            get { return _sessionMode; }
+            get { return this.sessionMode; }
             set
             {
                 if (!SessionModeHelper.IsDefined(value))
@@ -133,19 +134,19 @@ namespace System.ServiceModel.Description
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
                 }
 
-                _sessionMode = value;
+                this.sessionMode = value;
             }
         }
 
-        public KeyedCollection<Type, IContractBehavior> ContractBehaviors
+        public KeyedCollection<Type, IContractBehavior> ContractBehaviors 
         {
             get { return this.Behaviors; }
         }
 
-        [EditorBrowsable(EditorBrowsableState.Never)]
+        [EditorBrowsable(EditorBrowsableState.Never)] 
         public KeyedByTypeCollection<IContractBehavior> Behaviors
         {
-            get { return _behaviors; }
+            get { return this.behaviors; }
         }
 
         public static ContractDescription GetContract(Type contractType)
@@ -207,17 +208,17 @@ namespace System.ServiceModel.Description
             if (string.IsNullOrEmpty(this.Name))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.AChannelServiceEndpointSContractSNameIsNull0));
+                    SR.GetString(SR.AChannelServiceEndpointSContractSNameIsNull0)));
             }
             if (this.Namespace == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.AChannelServiceEndpointSContractSNamespace0));
+                    SR.GetString(SR.AChannelServiceEndpointSContractSNamespace0)));
             }
             if (this.Operations.Count == 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.SFxContractHasZeroOperations, this.Name)));
+                    SR.GetString(SR.SFxContractHasZeroOperations, this.Name)));
             }
             bool thereIsAtLeastOneInitiatingOperation = false;
             for (int i = 0; i < this.Operations.Count; i++)
@@ -226,25 +227,25 @@ namespace System.ServiceModel.Description
                 operationDescription.EnsureInvariants();
                 if (operationDescription.IsInitiating)
                     thereIsAtLeastOneInitiatingOperation = true;
-                if ((!operationDescription.IsInitiating)
+                if ((!operationDescription.IsInitiating || operationDescription.IsTerminating)
                     && (this.SessionMode != SessionMode.Required))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.ContractIsNotSelfConsistentItHasOneOrMore2, this.Name)));
+                        SR.GetString(SR.ContractIsNotSelfConsistentItHasOneOrMore2, this.Name)));
                 }
             }
             if (!thereIsAtLeastOneInitiatingOperation)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.SFxContractHasZeroInitiatingOperations, this.Name)));
+                    SR.GetString(SR.SFxContractHasZeroInitiatingOperations, this.Name)));
             }
         }
 
         internal bool IsDuplex()
         {
-            for (int i = 0; i < _operations.Count; ++i)
+            for (int i = 0; i < this.operations.Count; ++i)
             {
-                if (_operations[i].IsServerInitiated())
+                if (this.operations[i].IsServerInitiated())
                 {
                     return true;
                 }

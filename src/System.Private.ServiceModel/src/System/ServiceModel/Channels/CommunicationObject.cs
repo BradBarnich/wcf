@@ -1,29 +1,36 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Runtime;
-using System.Threading.Tasks;
-using System.ServiceModel.Diagnostics;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public abstract class CommunicationObject : ICommunicationObject, IAsyncCommunicationObject
+    using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+
+    public abstract class CommunicationObject : ICommunicationObject
     {
-        private bool _aborted;
-        private bool _closeCalled;
-        private object _mutex;
-        private bool _onClosingCalled;
-        private bool _onClosedCalled;
-        private bool _onOpeningCalled;
-        private bool _onOpenedCalled;
-        private bool _raisedClosed;
-        private bool _raisedClosing;
-        private bool _raisedFaulted;
-        private bool _traceOpenAndClose;
-        private object _eventSender;
-        private CommunicationState _state;
+        bool aborted;
+        bool closeCalled;
+#if DEBUG
+        StackTrace closeStack;
+        StackTrace faultedStack;
+#endif
+        ExceptionQueue exceptionQueue;
+        object mutex;
+        bool onClosingCalled;
+        bool onClosedCalled;
+        bool onOpeningCalled;
+        bool onOpenedCalled;
+        bool raisedClosed;
+        bool raisedClosing;
+        bool raisedFaulted;
+        bool traceOpenAndClose;
+        object eventSender;
+        CommunicationState state;
 
         protected CommunicationObject()
             : this(new object())
@@ -32,35 +39,42 @@ namespace System.ServiceModel.Channels
 
         protected CommunicationObject(object mutex)
         {
-            _mutex = mutex;
-            _eventSender = this;
-            _state = CommunicationState.Created;
+            this.mutex = mutex;
+            this.eventSender = this;
+            this.state = CommunicationState.Created;
+        }
+
+        internal CommunicationObject(object mutex, object eventSender)
+        {
+            this.mutex = mutex;
+            this.eventSender = eventSender;
+            this.state = CommunicationState.Created;
         }
 
         internal bool Aborted
         {
-            get { return _aborted; }
+            get { return this.aborted; }
         }
 
         internal object EventSender
         {
-            get { return _eventSender; }
-            set { _eventSender = value; }
+            get { return this.eventSender; }
+            set { eventSender = value; }
         }
 
         protected bool IsDisposed
         {
-            get { return _state == CommunicationState.Closed; }
+            get { return this.state == CommunicationState.Closed; }
         }
 
         public CommunicationState State
         {
-            get { return _state; }
+            get { return this.state; }
         }
 
         protected object ThisLock
         {
-            get { return _mutex; }
+            get { return this.mutex; }
         }
 
         protected abstract TimeSpan DefaultCloseTimeout { get; }
@@ -86,29 +100,45 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (_aborted || _state == CommunicationState.Closed)
+                if (this.aborted || this.state == CommunicationState.Closed)
                     return;
-                _aborted = true;
+                this.aborted = true;
+#if DEBUG
+                if (closeStack == null)
+                    closeStack = new StackTrace();
+#endif
 
-                _state = CommunicationState.Closing;
+                this.state = CommunicationState.Closing;
             }
 
+            if (DiagnosticUtility.ShouldTraceInformation)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.CommunicationObjectAborted, SR.GetString(SR.TraceCodeCommunicationObjectAborted, TraceUtility.CreateSourceString(this)), this);
+            }
 
+            bool throwing = true;
 
             try
             {
                 OnClosing();
-                if (!_onClosingCalled)
+                if (!this.onClosingCalled)
                     throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosing"), Guid.Empty, this);
 
                 OnAbort();
 
                 OnClosed();
-                if (!_onClosedCalled)
+                if (!this.onClosedCalled)
                     throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosed"), Guid.Empty, this);
+
+                throwing = false;
             }
             finally
             {
+                if (throwing)
+                {
+                    if (DiagnosticUtility.ShouldTraceWarning)
+                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectAbortFailed, SR.GetString(SR.TraceCodeCommunicationObjectAbortFailed, this.GetCommunicationObjectType().ToString()), this);
+                }
             }
         }
 
@@ -119,7 +149,73 @@ namespace System.ServiceModel.Channels
 
         public IAsyncResult BeginClose(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return CloseAsyncInternal(timeout).ToApm(callback, state);
+            if (timeout < TimeSpan.Zero)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                    new ArgumentOutOfRangeException("timeout", SR.GetString(SR.SFxTimeoutOutOfRange0)));
+
+            using (DiagnosticUtility.ShouldUseActivity && this.TraceOpenAndClose ? this.CreateCloseActivity() : null)
+            {
+                CommunicationState originalState;
+                lock (ThisLock)
+                {
+                    originalState = this.state;
+#if DEBUG
+                    if (closeStack == null)
+                        closeStack = new StackTrace();
+#endif
+                    if (originalState != CommunicationState.Closed)
+                        this.state = CommunicationState.Closing;
+
+                    this.closeCalled = true;
+                }
+
+                switch (originalState)
+                {
+                    case CommunicationState.Created:
+                    case CommunicationState.Opening:
+                    case CommunicationState.Faulted:
+                        this.Abort();
+                        if (originalState == CommunicationState.Faulted)
+                        {
+                            throw TraceUtility.ThrowHelperError(this.CreateFaultedException(), Guid.Empty, this);
+                        }
+                        return new AlreadyClosedAsyncResult(callback, state);
+
+                    case CommunicationState.Opened:
+                        {
+                            bool throwing = true;
+                            try
+                            {
+                                OnClosing();
+                                if (!this.onClosingCalled)
+                                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosing"), Guid.Empty, this);
+
+                                IAsyncResult result = new CloseAsyncResult(this, timeout, callback, state);
+                                throwing = false;
+                                return result;
+                            }
+                            finally
+                            {
+                                if (throwing)
+                                {
+                                    if (DiagnosticUtility.ShouldTraceWarning)
+                                    {
+                                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectCloseFailed, SR.GetString(SR.TraceCodeCommunicationObjectCloseFailed, this.GetCommunicationObjectType().ToString()), this);
+                                    }
+
+                                    Abort();
+                                }
+                            }
+                        }
+
+                    case CommunicationState.Closing:
+                    case CommunicationState.Closed:
+                        return new AlreadyClosedAsyncResult(callback, state);
+
+                    default:
+                        throw Fx.AssertAndThrow("CommunicationObject.BeginClose: Unknown CommunicationState");
+                }
+            }
         }
 
         public IAsyncResult BeginOpen(AsyncCallback callback, object state)
@@ -129,7 +225,39 @@ namespace System.ServiceModel.Channels
 
         public IAsyncResult BeginOpen(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return OpenAsyncInternal(timeout).ToApm(callback, state);
+            if (timeout < TimeSpan.Zero)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                    new ArgumentOutOfRangeException("timeout", SR.GetString(SR.SFxTimeoutOutOfRange0)));
+
+            lock (ThisLock)
+            {
+                ThrowIfDisposedOrImmutable();
+                this.state = CommunicationState.Opening;
+            }
+
+            bool throwing = true;
+            try
+            {
+                OnOpening();
+                if (!this.onOpeningCalled)
+                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnOpening"), Guid.Empty, this);
+
+                IAsyncResult result = new OpenAsyncResult(this, timeout, callback, state);
+                throwing = false;
+                return result;
+            }
+            finally
+            {
+                if (throwing)
+                {
+                    if (DiagnosticUtility.ShouldTraceWarning)
+                    {
+                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectOpenFailed, SR.GetString(SR.TraceCodeCommunicationObjectOpenFailed, this.GetCommunicationObjectType().ToString()), this);
+                    }
+
+                    Fault();
+                }
+            }
         }
 
         public void Close()
@@ -139,125 +267,168 @@ namespace System.ServiceModel.Channels
 
         public void Close(TimeSpan timeout)
         {
-            CloseAsyncInternal(timeout).WaitForCompletion();
-        }
-
-        private async Task CloseAsyncInternal(TimeSpan timeout)
-        {
-            await TaskHelpers.EnsureDefaultTaskScheduler();
-            await ((IAsyncCommunicationObject)this).CloseAsync(timeout);
-        }
-
-        async Task IAsyncCommunicationObject.CloseAsync(TimeSpan timeout)
-        {
             if (timeout < TimeSpan.Zero)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("timeout", SR.SFxTimeoutOutOfRange0));
+                    new ArgumentOutOfRangeException("timeout", SR.GetString(SR.SFxTimeoutOutOfRange0)));
 
-
-            CommunicationState originalState;
-            lock (ThisLock)
+            using (DiagnosticUtility.ShouldUseActivity && this.TraceOpenAndClose ? this.CreateCloseActivity() : null)
             {
-                originalState = _state;
-                if (originalState != CommunicationState.Closed)
-                    _state = CommunicationState.Closing;
 
-                _closeCalled = true;
-            }
+                CommunicationState originalState;
+                lock (ThisLock)
+                {
+                    originalState = this.state;
+#if DEBUG
+                    if (closeStack == null)
+                        closeStack = new StackTrace();
+#endif
+                    if (originalState != CommunicationState.Closed)
+                        this.state = CommunicationState.Closing;
 
-            switch (originalState)
-            {
-                case CommunicationState.Created:
-                case CommunicationState.Opening:
-                case CommunicationState.Faulted:
-                    this.Abort();
-                    if (originalState == CommunicationState.Faulted)
-                    {
-                        throw TraceUtility.ThrowHelperError(this.CreateFaultedException(), Guid.Empty, this);
-                    }
-                    break;
+                    this.closeCalled = true;
+                }
 
-                case CommunicationState.Opened:
-                    {
-                        bool throwing = true;
-                        try
+                switch (originalState)
+                {
+                    case CommunicationState.Created:
+                    case CommunicationState.Opening:
+                    case CommunicationState.Faulted:
+                        this.Abort();
+                        if (originalState == CommunicationState.Faulted)
                         {
-                            TimeoutHelper actualTimeout = new TimeoutHelper(timeout);
-
-                            OnClosing();
-                            if (!_onClosingCalled)
-                                throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosing"), Guid.Empty, this);
-
-                            await OnCloseAsync(actualTimeout.RemainingTime());
-
-                            OnClosed();
-                            if (!_onClosedCalled)
-                                throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosed"), Guid.Empty, this);
-
-                            throwing = false;
-                        }
-                        finally
-                        {
-                            if (throwing)
-                            {
-                                Abort();
-                            }
+                            throw TraceUtility.ThrowHelperError(this.CreateFaultedException(), Guid.Empty, this);
                         }
                         break;
-                    }
 
-                case CommunicationState.Closing:
-                case CommunicationState.Closed:
-                    break;
+                    case CommunicationState.Opened:
+                        {
+                            bool throwing = true;
+                            try
+                            {
+                                TimeoutHelper actualTimeout = new TimeoutHelper(timeout);
 
-                default:
-                    throw Fx.AssertAndThrow("CommunicationObject.BeginClose: Unknown CommunicationState");
+                                OnClosing();
+                                if (!this.onClosingCalled)
+                                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosing"), Guid.Empty, this);
+
+                                OnClose(actualTimeout.RemainingTime());
+
+                                OnClosed();
+                                if (!this.onClosedCalled)
+                                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnClosed"), Guid.Empty, this);
+
+                                throwing = false;
+                            }
+                            finally
+                            {
+                                if (throwing)
+                                {
+                                    if (DiagnosticUtility.ShouldTraceWarning)
+                                    {
+                                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectCloseFailed, SR.GetString(SR.TraceCodeCommunicationObjectCloseFailed, this.GetCommunicationObjectType().ToString()), this);
+                                    }
+
+                                    Abort();
+                                }
+                            }
+                            break;
+                        }
+
+                    case CommunicationState.Closing:
+                    case CommunicationState.Closed:
+                        break;
+
+                    default:
+                        throw Fx.AssertAndThrow("CommunicationObject.BeginClose: Unknown CommunicationState");
+                }
             }
         }
 
-        private Exception CreateNotOpenException()
+        Exception CreateNotOpenException()
         {
-            return new InvalidOperationException(SR.Format(SR.CommunicationObjectCannotBeUsed, this.GetCommunicationObjectType().ToString(), _state.ToString()));
+            return new InvalidOperationException(SR.GetString(SR.CommunicationObjectCannotBeUsed, this.GetCommunicationObjectType().ToString(), this.state.ToString()));
         }
 
-        private Exception CreateImmutableException()
+        Exception CreateImmutableException()
         {
-            return new InvalidOperationException(SR.Format(SR.CommunicationObjectCannotBeModifiedInState, this.GetCommunicationObjectType().ToString(), _state.ToString()));
+            return new InvalidOperationException(SR.GetString(SR.CommunicationObjectCannotBeModifiedInState, this.GetCommunicationObjectType().ToString(), this.state.ToString()));
         }
 
-        private Exception CreateBaseClassMethodNotCalledException(string method)
+        Exception CreateBaseClassMethodNotCalledException(string method)
         {
-            return new InvalidOperationException(SR.Format(SR.CommunicationObjectBaseClassMethodNotCalled, this.GetCommunicationObjectType().ToString(), method));
+            return new InvalidOperationException(SR.GetString(SR.CommunicationObjectBaseClassMethodNotCalled, this.GetCommunicationObjectType().ToString(), method));
         }
 
         internal Exception CreateClosedException()
         {
-            if (!_closeCalled)
+            if (!this.closeCalled)
             {
                 return CreateAbortedException();
             }
             else
             {
+#if DEBUG
+                string originalStack = closeStack.ToString().Replace("\r\n", "\r\n    ");
+                return new ObjectDisposedException(this.GetCommunicationObjectType().ToString() + ", Object already closed:\r\n    " + originalStack);
+#else
                 return new ObjectDisposedException(this.GetCommunicationObjectType().ToString());
+#endif
             }
         }
 
         internal Exception CreateFaultedException()
         {
-            string message = SR.Format(SR.CommunicationObjectFaulted1, this.GetCommunicationObjectType().ToString());
+#if DEBUG
+            string originalStack = faultedStack.ToString().Replace("\r\n", "\r\n    ");
+            string message = SR.GetString(SR.CommunicationObjectFaultedStack2, this.GetCommunicationObjectType().ToString(), originalStack);
+#else
+            string message = SR.GetString(SR.CommunicationObjectFaulted1, this.GetCommunicationObjectType().ToString());
+#endif
             return new CommunicationObjectFaultedException(message);
         }
 
         internal Exception CreateAbortedException()
         {
-            return new CommunicationObjectAbortedException(SR.Format(SR.CommunicationObjectAborted1, this.GetCommunicationObjectType().ToString()));
+#if DEBUG
+            string originalStack = closeStack.ToString().Replace("\r\n", "\r\n    ");
+            return new CommunicationObjectAbortedException(SR.GetString(SR.CommunicationObjectAbortedStack2, this.GetCommunicationObjectType().ToString(), originalStack));
+#else
+            return new CommunicationObjectAbortedException(SR.GetString(SR.CommunicationObjectAborted1, this.GetCommunicationObjectType().ToString()));
+#endif
+        }
+
+        internal virtual string CloseActivityName
+        {
+            get { return SR.GetString(SR.ActivityClose, this.GetType().FullName); }
+        }
+
+        internal virtual string OpenActivityName
+        {
+            get { return SR.GetString(SR.ActivityOpen, this.GetType().FullName); }
+        }
+
+        internal virtual ActivityType OpenActivityType
+        {
+            get { return ActivityType.Open; }
+        }
+
+        ServiceModelActivity CreateCloseActivity()
+        {
+            ServiceModelActivity retval = null;
+            retval = ServiceModelActivity.CreateBoundedActivity();
+            if (DiagnosticUtility.ShouldUseActivity)
+            {
+                ServiceModelActivity.Start(retval, this.CloseActivityName, ActivityType.Close);
+            }
+
+            return retval;
         }
 
         internal bool DoneReceivingInCurrentState()
         {
             this.ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     throw TraceUtility.ThrowHelperError(this.CreateNotOpenException(), Guid.Empty, this);
@@ -284,27 +455,105 @@ namespace System.ServiceModel.Channels
 
         public void EndClose(IAsyncResult result)
         {
-            result.ToApmEnd();
+            if (result is AlreadyClosedAsyncResult)
+                AlreadyClosedAsyncResult.End(result);
+            else
+                CloseAsyncResult.End(result);
         }
 
         public void EndOpen(IAsyncResult result)
         {
-            result.ToApmEnd();
+            OpenAsyncResult.End(result);
         }
 
         protected void Fault()
         {
             lock (ThisLock)
             {
-                if (_state == CommunicationState.Closed || _state == CommunicationState.Closing)
+                if (this.state == CommunicationState.Closed || this.state == CommunicationState.Closing)
                     return;
 
-                if (_state == CommunicationState.Faulted)
+                if (this.state == CommunicationState.Faulted)
                     return;
-                _state = CommunicationState.Faulted;
+#if DEBUG
+                if (faultedStack == null)
+                    faultedStack = new StackTrace();
+#endif
+                this.state = CommunicationState.Faulted;
             }
 
             OnFaulted();
+        }
+
+        internal void Fault(Exception exception)
+        {
+            lock (this.ThisLock)
+            {
+                if (this.exceptionQueue == null)
+                    this.exceptionQueue = new ExceptionQueue(this.ThisLock);
+            }
+
+            if (exception != null && DiagnosticUtility.ShouldTraceInformation)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.CommunicationObjectFaultReason,
+                    SR.GetString(SR.TraceCodeCommunicationObjectFaultReason), exception, null);
+            }
+
+            this.exceptionQueue.AddException(exception);
+            this.Fault();
+        }
+
+        internal void AddPendingException(Exception exception)
+        {
+            lock (this.ThisLock)
+            {
+                if (this.exceptionQueue == null)
+                    this.exceptionQueue = new ExceptionQueue(this.ThisLock);
+            }
+
+            this.exceptionQueue.AddException(exception);
+        }
+
+        internal Exception GetPendingException()
+        {
+            CommunicationState currentState = this.state;
+
+            Fx.Assert(currentState == CommunicationState.Closing || currentState == CommunicationState.Closed || currentState == CommunicationState.Faulted,
+                "CommunicationObject.GetPendingException(currentState == CommunicationState.Closing || currentState == CommunicationState.Closed || currentState == CommunicationState.Faulted)");
+
+            ExceptionQueue queue = this.exceptionQueue;
+            if (queue != null)
+            {
+                return queue.GetException();
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        // Terminal is loosely defined as an interruption to close or a fault.
+        internal Exception GetTerminalException()
+        {
+            Exception exception = this.GetPendingException();
+
+            if (exception != null)
+            {
+                return exception;
+            }
+
+            switch (this.state)
+            {
+                case CommunicationState.Closing:
+                case CommunicationState.Closed:
+                    return new CommunicationException(SR.GetString(SR.CommunicationObjectCloseInterrupted1, this.GetCommunicationObjectType().ToString()));
+
+                case CommunicationState.Faulted:
+                    return this.CreateFaultedException();
+
+                default:
+                    throw Fx.AssertAndThrow("GetTerminalException: Invalid CommunicationObject.state");
+            }
         }
 
         public void Open()
@@ -314,73 +563,77 @@ namespace System.ServiceModel.Channels
 
         public void Open(TimeSpan timeout)
         {
-            OpenAsyncInternal(timeout).WaitForCompletion();
-        }
-
-        private async Task OpenAsyncInternal(TimeSpan timeout)
-        {
-            await TaskHelpers.EnsureDefaultTaskScheduler();
-            await ((IAsyncCommunicationObject)this).OpenAsync(timeout);
-        }
-
-        async Task IAsyncCommunicationObject.OpenAsync(TimeSpan timeout)
-        {
             if (timeout < TimeSpan.Zero)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("timeout", SR.SFxTimeoutOutOfRange0));
+                    new ArgumentOutOfRangeException("timeout", SR.GetString(SR.SFxTimeoutOutOfRange0)));
 
-            lock (ThisLock)
+            using (ServiceModelActivity activity = DiagnosticUtility.ShouldUseActivity && this.TraceOpenAndClose ? ServiceModelActivity.CreateBoundedActivity() : null)
             {
-                ThrowIfDisposedOrImmutable();
-                _state = CommunicationState.Opening;
-            }
-
-            bool throwing = true;
-            try
-            {
-                TimeoutHelper actualTimeout = new TimeoutHelper(timeout);
-
-                OnOpening();
-                if (!_onOpeningCalled)
-                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnOpening"), Guid.Empty, this);
-
-                TimeSpan remainingTime = actualTimeout.RemainingTime();
-                await OnOpenAsync(remainingTime);
-
-                OnOpened();
-                if (!_onOpenedCalled)
-                    throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnOpened"), Guid.Empty, this);
-
-                throwing = false;
-            }
-            finally
-            {
-                if (throwing)
+                if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    Fault();
+                    ServiceModelActivity.Start(activity, this.OpenActivityName, this.OpenActivityType);
+                }
+                lock (ThisLock)
+                {
+                    ThrowIfDisposedOrImmutable();
+                    this.state = CommunicationState.Opening;
+                }
+
+                bool throwing = true;
+                try
+                {
+                    TimeoutHelper actualTimeout = new TimeoutHelper(timeout);
+
+                    OnOpening();
+                    if (!this.onOpeningCalled)
+                        throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnOpening"), Guid.Empty, this);
+
+                    OnOpen(actualTimeout.RemainingTime());
+
+                    OnOpened();
+                    if (!this.onOpenedCalled)
+                        throw TraceUtility.ThrowHelperError(this.CreateBaseClassMethodNotCalledException("OnOpened"), Guid.Empty, this);
+
+                    throwing = false;
+                }
+                finally
+                {
+                    if (throwing)
+                    {
+                        if (DiagnosticUtility.ShouldTraceWarning)
+                        {
+                            TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectOpenFailed, SR.GetString(SR.TraceCodeCommunicationObjectOpenFailed, this.GetCommunicationObjectType().ToString()), this);
+                        }
+
+                        Fault();
+                    }
                 }
             }
         }
 
         protected virtual void OnClosed()
         {
-            _onClosedCalled = true;
+            this.onClosedCalled = true;
 
             lock (ThisLock)
             {
-                if (_raisedClosed)
+                if (this.raisedClosed)
                     return;
-                _raisedClosed = true;
-                _state = CommunicationState.Closed;
+                this.raisedClosed = true;
+                this.state = CommunicationState.Closed;
             }
 
+            if (DiagnosticUtility.ShouldTraceVerbose)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.CommunicationObjectClosed, SR.GetString(SR.TraceCodeCommunicationObjectClosed, TraceUtility.CreateSourceString(this)), this);
+            }
 
             EventHandler handler = Closed;
             if (handler != null)
             {
                 try
                 {
-                    handler(_eventSender, EventArgs.Empty);
+                    handler(eventSender, EventArgs.Empty);
                 }
                 catch (Exception exception)
                 {
@@ -394,22 +647,25 @@ namespace System.ServiceModel.Channels
 
         protected virtual void OnClosing()
         {
-            _onClosingCalled = true;
+            this.onClosingCalled = true;
 
             lock (ThisLock)
             {
-                if (_raisedClosing)
+                if (this.raisedClosing)
                     return;
-                _raisedClosing = true;
+                this.raisedClosing = true;
             }
 
-
+            if (DiagnosticUtility.ShouldTraceVerbose)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.CommunicationObjectClosing, SR.GetString(SR.TraceCodeCommunicationObjectClosing, TraceUtility.CreateSourceString(this)), this);
+            }
             EventHandler handler = Closing;
             if (handler != null)
             {
                 try
                 {
-                    handler(_eventSender, EventArgs.Empty);
+                    handler(eventSender, EventArgs.Empty);
                 }
                 catch (Exception exception)
                 {
@@ -425,9 +681,14 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (_raisedFaulted)
+                if (this.raisedFaulted)
                     return;
-                _raisedFaulted = true;
+                this.raisedFaulted = true;
+            }
+
+            if (DiagnosticUtility.ShouldTraceWarning)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectFaulted, SR.GetString(SR.TraceCodeCommunicationObjectFaulted, this.GetCommunicationObjectType().ToString()), this);
             }
 
             EventHandler handler = Faulted;
@@ -435,7 +696,7 @@ namespace System.ServiceModel.Channels
             {
                 try
                 {
-                    handler(_eventSender, EventArgs.Empty);
+                    handler(eventSender, EventArgs.Empty);
                 }
                 catch (Exception exception)
                 {
@@ -449,22 +710,24 @@ namespace System.ServiceModel.Channels
 
         protected virtual void OnOpened()
         {
-            _onOpenedCalled = true;
+            this.onOpenedCalled = true;
 
             lock (ThisLock)
             {
-                if (_aborted || _state != CommunicationState.Opening)
+                if (this.aborted || this.state != CommunicationState.Opening)
                     return;
-                _state = CommunicationState.Opened;
+                this.state = CommunicationState.Opened;
             }
 
+            if (DiagnosticUtility.ShouldTraceVerbose)
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.CommunicationObjectOpened, SR.GetString(SR.TraceCodeCommunicationObjectOpened, TraceUtility.CreateSourceString(this)), this);
 
             EventHandler handler = Opened;
             if (handler != null)
             {
                 try
                 {
-                    handler(_eventSender, EventArgs.Empty);
+                    handler(eventSender, EventArgs.Empty);
                 }
                 catch (Exception exception)
                 {
@@ -478,15 +741,19 @@ namespace System.ServiceModel.Channels
 
         protected virtual void OnOpening()
         {
-            _onOpeningCalled = true;
+            this.onOpeningCalled = true;
 
+            if (DiagnosticUtility.ShouldTraceVerbose)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Verbose, TraceCode.CommunicationObjectOpening, SR.GetString(SR.TraceCodeCommunicationObjectOpening, TraceUtility.CreateSourceString(this)), this);
+            }
 
             EventHandler handler = Opening;
             if (handler != null)
             {
                 try
                 {
-                    handler(_eventSender, EventArgs.Empty);
+                    handler(eventSender, EventArgs.Empty);
                 }
                 catch (Exception exception)
                 {
@@ -502,7 +769,7 @@ namespace System.ServiceModel.Channels
         {
             this.ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     break;
@@ -529,7 +796,7 @@ namespace System.ServiceModel.Channels
 
         internal void ThrowIfAborted()
         {
-            if (_aborted && !_closeCalled)
+            if (this.aborted && !this.closeCalled)
             {
                 throw TraceUtility.ThrowHelperError(CreateAbortedException(), Guid.Empty, this);
             }
@@ -539,11 +806,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _traceOpenAndClose;
+                return this.traceOpenAndClose;
             }
             set
             {
-                _traceOpenAndClose = value && DiagnosticUtility.ShouldUseActivity;
+                this.traceOpenAndClose = value && DiagnosticUtility.ShouldUseActivity;
             }
         }
 
@@ -551,7 +818,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     break;
@@ -585,7 +852,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     break;
@@ -614,7 +881,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     break;
@@ -643,7 +910,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     break;
@@ -672,7 +939,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     throw TraceUtility.ThrowHelperError(this.CreateNotOpenException(), Guid.Empty, this);
@@ -699,7 +966,7 @@ namespace System.ServiceModel.Channels
 
         internal void ThrowIfNotOpened()
         {
-            if (_state == CommunicationState.Created || _state == CommunicationState.Opening)
+            if (this.state == CommunicationState.Created || this.state == CommunicationState.Opening)
                 throw TraceUtility.ThrowHelperError(this.CreateNotOpenException(), Guid.Empty, this);
         }
 
@@ -707,7 +974,7 @@ namespace System.ServiceModel.Channels
         {
             ThrowPending();
 
-            switch (_state)
+            switch (this.state)
             {
                 case CommunicationState.Created:
                     throw TraceUtility.ThrowHelperError(this.CreateNotOpenException(), Guid.Empty, this);
@@ -734,6 +1001,17 @@ namespace System.ServiceModel.Channels
 
         internal void ThrowPending()
         {
+            ExceptionQueue queue = this.exceptionQueue;
+
+            if (queue != null)
+            {
+                Exception exception = queue.GetException();
+
+                if (exception != null)
+                {
+                    throw TraceUtility.ThrowHelperError(exception, Guid.Empty, this);
+                }
+            }
         }
 
         //
@@ -743,97 +1021,210 @@ namespace System.ServiceModel.Channels
         protected abstract void OnAbort();
 
         protected abstract void OnClose(TimeSpan timeout);
-
+        protected abstract void OnEndClose(IAsyncResult result);
         protected abstract IAsyncResult OnBeginClose(TimeSpan timeout, AsyncCallback callback, object state);
 
-        protected abstract void OnEndClose(IAsyncResult result);
-
         protected abstract void OnOpen(TimeSpan timeout);
-
         protected abstract IAsyncResult OnBeginOpen(TimeSpan timeout, AsyncCallback callback, object state);
-
         protected abstract void OnEndOpen(IAsyncResult result);
 
-        internal protected virtual Task OnCloseAsync(TimeSpan timeout)
+        class AlreadyClosedAsyncResult : CompletedAsyncResult
         {
-            Contract.Requires(false, "OnCloseAsync needs to be implemented on derived classes");
-            return TaskHelpers.CompletedTask();
+            public AlreadyClosedAsyncResult(AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+            }
         }
 
-        internal protected virtual Task OnOpenAsync(TimeSpan timeout)
+        class ExceptionQueue
         {
-            Contract.Requires(false, "OnOpenAsync needs to be implemented on derived classes");
-            return TaskHelpers.CompletedTask();
-        }
-    }
+            Queue<Exception> exceptions = new Queue<Exception>();
+            object thisLock;
 
-    // This helper class exists to expose non-contract API's to other ServiceModel projects
-    public static class CommunicationObjectInternal
-    {
-        public static void ThrowIfClosed(CommunicationObject communicationObject)
-        {
-            Contract.Assert(communicationObject != null);
-            communicationObject.ThrowIfClosed();
-        }
+            internal ExceptionQueue(object thisLock)
+            {
+                this.thisLock = thisLock;
+            }
 
-        public static void ThrowIfClosedOrOpened(CommunicationObject communicationObject)
-        {
-            Contract.Assert(communicationObject != null);
-            communicationObject.ThrowIfClosedOrOpened();
-        }
+            object ThisLock
+            {
+                get { return this.thisLock; }
+            }
 
-        public static void ThrowIfDisposedOrNotOpen(CommunicationObject communicationObject)
-        {
-            Contract.Assert(communicationObject != null);
-            communicationObject.ThrowIfDisposedOrNotOpen();
-        }
+            public void AddException(Exception exception)
+            {
+                if (exception == null)
+                {
+                    return;
+                }
 
-        public static void ThrowIfDisposed(CommunicationObject communicationObject)
-        {
-            Contract.Assert(communicationObject != null);
-            communicationObject.ThrowIfDisposed();
-        }
+                lock (this.ThisLock)
+                {
+                    this.exceptions.Enqueue(exception);
+                }
+            }
 
-        public static TimeSpan GetInternalCloseTimeout(this CommunicationObject communicationObject)
-        {
-            return communicationObject.InternalCloseTimeout;
-        }
+            public Exception GetException()
+            {
+                lock (this.ThisLock)
+                {
+                    if (this.exceptions.Count > 0)
+                    {
+                        return this.exceptions.Dequeue();
+                    }
+                }
 
-        public static void OnClose(CommunicationObject communicationObject, TimeSpan timeout)
-        {
-            OnCloseAsyncInternal(communicationObject, timeout).WaitForCompletion();
+                return null;
+            }
         }
 
-        public static IAsyncResult OnBeginClose(CommunicationObject communicationObject, TimeSpan timeout, AsyncCallback callback, object state)
+        class OpenAsyncResult : AsyncResult
         {
-            return communicationObject.OnCloseAsync(timeout).ToApm(callback, state);
+            static AsyncCompletion onOpenCompletion = new AsyncCompletion(OnOpenCompletion);
+
+            CommunicationObject communicationObject;
+            TimeoutHelper timeout;
+
+            public OpenAsyncResult(CommunicationObject communicationObject, TimeSpan timeout, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                this.communicationObject = communicationObject;
+                this.timeout = new TimeoutHelper(timeout);
+
+                base.OnCompleting = new Action<AsyncResult, Exception>(OnOpenCompleted);
+
+                if (InvokeOpen())
+                {
+                    this.Complete(true);
+                }
+            }
+
+            bool InvokeOpen()
+            {
+                IAsyncResult result = this.communicationObject.OnBeginOpen(this.timeout.RemainingTime(),
+                    base.PrepareAsyncCompletion(onOpenCompletion), this);
+                if (result.CompletedSynchronously)
+                {
+                    return OnOpenCompletion(result);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            void NotifyOpened()
+            {
+                this.communicationObject.OnOpened();
+                if (!this.communicationObject.onOpenedCalled)
+                {
+                    throw TraceUtility.ThrowHelperError(
+                        this.communicationObject.CreateBaseClassMethodNotCalledException("OnOpened"),
+                        Guid.Empty, this.communicationObject);
+                }
+            }
+
+            void OnOpenCompleted(AsyncResult result, Exception exception)
+            {
+                if (exception != null)
+                {
+                    if (DiagnosticUtility.ShouldTraceWarning)
+                    {
+                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectOpenFailed,
+                            SR.GetString(SR.TraceCodeCommunicationObjectOpenFailed, this.communicationObject.GetCommunicationObjectType().ToString()),
+                            this, exception);
+                    }
+
+                    this.communicationObject.Fault();
+                }
+            }
+
+            static bool OnOpenCompletion(IAsyncResult result)
+            {
+                OpenAsyncResult thisPtr = (OpenAsyncResult)result.AsyncState;
+                thisPtr.communicationObject.OnEndOpen(result);
+                thisPtr.NotifyOpened();
+                return true;
+            }
+
+            public static void End(IAsyncResult result)
+            {
+                AsyncResult.End<OpenAsyncResult>(result);
+            }
         }
 
-        public static void OnEnd(IAsyncResult result)
+        class CloseAsyncResult : TraceAsyncResult
         {
-            result.ToApmEnd();
-        }
+            static AsyncCompletion onCloseCompletion = new AsyncCompletion(OnCloseCompletion);
 
-        public static void OnOpen(CommunicationObject communicationObject, TimeSpan timeout)
-        {
-            OnOpenAsyncInternal(communicationObject, timeout).WaitForCompletion();
-        }
+            CommunicationObject communicationObject;
+            TimeoutHelper timeout;
 
-        public static IAsyncResult OnBeginOpen(CommunicationObject communicationObject, TimeSpan timeout, AsyncCallback callback, object state)
-        {
-            return communicationObject.OnOpenAsync(timeout).ToApm(callback, state);
-        }
+            public CloseAsyncResult(CommunicationObject communicationObject, TimeSpan timeout, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                this.communicationObject = communicationObject;
+                this.timeout = new TimeoutHelper(timeout);
 
-        public static async Task OnCloseAsyncInternal(CommunicationObject communicationObject, TimeSpan timeout)
-        {
-            await TaskHelpers.EnsureDefaultTaskScheduler();
-            await communicationObject.OnCloseAsync(timeout);
-        }
+                base.OnCompleting = new Action<AsyncResult, Exception>(OnCloseCompleted);
+                if (InvokeClose())
+                {
+                    this.Complete(true);
+                }
+            }
 
-        public static async Task OnOpenAsyncInternal(CommunicationObject communicationObject, TimeSpan timeout)
-        {
-            await TaskHelpers.EnsureDefaultTaskScheduler();
-            await communicationObject.OnOpenAsync(timeout);
+            bool InvokeClose()
+            {
+                IAsyncResult result = this.communicationObject.OnBeginClose(this.timeout.RemainingTime(),
+                    base.PrepareAsyncCompletion(onCloseCompletion), this);
+                if (result.CompletedSynchronously)
+                {
+                    return OnCloseCompletion(result);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            void NotifyClosed()
+            {
+                this.communicationObject.OnClosed();
+                if (!this.communicationObject.onClosedCalled)
+                {
+                    throw TraceUtility.ThrowHelperError(
+                        this.communicationObject.CreateBaseClassMethodNotCalledException("OnClosed"),
+                        Guid.Empty, this.communicationObject);
+                }
+            }
+
+            void OnCloseCompleted(AsyncResult result, Exception exception)
+            {
+                if (exception != null)
+                {
+                    if (DiagnosticUtility.ShouldTraceWarning)
+                    {
+                        TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.CommunicationObjectCloseFailed,
+                            SR.GetString(SR.TraceCodeCommunicationObjectCloseFailed, this.communicationObject.GetCommunicationObjectType().ToString()),
+                            this, exception);
+                    }
+
+                    this.communicationObject.Abort();
+                }
+            }
+
+            static bool OnCloseCompletion(IAsyncResult result)
+            {
+                CloseAsyncResult thisPtr = (CloseAsyncResult)result.AsyncState;
+                thisPtr.communicationObject.OnEndClose(result);
+                thisPtr.NotifyClosed();
+                return true;
+            }
+
+            public static void End(IAsyncResult result)
+            {
+                AsyncResult.End<CloseAsyncResult>(result);
+            }
         }
     }
 }

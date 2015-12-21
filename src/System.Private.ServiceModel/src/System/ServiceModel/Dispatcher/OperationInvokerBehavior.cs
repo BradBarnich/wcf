@@ -1,12 +1,14 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    public class OperationInvokerBehavior : IOperationBehavior
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+
+    class OperationInvokerBehavior : IOperationBehavior
     {
         public OperationInvokerBehavior()
         {
@@ -39,12 +41,20 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (description.BeginMethod != null)
                 {
-                    // both sync and async methods are present on the contract, prefer the Async method. This is a change from desktop.
-                    throw new PlatformNotSupportedException();
+                    // both [....] and async methods are present on the contract, check the preference
+                    OperationBehaviorAttribute operationBehaviorAttribue = description.Behaviors.Find<OperationBehaviorAttribute>();
+                    if ((operationBehaviorAttribue != null) && operationBehaviorAttribue.PreferAsyncInvocation)
+                    {
+                        dispatch.Invoker = new AsyncMethodInvoker(description.BeginMethod, description.EndMethod);
+                    }
+                    else
+                    {
+                        dispatch.Invoker = new SyncMethodInvoker(description.SyncMethod);
+                    }
                 }
                 else
                 {
-                    // only sync method is present on the contract
+                    // only [....] method is present on the contract
                     dispatch.Invoker = new SyncMethodInvoker(description.SyncMethod);
                 }
             }
@@ -53,7 +63,7 @@ namespace System.ServiceModel.Dispatcher
                 if (description.BeginMethod != null)
                 {
                     // only async method is present on the contract
-                    throw new PlatformNotSupportedException();
+                    dispatch.Invoker = new AsyncMethodInvoker(description.BeginMethod, description.EndMethod);
                 }
             }
         }
@@ -61,6 +71,5 @@ namespace System.ServiceModel.Dispatcher
         void IOperationBehavior.ApplyClientBehavior(OperationDescription description, ClientOperation proxy)
         {
         }
-
     }
 }

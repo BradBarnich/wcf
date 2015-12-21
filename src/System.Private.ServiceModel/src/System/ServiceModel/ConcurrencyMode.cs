@@ -1,8 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+
     public enum ConcurrencyMode
     {
         Single, // This is first so it is ConcurrencyMode.default
@@ -10,7 +13,7 @@ namespace System.ServiceModel
         Multiple
     }
 
-    public static class ConcurrencyModeHelper
+    static class ConcurrencyModeHelper
     {
         static public bool IsDefined(ConcurrencyMode x)
         {

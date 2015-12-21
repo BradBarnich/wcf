@@ -1,16 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal abstract class SecurityChannel<TChannel> :
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+
+    abstract class SecurityChannel<TChannel> :
         LayeredChannel<TChannel>
         where TChannel : class, IChannel
     {
-        private SecurityProtocol _securityProtocol;
+        SecurityProtocol securityProtocol;
 
         protected SecurityChannel(ChannelManagerBase channelManager, TChannel innerChannel)
             : this(channelManager, innerChannel, null)
@@ -20,7 +21,7 @@ namespace System.ServiceModel.Security
         protected SecurityChannel(ChannelManagerBase channelManager, TChannel innerChannel, SecurityProtocol securityProtocol)
             : base(channelManager, innerChannel)
         {
-            _securityProtocol = securityProtocol;
+            this.securityProtocol = securityProtocol;
         }
 
         public override T GetProperty<T>()
@@ -37,7 +38,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _securityProtocol;
+                return this.securityProtocol;
             }
             protected set
             {
@@ -45,15 +46,15 @@ namespace System.ServiceModel.Security
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
                 }
-                _securityProtocol = value;
+                this.securityProtocol = value;
             }
         }
 
         protected override void OnAbort()
         {
-            if (_securityProtocol != null)
+            if (this.securityProtocol != null)
             {
-                _securityProtocol.Close(true, TimeSpan.Zero);
+                this.securityProtocol.Close(true, TimeSpan.Zero);
             }
 
             base.OnAbort();
@@ -70,22 +71,37 @@ namespace System.ServiceModel.Security
             ChainedAsyncResult.End(result);
         }
 
-        private IAsyncResult BeginCloseSecurityProtocol(TimeSpan timeout, AsyncCallback callback, object state)
+        IAsyncResult BeginCloseSecurityProtocol(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw ExceptionHelper.PlatformNotSupported("SecurityChannel async path");
+            if (this.securityProtocol != null)
+            {
+                return this.securityProtocol.BeginClose(timeout, callback, state);
+            }
+            else
+            {
+                return new NullSecurityProtocolCloseAsyncResult(callback, state);
+            }
         }
 
-        private void EndCloseSecurityProtocol(IAsyncResult result)
+        void EndCloseSecurityProtocol(IAsyncResult result)
         {
-            throw ExceptionHelper.PlatformNotSupported("SecurityChannel async path");
+            if (result is NullSecurityProtocolCloseAsyncResult)
+            {
+                NullSecurityProtocolCloseAsyncResult.End(result);
+            }
+            else
+            {
+                this.securityProtocol.EndClose(result);
+            }
         }
+
 
         protected override void OnClose(TimeSpan timeout)
         {
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
-            if (_securityProtocol != null)
+            if (this.securityProtocol != null)
             {
-                _securityProtocol.Close(false, timeoutHelper.RemainingTime());
+                this.securityProtocol.Close(false, timeoutHelper.RemainingTime());
             }
             base.OnClose(timeoutHelper.RemainingTime());
         }
@@ -99,7 +115,7 @@ namespace System.ServiceModel.Security
             }
         }
 
-        private class NullSecurityProtocolCloseAsyncResult : CompletedAsyncResult
+        class NullSecurityProtocolCloseAsyncResult : CompletedAsyncResult
         {
             public NullSecurityProtocolCloseAsyncResult(AsyncCallback callback, object state)
                 : base(callback, state)
@@ -109,6 +125,36 @@ namespace System.ServiceModel.Security
             new public static void End(IAsyncResult result)
             {
                 AsyncResult.End<NullSecurityProtocolCloseAsyncResult>(result);
+            }
+        }
+
+        protected sealed class OutputChannelSendAsyncResult : ApplySecurityAndSendAsyncResult<IOutputChannel>
+        {
+            public OutputChannelSendAsyncResult(Message message, SecurityProtocol binding, IOutputChannel channel, TimeSpan timeout,
+                AsyncCallback callback, object state)
+                : base(binding, channel, timeout, callback, state)
+            {
+                this.Begin(message, null);
+            }
+
+            protected override IAsyncResult BeginSendCore(IOutputChannel channel, Message message, TimeSpan timeout, AsyncCallback callback, object state)
+            {
+                return channel.BeginSend(message, timeout, callback, state);
+            }
+
+            internal static void End(IAsyncResult result)
+            {
+                OutputChannelSendAsyncResult self = result as OutputChannelSendAsyncResult;
+                OnEnd(self);
+            }
+
+            protected override void EndSendCore(IOutputChannel channel, IAsyncResult result)
+            {
+                channel.EndSend(result);
+            }
+
+            protected override void OnSendCompleteCore(TimeSpan timeout)
+            {
             }
         }
     }

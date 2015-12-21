@@ -1,23 +1,24 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime.Serialization;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System;
+    using System.Runtime.Serialization;
+
     [AttributeUsage(ServiceModelAttributeTargets.ServiceContract | ServiceModelAttributeTargets.OperationContract, Inherited = false, AllowMultiple = false)]
     public sealed class DataContractFormatAttribute : Attribute
     {
-        private OperationFormatStyle _style;
+        OperationFormatStyle style;
         public OperationFormatStyle Style
         {
-            get { return _style; }
+            get { return style; }
             set
             {
-                XmlSerializerFormatAttribute.ValidateOperationFormatStyle(_style);
-                _style = value;
+                XmlSerializerFormatAttribute.ValidateOperationFormatStyle(style);
+                style = value;
             }
         }
+
     }
 }

@@ -1,14 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml.Serialization;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+    using System.Xml;
+    using System.Xml.Serialization;
+
     [XmlRoot(ElementName = MetadataStrings.MetadataExchangeStrings.Location, Namespace = MetadataStrings.MetadataExchangeStrings.Namespace)]
     public class MetadataLocation
     {
-        private string _location;
+        string location;
 
         public MetadataLocation()
         {
@@ -22,17 +27,17 @@ namespace System.ServiceModel.Description
         [XmlText]
         public string Location
         {
-            get { return _location; }
+            get { return this.location; }
             set
             {
                 if (value != null)
                 {
                     Uri uri;
                     if (!Uri.TryCreate(value, UriKind.RelativeOrAbsolute, out uri))
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.Format(SR.SFxMetadataReferenceInvalidLocation, value));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxMetadataReferenceInvalidLocation, value));
                 }
 
-                _location = value;
+                this.location = value;
             }
         }
     }

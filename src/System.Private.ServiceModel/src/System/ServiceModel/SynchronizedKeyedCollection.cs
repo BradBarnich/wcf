@@ -1,33 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Runtime.InteropServices;
-using System.ServiceModel;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.Collections.Generic
 {
+    using System;
+    using System.Runtime;
+    using System.Runtime.InteropServices;
+    using System.ServiceModel;
+
     [ComVisible(false)]
     public abstract class SynchronizedKeyedCollection<K, T> : SynchronizedCollection<T>
     {
-        private const int defaultThreshold = 0;
+        const int defaultThreshold = 0;
 
-        private IEqualityComparer<K> _comparer;
-        private Dictionary<K, T> _dictionary;
-        private int _keyCount;
-        private int _threshold;
+        IEqualityComparer<K> comparer;
+        Dictionary<K, T> dictionary;
+        int keyCount;
+        int threshold;
 
         protected SynchronizedKeyedCollection()
         {
-            _comparer = EqualityComparer<K>.Default;
-            _threshold = int.MaxValue;
+            this.comparer = EqualityComparer<K>.Default;
+            this.threshold = int.MaxValue;
         }
 
         protected SynchronizedKeyedCollection(object syncRoot)
             : base(syncRoot)
         {
-            _comparer = EqualityComparer<K>.Default;
-            _threshold = int.MaxValue;
+            this.comparer = EqualityComparer<K>.Default;
+            this.threshold = int.MaxValue;
         }
 
         protected SynchronizedKeyedCollection(object syncRoot, IEqualityComparer<K> comparer)
@@ -36,8 +37,8 @@ namespace System.Collections.Generic
             if (comparer == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("comparer"));
 
-            _comparer = comparer;
-            _threshold = int.MaxValue;
+            this.comparer = comparer;
+            this.threshold = int.MaxValue;
         }
 
         protected SynchronizedKeyedCollection(object syncRoot, IEqualityComparer<K> comparer, int dictionaryCreationThreshold)
@@ -48,13 +49,13 @@ namespace System.Collections.Generic
 
             if (dictionaryCreationThreshold < -1)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("dictionaryCreationThreshold", dictionaryCreationThreshold,
-                                                    SR.Format(SR.ValueMustBeInRange, -1, int.MaxValue)));
+                                                    SR.GetString(SR.ValueMustBeInRange, -1, int.MaxValue)));
             else if (dictionaryCreationThreshold == -1)
-                _threshold = int.MaxValue;
+                this.threshold = int.MaxValue;
             else
-                _threshold = dictionaryCreationThreshold;
+                this.threshold = dictionaryCreationThreshold;
 
-            _comparer = comparer;
+            this.comparer = comparer;
         }
 
         public T this[K key]
@@ -66,13 +67,13 @@ namespace System.Collections.Generic
 
                 lock (this.SyncRoot)
                 {
-                    if (_dictionary != null)
-                        return _dictionary[key];
+                    if (this.dictionary != null)
+                        return this.dictionary[key];
 
                     for (int i = 0; i < this.Items.Count; i++)
                     {
                         T item = this.Items[i];
-                        if (_comparer.Equals(key, this.GetKeyForItem(item)))
+                        if (this.comparer.Equals(key, this.GetKeyForItem(item)))
                             return item;
                     }
 
@@ -83,24 +84,24 @@ namespace System.Collections.Generic
 
         protected IDictionary<K, T> Dictionary
         {
-            get { return _dictionary; }
+            get { return this.dictionary; }
         }
 
-        private void AddKey(K key, T item)
+        void AddKey(K key, T item)
         {
-            if (_dictionary != null)
-                _dictionary.Add(key, item);
-            else if (_keyCount == _threshold)
+            if (this.dictionary != null)
+                this.dictionary.Add(key, item);
+            else if (this.keyCount == this.threshold)
             {
                 this.CreateDictionary();
-                _dictionary.Add(key, item);
+                this.dictionary.Add(key, item);
             }
             else
             {
                 if (this.Contains(key))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.CannotAddTwoItemsWithTheSameKeyToSynchronizedKeyedCollection0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.CannotAddTwoItemsWithTheSameKeyToSynchronizedKeyedCollection0)));
 
-                _keyCount++;
+                this.keyCount++;
             }
         }
 
@@ -108,10 +109,10 @@ namespace System.Collections.Generic
         {
             // check if the item exists in the collection
             if (!this.ContainsItem(item))
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.ItemDoesNotExistInSynchronizedKeyedCollection0));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.ItemDoesNotExistInSynchronizedKeyedCollection0)));
 
             K oldKey = this.GetKeyForItem(item);
-            if (!_comparer.Equals(newKey, oldKey))
+            if (!this.comparer.Equals(newKey, oldKey))
             {
                 if (newKey != null)
                     this.AddKey(newKey, item);
@@ -125,10 +126,10 @@ namespace System.Collections.Generic
         {
             base.ClearItems();
 
-            if (_dictionary != null)
-                _dictionary.Clear();
+            if (this.dictionary != null)
+                this.dictionary.Clear();
 
-            _keyCount = 0;
+            this.keyCount = 0;
         }
 
         public bool Contains(K key)
@@ -138,15 +139,15 @@ namespace System.Collections.Generic
 
             lock (this.SyncRoot)
             {
-                if (_dictionary != null)
-                    return _dictionary.ContainsKey(key);
+                if (this.dictionary != null)
+                    return this.dictionary.ContainsKey(key);
 
                 if (key != null)
                 {
                     for (int i = 0; i < Items.Count; i++)
                     {
                         T item = Items[i];
-                        if (_comparer.Equals(key, GetKeyForItem(item)))
+                        if (this.comparer.Equals(key, GetKeyForItem(item)))
                             return true;
                     }
                 }
@@ -154,29 +155,29 @@ namespace System.Collections.Generic
             }
         }
 
-        private bool ContainsItem(T item)
+        bool ContainsItem(T item)
         {
             K key;
-            if ((_dictionary == null) || ((key = GetKeyForItem(item)) == null))
+            if ((this.dictionary == null) || ((key = GetKeyForItem(item)) == null))
                 return Items.Contains(item);
 
             T itemInDict;
 
-            if (_dictionary.TryGetValue(key, out itemInDict))
+            if (this.dictionary.TryGetValue(key, out itemInDict))
                 return EqualityComparer<T>.Default.Equals(item, itemInDict);
 
             return false;
         }
 
-        private void CreateDictionary()
+        void CreateDictionary()
         {
-            _dictionary = new Dictionary<K, T>(_comparer);
+            this.dictionary = new Dictionary<K, T>(this.comparer);
 
             foreach (T item in Items)
             {
                 K key = GetKeyForItem(item);
                 if (key != null)
-                    _dictionary.Add(key, item);
+                    this.dictionary.Add(key, item);
             }
         }
 
@@ -199,10 +200,10 @@ namespace System.Collections.Generic
 
             lock (this.SyncRoot)
             {
-                if (_dictionary != null)
+                if (this.dictionary != null)
                 {
-                    if (_dictionary.ContainsKey(key))
-                        return this.Remove(_dictionary[key]);
+                    if (this.dictionary.ContainsKey(key))
+                        return this.Remove(this.dictionary[key]);
                     else
                         return false;
                 }
@@ -210,7 +211,7 @@ namespace System.Collections.Generic
                 {
                     for (int i = 0; i < Items.Count; i++)
                     {
-                        if (_comparer.Equals(key, GetKeyForItem(Items[i])))
+                        if (comparer.Equals(key, GetKeyForItem(Items[i])))
                         {
                             this.RemoveItem(i);
                             return true;
@@ -231,17 +232,17 @@ namespace System.Collections.Generic
             base.RemoveItem(index);
         }
 
-        private void RemoveKey(K key)
+        void RemoveKey(K key)
         {
             if (!(key != null))
             {
                 Fx.Assert("key shouldn't be null!");
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("key");
             }
-            if (_dictionary != null)
-                _dictionary.Remove(key);
+            if (this.dictionary != null)
+                this.dictionary.Remove(key);
             else
-                _keyCount--;
+                this.keyCount--;
         }
 
         protected override void SetItem(int index, T item)
@@ -249,10 +250,10 @@ namespace System.Collections.Generic
             K newKey = this.GetKeyForItem(item);
             K oldKey = this.GetKeyForItem(this.Items[index]);
 
-            if (_comparer.Equals(newKey, oldKey))
+            if (this.comparer.Equals(newKey, oldKey))
             {
-                if ((newKey != null) && (_dictionary != null))
-                    _dictionary[newKey] = item;
+                if ((newKey != null) && (this.dictionary != null))
+                    this.dictionary[newKey] = item;
             }
             else
             {

@@ -1,28 +1,39 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System.ServiceModel;
+    using System.Collections.Generic;
+
     public sealed class DispatchOperation
     {
-        private readonly string _action;
-        private readonly SynchronizedCollection<FaultContractInfo> _faultContractInfos;
-        private IDispatchMessageFormatter _formatter;
-        private IDispatchFaultFormatter _faultFormatter;
-        private IOperationInvoker _invoker;
-        private bool _isSessionOpenNotificationEnabled;
-        private readonly string _name;
-        private readonly SynchronizedCollection<IParameterInspector> _parameterInspectors;
-        private readonly DispatchRuntime _parent;
-        private readonly string _replyAction;
-        private bool _deserializeRequest = true;
-        private bool _serializeReply = true;
-        private readonly bool _isOneWay;
-        private bool _autoDisposeParameters = true;
-        private bool _hasNoDisposableParameters;
-        private bool _isFaultFormatterSetExplicit;
+        string action;
+        SynchronizedCollection<ICallContextInitializer> callContextInitializers;
+        SynchronizedCollection<FaultContractInfo> faultContractInfos;
+        IDispatchMessageFormatter formatter;
+        IDispatchFaultFormatter faultFormatter;
+        bool includeExceptionDetailInFaults;
+        ImpersonationOption impersonation;
+        IOperationInvoker invoker;
+        bool isTerminating;
+        bool isSessionOpenNotificationEnabled;
+        string name;
+        SynchronizedCollection<IParameterInspector> parameterInspectors;
+        DispatchRuntime parent;
+        bool releaseInstanceAfterCall;
+        bool releaseInstanceBeforeCall;
+        string replyAction;
+        bool transactionAutoComplete;
+        bool transactionRequired;
+        bool deserializeRequest = true;
+        bool serializeReply = true;
+        bool isOneWay;
+        bool autoDisposeParameters = true;
+        bool hasNoDisposableParameters;
+        bool isFaultFormatterSetExplicit = false;
+        bool isInsideTransactedReceiveScope = false;
 
         public DispatchOperation(DispatchRuntime parent, string name, string action)
         {
@@ -31,60 +42,67 @@ namespace System.ServiceModel.Dispatcher
             if (name == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("name");
 
-            _parent = parent;
-            _name = name;
-            _action = action;
+            this.parent = parent;
+            this.name = name;
+            this.action = action;
+            this.impersonation = OperationBehaviorAttribute.DefaultImpersonationOption;
 
-            _faultContractInfos = parent.NewBehaviorCollection<FaultContractInfo>();
-            _parameterInspectors = parent.NewBehaviorCollection<IParameterInspector>();
-            _isOneWay = true;
+            this.callContextInitializers = parent.NewBehaviorCollection<ICallContextInitializer>();
+            this.faultContractInfos = parent.NewBehaviorCollection<FaultContractInfo>();
+            this.parameterInspectors = parent.NewBehaviorCollection<IParameterInspector>();
+            this.isOneWay = true;
         }
 
         public DispatchOperation(DispatchRuntime parent, string name, string action, string replyAction)
             : this(parent, name, action)
         {
-            _replyAction = replyAction;
-            _isOneWay = false;
+            this.replyAction = replyAction;
+            this.isOneWay = false;
         }
 
         public bool IsOneWay
         {
-            get { return _isOneWay; }
+            get { return this.isOneWay; }
         }
 
         public string Action
         {
-            get { return _action; }
+            get { return this.action; }
+        }
+
+        public SynchronizedCollection<ICallContextInitializer> CallContextInitializers
+        {
+            get { return this.callContextInitializers; }
         }
 
         public SynchronizedCollection<FaultContractInfo> FaultContractInfos
         {
-            get { return _faultContractInfos; }
+            get { return this.faultContractInfos; }
         }
 
         public bool AutoDisposeParameters
         {
-            get { return _autoDisposeParameters; }
+            get { return this.autoDisposeParameters; }
 
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _autoDisposeParameters = value;
+                    this.parent.InvalidateRuntime();
+                    this.autoDisposeParameters = value;
                 }
             }
         }
 
-        internal IDispatchMessageFormatter Formatter
+        public IDispatchMessageFormatter Formatter
         {
-            get { return _formatter; }
+            get { return this.formatter; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _formatter = value;
+                    this.parent.InvalidateRuntime();
+                    this.formatter = value;
                 }
             }
         }
@@ -93,114 +111,232 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                if (_faultFormatter == null)
+                if (this.faultFormatter == null)
                 {
-                   _faultFormatter = new DataContractSerializerFaultFormatter(_faultContractInfos);
+                    this.faultFormatter = new DataContractSerializerFaultFormatter(this.faultContractInfos);
                 }
-                return _faultFormatter;
+                return this.faultFormatter;
             }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _faultFormatter = value;
-                    _isFaultFormatterSetExplicit = true;
+                    this.parent.InvalidateRuntime();
+                    this.faultFormatter = value;
+                    this.isFaultFormatterSetExplicit = true;
                 }
+            }
+        }
+
+        internal bool IncludeExceptionDetailInFaults
+        {
+            get
+            {
+                return this.includeExceptionDetailInFaults;
+            }
+            set
+            {
+                this.includeExceptionDetailInFaults = value;
             }
         }
 
         internal bool IsFaultFormatterSetExplicit
         {
-            get { return _isFaultFormatterSetExplicit; }
+            get
+            {
+                return this.isFaultFormatterSetExplicit;
+            }
+        }
+
+        public ImpersonationOption Impersonation
+        {
+            get { return this.impersonation; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.impersonation = value;
+                }
+            }
         }
 
         internal bool HasNoDisposableParameters
         {
-            get { return _hasNoDisposableParameters; }
-            set { _hasNoDisposableParameters = value; }
+            get { return this.hasNoDisposableParameters; }
+            set { this.hasNoDisposableParameters = value; }
         }
 
         internal IDispatchMessageFormatter InternalFormatter
         {
-            get { return _formatter; }
-            set { _formatter = value; }
+            get { return this.formatter; }
+            set { this.formatter = value; }
         }
 
         internal IOperationInvoker InternalInvoker
         {
-            get { return _invoker; }
-            set { _invoker = value; }
+            get { return this.invoker; }
+            set { this.invoker = value; }
         }
 
         public IOperationInvoker Invoker
         {
-            get { return _invoker; }
+            get { return this.invoker; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _invoker = value;
+                    this.parent.InvalidateRuntime();
+                    this.invoker = value;
+                }
+            }
+        }
+
+        public bool IsTerminating
+        {
+            get { return this.isTerminating; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.isTerminating = value;
                 }
             }
         }
 
         internal bool IsSessionOpenNotificationEnabled
         {
-            get { return _isSessionOpenNotificationEnabled; }
+            get { return this.isSessionOpenNotificationEnabled; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _isSessionOpenNotificationEnabled = value;
+                    this.parent.InvalidateRuntime();
+                    this.isSessionOpenNotificationEnabled = value;
                 }
             }
         }
 
         public string Name
         {
-            get { return _name; }
+            get { return this.name; }
         }
 
         public SynchronizedCollection<IParameterInspector> ParameterInspectors
         {
-            get { return _parameterInspectors; }
+            get { return this.parameterInspectors; }
         }
 
         public DispatchRuntime Parent
         {
-            get { return _parent; }
+            get { return this.parent; }
+        }
+
+        internal ReceiveContextAcknowledgementMode ReceiveContextAcknowledgementMode
+        {
+            get;
+            set;
+        }
+
+        internal bool BufferedReceiveEnabled
+        {
+            get { return this.parent.ChannelDispatcher.BufferedReceiveEnabled; }
+            set { this.parent.ChannelDispatcher.BufferedReceiveEnabled = value; }
+        }
+
+        public bool ReleaseInstanceAfterCall
+        {
+            get { return this.releaseInstanceAfterCall; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.releaseInstanceAfterCall = value;
+                }
+            }
+        }
+
+        public bool ReleaseInstanceBeforeCall
+        {
+            get { return this.releaseInstanceBeforeCall; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.releaseInstanceBeforeCall = value;
+                }
+            }
         }
 
         public string ReplyAction
         {
-            get { return _replyAction; }
+            get { return this.replyAction; }
         }
 
         public bool DeserializeRequest
         {
-            get { return _deserializeRequest; }
+            get { return this.deserializeRequest; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _deserializeRequest = value;
+                    this.parent.InvalidateRuntime();
+                    this.deserializeRequest = value;
                 }
             }
         }
 
         public bool SerializeReply
         {
-            get { return _serializeReply; }
+            get { return this.serializeReply; }
             set
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.InvalidateRuntime();
-                    _serializeReply = value;
+                    this.parent.InvalidateRuntime();
+                    this.serializeReply = value;
+                }
+            }
+        }
+
+        public bool TransactionAutoComplete
+        {
+            get { return this.transactionAutoComplete; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.transactionAutoComplete = value;
+                }
+            }
+        }
+
+        public bool TransactionRequired
+        {
+            get { return this.transactionRequired; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.transactionRequired = value;
+                }
+            }
+        }
+
+        public bool IsInsideTransactedReceiveScope
+        {
+            get { return this.isInsideTransactedReceiveScope; }
+            set
+            {
+                lock (this.parent.ThisLock)
+                {
+                    this.parent.InvalidateRuntime();
+                    this.isInsideTransactedReceiveScope = value;
                 }
             }
         }

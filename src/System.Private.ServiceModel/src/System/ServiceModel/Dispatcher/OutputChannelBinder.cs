@@ -1,17 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class OutputChannelBinder : IChannelBinder
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+
+    class OutputChannelBinder : IChannelBinder
     {
-        private IOutputChannel _channel;
+        IOutputChannel channel;
 
         internal OutputChannelBinder(IOutputChannel channel)
         {
@@ -20,17 +21,17 @@ namespace System.ServiceModel.Dispatcher
                 Fx.Assert("OutputChannelBinder.OutputChannelBinder: (channel != null)");
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("channel");
             }
-            _channel = channel;
+            this.channel = channel;
         }
 
         public IChannel Channel
         {
-            get { return _channel; }
+            get { return this.channel; }
         }
 
         public bool HasSession
         {
-            get { return _channel is ISessionChannel<IOutputSession>; }
+            get { return this.channel is ISessionChannel<IOutputSession>; }
         }
 
         public Uri ListenUri
@@ -42,88 +43,89 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+#pragma warning suppress 56503 // [....], the property is really not implemented, cannot lie, API not public
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException()); 
             }
         }
 
         public EndpointAddress RemoteAddress
         {
-            get { return _channel.RemoteAddress; }
+            get { return this.channel.RemoteAddress; }
         }
 
         public void Abort()
         {
-            _channel.Abort();
+            this.channel.Abort();
         }
 
         public void CloseAfterFault(TimeSpan timeout)
         {
-            _channel.Close(timeout);
+            this.channel.Close(timeout);
         }
 
         public IAsyncResult BeginTryReceive(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public bool EndTryReceive(IAsyncResult result, out RequestContext requestContext)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public RequestContext CreateRequestContext(Message message)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public IAsyncResult BeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginSend(message, timeout, callback, state);
+            return this.channel.BeginSend(message, timeout, callback, state);
         }
 
         public void EndSend(IAsyncResult result)
         {
-            _channel.EndSend(result);
+            this.channel.EndSend(result);
         }
 
         public void Send(Message message, TimeSpan timeout)
         {
-            _channel.Send(message, timeout);
+            this.channel.Send(message, timeout);
         }
 
         public IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public Message EndRequest(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public bool TryReceive(TimeSpan timeout, out RequestContext requestContext)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public Message Request(Message message, TimeSpan timeout)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public bool WaitForMessage(TimeSpan timeout)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public bool EndWaitForMessage(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
     }
 }

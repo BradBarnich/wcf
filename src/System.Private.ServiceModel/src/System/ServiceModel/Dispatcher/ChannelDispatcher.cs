@@ -1,72 +1,125 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics.Application;
-using System.Text;
-using System.Threading.Tasks;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Globalization;
+    using System.Runtime;
+    using System.Runtime.Diagnostics;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.Text;
+    using System.Transactions;
+
     public class ChannelDispatcher : ChannelDispatcherBase
     {
-        private SynchronizedCollection<IChannelInitializer> _channelInitializers;
-        private CommunicationObjectManager<IChannel> _channels;
-        private EndpointDispatcherCollection _endpointDispatchers;
-        private Collection<IErrorHandler> _errorHandlers;
-        private EndpointDispatcherTable _filterTable;
-        private bool _receiveContextEnabled;
-        private readonly IChannelListener _listener = null;
-        private ListenerHandler _listenerHandler;
-        private int _maxTransactedBatchSize;
-        private MessageVersion _messageVersion;
-        private SynchronizedChannelCollection<IChannel> _pendingChannels; // app has not yet seen these.
-        private bool _receiveSynchronously;
-        private bool _sendAsynchronously;
-        private int _maxPendingReceives;
-        private bool _includeExceptionDetailInFaults;
-        private bool _session = false;
-        private SharedRuntimeState _shared;
-        private IDefaultCommunicationTimeouts _timeouts = null;
-        private TimeSpan _transactionTimeout;
-        private bool _performDefaultCloseInput;
-        private EventTraceActivity _eventTraceActivity;
-        private ErrorBehavior _errorBehavior;
+        ThreadSafeMessageFilterTable<EndpointAddress> addressTable;
+        string bindingName;
+        SynchronizedCollection<IChannelInitializer> channelInitializers;
+        CommunicationObjectManager<IChannel> channels;
+        EndpointDispatcherCollection endpointDispatchers;
+        Collection<IErrorHandler> errorHandlers;
+        EndpointDispatcherTable filterTable;
+        ServiceHostBase host;
+        bool isTransactedReceive;
+        bool asynchronousTransactedAcceptEnabled;
+        bool receiveContextEnabled;
+        readonly IChannelListener listener;
+        ListenerHandler listenerHandler;
+        int maxTransactedBatchSize;
+        MessageVersion messageVersion;
+        SynchronizedChannelCollection<IChannel> pendingChannels; // app has not yet seen these.
+        bool receiveSynchronously;
+        bool sendAsynchronously;
+        int maxPendingReceives;
+        bool includeExceptionDetailInFaults;
+        ServiceThrottle serviceThrottle;
+        bool session;
+        SharedRuntimeState shared;
+        IDefaultCommunicationTimeouts timeouts;
+        IsolationLevel transactionIsolationLevel = ServiceBehaviorAttribute.DefaultIsolationLevel;
+        bool transactionIsolationLevelSet;
+        TimeSpan transactionTimeout;
+        bool performDefaultCloseInput;
+        EventTraceActivity eventTraceActivity;
+        ErrorBehavior errorBehavior;
 
         internal ChannelDispatcher(SharedRuntimeState shared)
         {
             this.Initialize(shared);
         }
 
-        private void Initialize(SharedRuntimeState shared)
+        public ChannelDispatcher(IChannelListener listener)
+            : this(listener, null, null)
         {
-            _shared = shared;
-            _endpointDispatchers = new EndpointDispatcherCollection(this);
-            _channelInitializers = this.NewBehaviorCollection<IChannelInitializer>();
-            _channels = new CommunicationObjectManager<IChannel>(this.ThisLock);
-            _pendingChannels = new SynchronizedChannelCollection<IChannel>(this.ThisLock);
-            _errorHandlers = new Collection<IErrorHandler>();
-            _receiveSynchronously = false;
-            _transactionTimeout = TimeSpan.Zero;
-            _maxPendingReceives = 1; //Default maxpending receives is 1;
-            if (_listener != null)
+        }
+
+        public ChannelDispatcher(IChannelListener listener, string bindingName)
+            : this(listener, bindingName, null)
+        {
+        }
+
+        public ChannelDispatcher(IChannelListener listener, string bindingName, IDefaultCommunicationTimeouts timeouts)
+        {
+            if (listener == null)
             {
-                _listener.Faulted += new EventHandler(OnListenerFaulted);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("listener");
             }
+
+            this.listener = listener;
+            this.bindingName = bindingName;
+            this.timeouts = new ImmutableCommunicationTimeouts(timeouts);
+
+            this.session = ((listener is IChannelListener<IInputSessionChannel>) ||
+                            (listener is IChannelListener<IReplySessionChannel>) ||
+                            (listener is IChannelListener<IDuplexSessionChannel>));
+
+            this.Initialize(new SharedRuntimeState(true));
+        }
+
+        void Initialize(SharedRuntimeState shared)
+        {
+            this.shared = shared;
+            this.endpointDispatchers = new EndpointDispatcherCollection(this);
+            this.channelInitializers = this.NewBehaviorCollection<IChannelInitializer>();
+            this.channels = new CommunicationObjectManager<IChannel>(this.ThisLock);
+            this.pendingChannels = new SynchronizedChannelCollection<IChannel>(this.ThisLock);
+            this.errorHandlers = new Collection<IErrorHandler>();
+            this.isTransactedReceive = false;
+            this.asynchronousTransactedAcceptEnabled = false;
+            this.receiveSynchronously = false;
+            this.serviceThrottle = null;
+            this.transactionTimeout = TimeSpan.Zero;
+            this.maxPendingReceives = MultipleReceiveBinder.MultipleReceiveDefaults.MaxPendingReceives;
+            if (this.listener != null)
+            {
+                this.listener.Faulted += new EventHandler(OnListenerFaulted);
+            }
+        }
+
+        public string BindingName
+        {
+            get { return this.bindingName; }
+        }
+
+        public SynchronizedCollection<IChannelInitializer> ChannelInitializers
+        {
+            get { return this.channelInitializers; }
         }
 
         protected override TimeSpan DefaultCloseTimeout
         {
             get
             {
-                if (_timeouts != null)
+                if (this.timeouts != null)
                 {
-                    return _timeouts.CloseTimeout;
+                    return this.timeouts.CloseTimeout;
                 }
                 else
                 {
@@ -79,9 +132,9 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                if (_timeouts != null)
+                if (this.timeouts != null)
                 {
-                    return _timeouts.OpenTimeout;
+                    return this.timeouts.OpenTimeout;
                 }
                 else
                 {
@@ -92,59 +145,100 @@ namespace System.ServiceModel.Dispatcher
 
         internal EndpointDispatcherTable EndpointDispatcherTable
         {
-            get { return _filterTable; }
+            get { return this.filterTable; }
         }
 
         internal CommunicationObjectManager<IChannel> Channels
         {
-            get { return _channels; }
+            get { return this.channels; }
         }
 
         public SynchronizedCollection<EndpointDispatcher> Endpoints
         {
-            get { return _endpointDispatchers; }
+            get { return this.endpointDispatchers; }
         }
 
         public Collection<IErrorHandler> ErrorHandlers
         {
-            get { return _errorHandlers; }
+            get { return this.errorHandlers; }
         }
 
         public MessageVersion MessageVersion
         {
-            get { return _messageVersion; }
+            get { return this.messageVersion; }
             set
             {
-                _messageVersion = value;
+                this.messageVersion = value;
                 this.ThrowIfDisposedOrImmutable();
             }
         }
 
+        internal bool Session
+        {
+            get { return this.session; }
+        }
+
+        public override ServiceHostBase Host
+        {
+            get { return this.host; }
+        }
+
         internal bool EnableFaults
         {
-            get { return _shared.EnableFaults; }
+            get { return this.shared.EnableFaults; }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _shared.EnableFaults = value;
+                this.shared.EnableFaults = value;
             }
         }
 
         internal bool IsOnServer
         {
-            get { return _shared.IsOnServer; }
+            get { return this.shared.IsOnServer; }
+        }
+
+        public bool IsTransactedAccept
+        {
+            get { return this.isTransactedReceive && this.session; }
+        }
+
+        public bool IsTransactedReceive
+        {
+            get
+            {
+                return this.isTransactedReceive;
+            }
+            set
+            {
+                this.ThrowIfDisposedOrImmutable();
+                this.isTransactedReceive = value;
+            }
+        }
+
+        public bool AsynchronousTransactedAcceptEnabled
+        {
+            get
+            {
+                return this.asynchronousTransactedAcceptEnabled;
+            }
+            set
+            {
+                this.ThrowIfDisposedOrImmutable();
+                this.asynchronousTransactedAcceptEnabled = value;
+            }
         }
 
         public bool ReceiveContextEnabled
         {
             get
             {
-                return _receiveContextEnabled;
+                return this.receiveContextEnabled;
             }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _receiveContextEnabled = value;
+                this.receiveContextEnabled = value;
             }
         }
 
@@ -156,53 +250,66 @@ namespace System.ServiceModel.Dispatcher
 
         public override IChannelListener Listener
         {
-            get { return _listener; }
+            get { return this.listener; }
         }
 
         public int MaxTransactedBatchSize
         {
             get
             {
-                return _maxTransactedBatchSize;
+                return this.maxTransactedBatchSize;
             }
             set
             {
                 if (value < 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.ValueMustBeNonNegative));
+                                                    SR.GetString(SR.ValueMustBeNonNegative)));
                 }
 
                 this.ThrowIfDisposedOrImmutable();
-                _maxTransactedBatchSize = value;
+                this.maxTransactedBatchSize = value;
+            }
+        }
+
+        public ServiceThrottle ServiceThrottle
+        {
+            get
+            {
+                return this.serviceThrottle;
+            }
+            set
+            {
+                this.ThrowIfDisposedOrImmutable();
+                this.serviceThrottle = value;
             }
         }
 
         public bool ManualAddressing
         {
-            get { return _shared.ManualAddressing; }
+            get { return this.shared.ManualAddressing; }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _shared.ManualAddressing = value;
+                this.shared.ManualAddressing = value;
             }
         }
 
         internal SynchronizedChannelCollection<IChannel> PendingChannels
         {
-            get { return _pendingChannels; }
+            get { return this.pendingChannels; }
         }
 
         public bool ReceiveSynchronously
         {
             get
             {
-                return _receiveSynchronously;
+                return this.receiveSynchronously;
             }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _receiveSynchronously = value;
+                this.receiveSynchronously = value;
             }
         }
 
@@ -210,53 +317,110 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                return _sendAsynchronously;
+                return this.sendAsynchronously;
             }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _sendAsynchronously = value;
+                this.sendAsynchronously = value;
             }
+
         }
 
         public int MaxPendingReceives
         {
             get
             {
-                return _maxPendingReceives;
+                return this.maxPendingReceives;
             }
             set
             {
                 this.ThrowIfDisposedOrImmutable();
-                _maxPendingReceives = value;
+                this.maxPendingReceives = value;
             }
         }
 
         public bool IncludeExceptionDetailInFaults
         {
-            get { return _includeExceptionDetailInFaults; }
+            get { return this.includeExceptionDetailInFaults; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.ThrowIfDisposedOrImmutable();
-                    _includeExceptionDetailInFaults = value;
+                    this.includeExceptionDetailInFaults = value;
                 }
             }
         }
 
         internal IDefaultCommunicationTimeouts DefaultCommunicationTimeouts
         {
-            get { return _timeouts; }
+            get { return this.timeouts; }
         }
 
-        private void AbortPendingChannels()
+        public IsolationLevel TransactionIsolationLevel
+        {
+            get { return this.transactionIsolationLevel; }
+            set
+            {
+                switch (value)
+                {
+                    case IsolationLevel.Serializable:
+                    case IsolationLevel.RepeatableRead:
+                    case IsolationLevel.ReadCommitted:
+                    case IsolationLevel.ReadUncommitted:
+                    case IsolationLevel.Unspecified:
+                    case IsolationLevel.Chaos:
+                    case IsolationLevel.Snapshot:
+                        break;
+
+                    default:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
+                }
+
+                this.ThrowIfDisposedOrImmutable();
+                this.transactionIsolationLevel = value;
+                this.transactionIsolationLevelSet = true;
+            }
+        }
+
+        internal bool TransactionIsolationLevelSet
+        {
+            get { return this.transactionIsolationLevelSet; }
+        }
+
+        public TimeSpan TransactionTimeout
+        {
+            get
+            {
+                return this.transactionTimeout;
+            }
+            set
+            {
+                if (value < TimeSpan.Zero)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
+                }
+
+                if (TimeoutHelper.IsTooLarge(value))
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
+                }
+
+                this.ThrowIfDisposedOrImmutable();
+                this.transactionTimeout = value;
+            }
+        }
+
+        void AbortPendingChannels()
         {
             lock (this.ThisLock)
             {
-                for (int i = _pendingChannels.Count - 1; i >= 0; i--)
+                for (int i = this.pendingChannels.Count - 1; i >= 0; i--)
                 {
-                    _pendingChannels[i].Abort();
+                    this.pendingChannels[i].Abort();
                 }
             }
         }
@@ -268,21 +432,30 @@ namespace System.ServiceModel.Dispatcher
             // interface that has timeouts and async
             this.CloseInput();
 
-            if (_performDefaultCloseInput)
+            if (this.performDefaultCloseInput)
             {
                 TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
                 lock (this.ThisLock)
                 {
-                    ListenerHandler handler = _listenerHandler;
+                    if (DiagnosticUtility.ShouldTraceInformation)
+                    {
+                        for (int i = 0; i < this.endpointDispatchers.Count; i++)
+                        {
+                            EndpointDispatcher endpointDispatcher = this.endpointDispatchers[i];
+                            this.TraceEndpointLifetime(endpointDispatcher, TraceCode.EndpointListenerClose, SR.GetString(SR.TraceCodeEndpointListenerClose));
+                        }
+                    }
+
+                    ListenerHandler handler = this.listenerHandler;
                     if (handler != null)
                     {
                         handler.CloseInput(timeoutHelper.RemainingTime());
                     }
                 }
 
-                if (!_session)
+                if (!this.session)
                 {
-                    ListenerHandler handler = _listenerHandler;
+                    ListenerHandler handler = this.listenerHandler;
                     if (handler != null)
                     {
                         handler.Close(timeoutHelper.RemainingTime());
@@ -291,12 +464,26 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        public override void CloseInput()
+        internal void ReleasePerformanceCounters()
         {
-            _performDefaultCloseInput = true;
+            if (PerformanceCounters.PerformanceCountersEnabled)
+            {
+                for (int i = 0; i < this.endpointDispatchers.Count; i++)
+                {
+                    if (null != this.endpointDispatchers[i])
+                    {
+                        this.endpointDispatchers[i].ReleasePerformanceCounters();
+                    }
+                }
+            }
         }
 
-        private void OnListenerFaulted(object sender, EventArgs e)
+        public override void CloseInput()
+        {
+            this.performDefaultCloseInput = true;
+        }
+
+        void OnListenerFaulted(object sender, EventArgs e)
         {
             this.Fault();
         }
@@ -313,9 +500,9 @@ namespace System.ServiceModel.Dispatcher
 
             lock (this.ThisLock)
             {
-                if (_errorBehavior != null)
+                if (this.errorBehavior != null)
                 {
-                    behavior = _errorBehavior;
+                    behavior = this.errorBehavior;
                 }
                 else
                 {
@@ -338,9 +525,9 @@ namespace System.ServiceModel.Dispatcher
             this.ThrowIfDisposedOrNotOpen();
             try
             {
-                for (int i = 0; i < _channelInitializers.Count; ++i)
+                for (int i = 0; i < this.channelInitializers.Count; ++i)
                 {
-                    _channelInitializers[i].Initialize(channel);
+                    this.channelInitializers[i].Initialize(channel);
                 }
             }
             catch (Exception e)
@@ -353,12 +540,32 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        internal EndpointDispatcher Match(Message message, out bool addressMatched)
+        {
+            lock (this.ThisLock)
+            {
+                return this.filterTable.Lookup(message, out addressMatched);
+            }
+        }
+
         internal SynchronizedCollection<T> NewBehaviorCollection<T>()
         {
             return new ChannelDispatcherBehaviorCollection<T>(this);
         }
 
-        private void OnAddEndpoint(EndpointDispatcher endpoint)
+        internal bool HasApplicationEndpoints()
+        {
+            foreach (EndpointDispatcher endpointDispatcher in this.Endpoints)
+            {
+                if (!endpointDispatcher.IsSystemEndpoint)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void OnAddEndpoint(EndpointDispatcher endpoint)
         {
             lock (this.ThisLock)
             {
@@ -366,18 +573,28 @@ namespace System.ServiceModel.Dispatcher
 
                 if (this.State == CommunicationState.Opened)
                 {
-                    _filterTable.AddEndpoint(endpoint);
+                    if (this.addressTable != null)
+                    {
+                        this.addressTable.Add(endpoint.AddressFilter, endpoint.EndpointAddress, endpoint.FilterPriority);
+                    }
+
+                    this.filterTable.AddEndpoint(endpoint);
                 }
             }
         }
 
-        private void OnRemoveEndpoint(EndpointDispatcher endpoint)
+        void OnRemoveEndpoint(EndpointDispatcher endpoint)
         {
             lock (this.ThisLock)
             {
                 if (this.State == CommunicationState.Opened)
                 {
-                    _filterTable.RemoveEndpoint(endpoint);
+                    this.filterTable.RemoveEndpoint(endpoint);
+
+                    if (this.addressTable != null)
+                    {
+                        this.addressTable.Remove(endpoint.AddressFilter);
+                    }
                 }
 
                 endpoint.Detach(this);
@@ -386,12 +603,12 @@ namespace System.ServiceModel.Dispatcher
 
         protected override void OnAbort()
         {
-            if (_listener != null)
+            if (this.listener != null)
             {
-                _listener.Abort();
+                this.listener.Abort();
             }
 
-            ListenerHandler handler = _listenerHandler;
+            ListenerHandler handler = this.listenerHandler;
             if (handler != null)
             {
                 handler.Abort();
@@ -404,12 +621,12 @@ namespace System.ServiceModel.Dispatcher
         {
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
 
-            if (_listener != null)
+            if (this.listener != null)
             {
-                _listener.Close(timeoutHelper.RemainingTime());
+                this.listener.Close(timeoutHelper.RemainingTime());
             }
 
-            ListenerHandler handler = _listenerHandler;
+            ListenerHandler handler = this.listenerHandler;
             if (handler != null)
             {
                 handler.Close(timeoutHelper.RemainingTime());
@@ -422,12 +639,12 @@ namespace System.ServiceModel.Dispatcher
         {
             List<ICommunicationObject> list = new List<ICommunicationObject>();
 
-            if (_listener != null)
+            if (this.listener != null)
             {
-                list.Add(_listener);
+                list.Add(this.listener);
             }
 
-            ListenerHandler handler = _listenerHandler;
+            ListenerHandler handler = this.listenerHandler;
             if (handler != null)
             {
                 list.Add(handler);
@@ -451,17 +668,27 @@ namespace System.ServiceModel.Dispatcher
         protected override void OnClosed()
         {
             base.OnClosed();
+
+            if (DiagnosticUtility.ShouldTraceInformation)
+            {
+                for (int i = 0; i < this.endpointDispatchers.Count; i++)
+                {
+                    EndpointDispatcher endpointDispatcher = this.endpointDispatchers[i];
+                    this.TraceEndpointLifetime(endpointDispatcher, TraceCode.EndpointListenerClose, SR.GetString(SR.TraceCodeEndpointListenerClose));
+                }
+            }
         }
 
         protected override void OnOpen(TimeSpan timeout)
         {
+            ThrowIfNotAttachedToHost();
             ThrowIfNoMessageVersion();
 
-            if (_listener != null)
+            if (this.listener != null)
             {
                 try
                 {
-                    _listener.Open(timeout);
+                    this.listener.Open(timeout);
                 }
                 catch (InvalidOperationException e)
                 {
@@ -470,30 +697,19 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        protected internal override Task OnCloseAsync(TimeSpan timeout)
-        {
-            this.OnClose(timeout);
-            return TaskHelpers.CompletedTask();
-        }
-
-        protected internal override Task OnOpenAsync(TimeSpan timeout)
-        {
-            this.OnOpen(timeout);
-            return TaskHelpers.CompletedTask();
-        }
-
-        private InvalidOperationException CreateOuterExceptionWithEndpointsInformation(InvalidOperationException e)
+        InvalidOperationException CreateOuterExceptionWithEndpointsInformation(InvalidOperationException e)
         {
             string endpointContractNames = CreateContractListString();
 
             if (String.IsNullOrEmpty(endpointContractNames))
             {
-                return new InvalidOperationException(SR.Format(SR.SFxChannelDispatcherUnableToOpen1, _listener.Uri), e);
+                return new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherUnableToOpen1, this.listener.Uri), e);
             }
             else
             {
-                return new InvalidOperationException(SR.Format(SR.SFxChannelDispatcherUnableToOpen2, _listener.Uri, endpointContractNames), e);
+                return new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherUnableToOpen2, this.listener.Uri, endpointContractNames), e);
             }
+
         }
 
         internal string CreateContractListString()
@@ -531,13 +747,14 @@ namespace System.ServiceModel.Dispatcher
 
         protected override IAsyncResult OnBeginOpen(TimeSpan timeout, AsyncCallback callback, object state)
         {
+            ThrowIfNotAttachedToHost();
             ThrowIfNoMessageVersion();
 
-            if (_listener != null)
+            if (this.listener != null)
             {
                 try
                 {
-                    return _listener.BeginOpen(timeout, callback, state);
+                    return this.listener.BeginOpen(timeout, callback, state);
                 }
                 catch (InvalidOperationException e)
                 {
@@ -552,11 +769,11 @@ namespace System.ServiceModel.Dispatcher
 
         protected override void OnEndOpen(IAsyncResult result)
         {
-            if (_listener != null)
+            if (this.listener != null)
             {
                 try
                 {
-                    _listener.EndOpen(result);
+                    this.listener.EndOpen(result);
                 }
                 catch (InvalidOperationException e)
                 {
@@ -571,12 +788,14 @@ namespace System.ServiceModel.Dispatcher
 
         protected override void OnOpening()
         {
+            ThrowIfNotAttachedToHost();
+
             if (TD.ListenerOpenStartIsEnabled())
             {
-                _eventTraceActivity = EventTraceActivity.GetFromThreadOrCreate();
-                TD.ListenerOpenStart(_eventTraceActivity,
-                    (this.Listener != null) ? this.Listener.Uri.ToString() : string.Empty, Guid.Empty);
-                // Desktop: (this.host != null && host.EventTraceActivity != null) ? this.host.EventTraceActivity.ActivityId : Guid.Empty);
+                this.eventTraceActivity = EventTraceActivity.GetFromThreadOrCreate();
+                TD.ListenerOpenStart(this.eventTraceActivity,
+                    (this.Listener != null) ? this.Listener.Uri.ToString() : string.Empty,
+                    (this.host != null && host.EventTraceActivity != null) ? this.host.EventTraceActivity.ActivityId : Guid.Empty);
             }
 
             base.OnOpening();
@@ -584,31 +803,49 @@ namespace System.ServiceModel.Dispatcher
 
         protected override void OnOpened()
         {
+            ThrowIfNotAttachedToHost();
             base.OnOpened();
 
             if (TD.ListenerOpenStopIsEnabled())
             {
-                TD.ListenerOpenStop(_eventTraceActivity);
-                _eventTraceActivity = null; // clear this since we don't need this anymore.
+                TD.ListenerOpenStop(this.eventTraceActivity);
+                this.eventTraceActivity = null; // clear this since we don't need this anymore.
             }
 
-            _errorBehavior = new ErrorBehavior(this);
+            this.errorBehavior = new ErrorBehavior(this);
 
-            _filterTable = new EndpointDispatcherTable(this.ThisLock);
-            for (int i = 0; i < _endpointDispatchers.Count; i++)
+            this.filterTable = new EndpointDispatcherTable(this.ThisLock);
+            for (int i = 0; i < this.endpointDispatchers.Count; i++)
             {
-                EndpointDispatcher endpoint = _endpointDispatchers[i];
+                EndpointDispatcher endpoint = this.endpointDispatchers[i];
 
                 // Force a build of the runtime to catch any unexpected errors before we are done opening.
+                endpoint.DispatchRuntime.GetRuntime();
                 // Lock down the DispatchRuntime.
                 endpoint.DispatchRuntime.LockDownProperties();
 
-                _filterTable.AddEndpoint(endpoint);
+                this.filterTable.AddEndpoint(endpoint);
+
+                if ((this.addressTable != null) && (endpoint.OriginalAddress != null))
+                {
+                    this.addressTable.Add(endpoint.AddressFilter, endpoint.OriginalAddress, endpoint.FilterPriority);
+                }
+
+                if (DiagnosticUtility.ShouldTraceInformation)
+                {
+                    this.TraceEndpointLifetime(endpoint, TraceCode.EndpointListenerOpen, SR.GetString(SR.TraceCodeEndpointListenerOpen));
+                }
             }
 
-            IListenerBinder binder = ListenerBinder.GetBinder(_listener, _messageVersion);
-            _listenerHandler = new ListenerHandler(binder, this, _timeouts);
-            _listenerHandler.Open();  // This never throws, which is why it's ok for it to happen in OnOpened
+            ServiceThrottle throttle = this.serviceThrottle;
+            if (throttle == null)
+            {
+                throttle = this.host.ServiceThrottle;
+            }
+
+            IListenerBinder binder = ListenerBinder.GetBinder(this.listener, this.messageVersion);
+            this.listenerHandler = new ListenerHandler(binder, this, this.host, throttle, this.timeouts);
+            this.listenerHandler.Open();  // This never throws, which is why it's ok for it to happen in OnOpened
         }
 
         internal void ProvideFault(Exception e, FaultConverter faultConverter, ref ErrorHandlerFaultInfo faultInfo)
@@ -617,9 +854,9 @@ namespace System.ServiceModel.Dispatcher
 
             lock (this.ThisLock)
             {
-                if (_errorBehavior != null)
+                if (this.errorBehavior != null)
                 {
-                    behavior = _errorBehavior;
+                    behavior = this.errorBehavior;
                 }
                 else
                 {
@@ -630,36 +867,112 @@ namespace System.ServiceModel.Dispatcher
             behavior.ProvideFault(e, faultConverter, ref faultInfo);
         }
 
+        internal void SetEndpointAddressTable(ThreadSafeMessageFilterTable<EndpointAddress> table)
+        {
+            if (table == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("table");
+            }
+
+            this.ThrowIfDisposedOrImmutable();
+
+            this.addressTable = table;
+        }
+
         internal new void ThrowIfDisposedOrImmutable()
         {
             base.ThrowIfDisposedOrImmutable();
-            _shared.ThrowIfImmutable();
+            this.shared.ThrowIfImmutable();
         }
 
-        private void ThrowIfNoMessageVersion()
+        void ThrowIfNotAttachedToHost()
         {
-            if (_messageVersion == null)
+            // if we are on the server, we need a host
+            // if we are on the client, we never call Open(), so this method is not invoked
+            if (this.host == null)
             {
-                Exception error = new InvalidOperationException(SR.SFxChannelDispatcherNoMessageVersion);
+                Exception error = new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherNoHost0));
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
             }
         }
 
-        internal class EndpointDispatcherCollection : SynchronizedCollection<EndpointDispatcher>
+        void ThrowIfNoMessageVersion()
         {
-            private ChannelDispatcher _owner;
+            if (this.messageVersion == null)
+            {
+                Exception error = new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherNoMessageVersion));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
+            }
+        }
+
+        void TraceEndpointLifetime(EndpointDispatcher endpoint, int traceCode, string traceDescription)
+        {
+            if (DiagnosticUtility.ShouldTraceInformation)
+            {
+                Dictionary<string, object> values = new Dictionary<string, object>(3)
+                {
+                    { "ContractNamespace",  endpoint.ContractNamespace },
+                    { "ContractName",  endpoint.ContractName },
+                    { "Endpoint",  endpoint.ListenUri }
+                };
+                TraceUtility.TraceEvent(TraceEventType.Information, traceCode,
+                    traceDescription, new DictionaryTraceRecord(values), endpoint, null);
+            }
+        }
+
+        protected override void Attach(ServiceHostBase host)
+        {
+            if (host == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("host");
+            }
+
+            ServiceHostBase serviceHost = host;
+
+            this.ThrowIfDisposedOrImmutable();
+
+            if (this.host != null)
+            {
+                Exception error = new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherMultipleHost0));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
+            }
+
+            this.host = serviceHost;
+        }
+
+        protected override void Detach(ServiceHostBase host)
+        {
+            if (host == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("host");
+            }
+
+            if (this.host != host)
+            {
+                Exception error = new InvalidOperationException(SR.GetString(SR.SFxChannelDispatcherDifferentHost0));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
+            }
+
+            this.ThrowIfDisposedOrImmutable();
+
+            this.host = null;
+        }
+
+        class EndpointDispatcherCollection : SynchronizedCollection<EndpointDispatcher>
+        {
+            ChannelDispatcher owner;
 
             internal EndpointDispatcherCollection(ChannelDispatcher owner)
                 : base(owner.ThisLock)
             {
-                _owner = owner;
+                this.owner = owner;
             }
 
             protected override void ClearItems()
             {
                 foreach (EndpointDispatcher item in this.Items)
                 {
-                    _owner.OnRemoveEndpoint(item);
+                    this.owner.OnRemoveEndpoint(item);
                 }
                 base.ClearItems();
             }
@@ -669,7 +982,7 @@ namespace System.ServiceModel.Dispatcher
                 if (item == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
 
-                _owner.OnAddEndpoint(item);
+                this.owner.OnAddEndpoint(item);
                 base.InsertItem(index, item);
             }
 
@@ -677,29 +990,29 @@ namespace System.ServiceModel.Dispatcher
             {
                 EndpointDispatcher item = this.Items[index];
                 base.RemoveItem(index);
-                _owner.OnRemoveEndpoint(item);
+                this.owner.OnRemoveEndpoint(item);
             }
 
             protected override void SetItem(int index, EndpointDispatcher item)
             {
-                Exception error = new InvalidOperationException(SR.SFxCollectionDoesNotSupportSet0);
+                Exception error = new InvalidOperationException(SR.GetString(SR.SFxCollectionDoesNotSupportSet0));
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
             }
         }
 
-        internal class ChannelDispatcherBehaviorCollection<T> : SynchronizedCollection<T>
+        class ChannelDispatcherBehaviorCollection<T> : SynchronizedCollection<T>
         {
-            private ChannelDispatcher _outer;
+            ChannelDispatcher outer;
 
             internal ChannelDispatcherBehaviorCollection(ChannelDispatcher outer)
                 : base(outer.ThisLock)
             {
-                _outer = outer;
+                this.outer = outer;
             }
 
             protected override void ClearItems()
             {
-                _outer.ThrowIfDisposedOrImmutable();
+                this.outer.ThrowIfDisposedOrImmutable();
                 base.ClearItems();
             }
 
@@ -710,13 +1023,13 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.ThrowIfDisposedOrImmutable();
+                this.outer.ThrowIfDisposedOrImmutable();
                 base.InsertItem(index, item);
             }
 
             protected override void RemoveItem(int index)
             {
-                _outer.ThrowIfDisposedOrImmutable();
+                this.outer.ThrowIfDisposedOrImmutable();
                 base.RemoveItem(index);
             }
 
@@ -727,7 +1040,7 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.ThrowIfDisposedOrImmutable();
+                this.outer.ThrowIfDisposedOrImmutable();
                 base.SetItem(index, item);
             }
         }

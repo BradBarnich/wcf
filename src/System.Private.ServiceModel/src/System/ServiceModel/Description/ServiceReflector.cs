@@ -1,18 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Reflection;
-using System.Runtime;
-using System.Xml;
-using System.Threading.Tasks;
-using System.Threading;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
-    internal static class NamingHelper
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Reflection;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Xml;
+    using System.Threading.Tasks;
+    using System.Threading;
+
+    static class NamingHelper
     {
         internal const string DefaultNamespace = "http://tempuri.org/";
         internal const string DefaultServiceName = "service";
@@ -47,18 +47,9 @@ namespace System.ServiceModel.Description
 
         internal static string TypeName(Type t)
         {
-            Type[] args = null;
-            if (t.GetTypeInfo().IsGenericType)
+            if (t.IsGenericType || t.ContainsGenericParameters)
             {
-                args = t.GetTypeInfo().GenericTypeArguments;
-            }
-            else if (t.GetTypeInfo().ContainsGenericParameters)
-            {
-                args = t.GetTypeInfo().GenericTypeParameters;
-            }
-
-            if (args != null)
-            {
+                Type[] args = t.GetGenericArguments();
                 int nameEnd = t.Name.IndexOf('`');
                 string result = nameEnd > 0 ? t.Name.Substring(0, nameEnd) : t.Name;
                 result += "Of";
@@ -153,14 +144,14 @@ namespace System.ServiceModel.Description
         {
             Uri uri;
             if (!Uri.TryCreate(ns, UriKind.RelativeOrAbsolute, out uri))
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.Format(SR.SFXUnvalidNamespaceValue, ns, propName));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFXUnvalidNamespaceValue, ns, propName));
         }
 
         internal static void CheckUriParameter(string ns, string paramName)
         {
             Uri uri;
             if (!Uri.TryCreate(ns, UriKind.RelativeOrAbsolute, out uri))
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(paramName, SR.Format(SR.SFXUnvalidNamespaceParam, ns));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(paramName, SR.GetString(SR.SFXUnvalidNamespaceParam, ns));
         }
 
         // Converts names that contain characters that are not permitted in XML names to valid names.
@@ -181,17 +172,17 @@ namespace System.ServiceModel.Description
             return XmlConvert.DecodeName(name);
         }
 
-        private static bool IsAlpha(char ch)
+        static bool IsAlpha(char ch)
         {
             return (ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z');
         }
 
-        private static bool IsDigit(char ch)
+        static bool IsDigit(char ch)
         {
             return (ch >= '0' && ch <= '9');
         }
 
-        private static bool IsAsciiLocalName(string localName)
+        static bool IsAsciiLocalName(string localName)
         {
             Fx.Assert(null != localName, "");
             if (!IsAlpha(localName[0]))
@@ -221,8 +212,8 @@ namespace System.ServiceModel.Description
 
     internal class XmlName
     {
-        private string _decoded;
-        private string _encoded;
+        string decoded;
+        string encoded;
 
         internal XmlName(string name)
             : this(name, false)
@@ -234,11 +225,11 @@ namespace System.ServiceModel.Description
             if (isEncoded)
             {
                 ValidateEncodedName(name, true /*allowNull*/);
-                _encoded = name;
+                encoded = name;
             }
             else
             {
-                _decoded = name;
+                decoded = name;
             }
         }
 
@@ -246,9 +237,9 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_encoded == null)
-                    _encoded = NamingHelper.XmlName(_decoded);
-                return _encoded;
+                if (encoded == null)
+                    encoded = NamingHelper.XmlName(decoded);
+                return encoded;
             }
         }
 
@@ -256,13 +247,13 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_decoded == null)
-                    _decoded = NamingHelper.CodeName(_encoded);
-                return _decoded;
+                if (decoded == null)
+                    decoded = NamingHelper.CodeName(encoded);
+                return decoded;
             }
         }
 
-        private static void ValidateEncodedName(string name, bool allowNull)
+        static void ValidateEncodedName(string name, bool allowNull)
         {
             if (allowNull && name == null)
                 return;
@@ -276,13 +267,13 @@ namespace System.ServiceModel.Description
             }
         }
 
-        private bool IsEmpty { get { return string.IsNullOrEmpty(_encoded) && string.IsNullOrEmpty(_decoded); } }
+        bool IsEmpty { get { return string.IsNullOrEmpty(encoded) && string.IsNullOrEmpty(decoded); } }
         internal static bool IsNullOrEmpty(XmlName xmlName)
         {
             return xmlName == null || xmlName.IsEmpty;
         }
 
-        private bool Matches(XmlName xmlName)
+        bool Matches(XmlName xmlName)
         {
             return string.Equals(this.EncodedName, xmlName.EncodedName, StringComparison.Ordinal);
         }
@@ -317,11 +308,11 @@ namespace System.ServiceModel.Description
 
         public override string ToString()
         {
-            if (_encoded == null && _decoded == null)
+            if (encoded == null && decoded == null)
                 return null;
-            if (_encoded != null)
-                return _encoded;
-            return _decoded;
+            if (encoded != null)
+                return encoded;
+            return decoded;
         }
 
         public static bool operator ==(XmlName a, XmlName b)
@@ -342,6 +333,7 @@ namespace System.ServiceModel.Description
 
     static internal class ServiceReflector
     {
+        internal const BindingFlags ServiceModelBindingFlags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance;
         internal const string BeginMethodNamePrefix = "Begin";
         internal const string EndMethodNamePrefix = "End";
         internal static readonly Type VoidType = typeof(void);
@@ -350,16 +342,16 @@ namespace System.ServiceModel.Description
         internal static readonly Type taskTResultType = typeof(Task<>);
         internal static readonly Type CancellationTokenType = typeof(CancellationToken);
         internal static readonly Type IProgressType = typeof(IProgress<>);
-        private static readonly Type s_asyncCallbackType = typeof(AsyncCallback);
-        private static readonly Type s_asyncResultType = typeof(IAsyncResult);
-        private static readonly Type s_objectType = typeof(object);
-        private static readonly Type s_OperationContractAttributeType = typeof(OperationContractAttribute);
+        static readonly Type asyncCallbackType = typeof(AsyncCallback);
+        static readonly Type asyncResultType = typeof(IAsyncResult);
+        static readonly Type objectType = typeof(object);
+        static readonly Type OperationContractAttributeType = typeof(OperationContractAttribute);
 
         static internal Type GetOperationContractProviderType(MethodInfo method)
         {
             if (GetSingleAttribute<OperationContractAttribute>(method) != null)
             {
-                return s_OperationContractAttributeType;
+                return OperationContractAttributeType;
             }
             IOperationContractAttributeProvider provider = GetFirstAttribute<IOperationContractAttributeProvider>(method);
             if (provider != null)
@@ -384,14 +376,14 @@ namespace System.ServiceModel.Description
                 Type t = GetAncestorImplicitContractClass(service);
                 if (t != null)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxContractInheritanceRequiresInterfaces2, service, t)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxContractInheritanceRequiresInterfaces2, service, t)));
                 }
                 foreach (MethodInfo method in GetMethodsInternal(service))
                 {
                     Type operationContractProviderType = GetOperationContractProviderType(method);
-                    if (operationContractProviderType == s_OperationContractAttributeType)
+                    if (operationContractProviderType == OperationContractAttributeType)
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.ServicesWithoutAServiceContractAttributeCan2, operationContractProviderType.Name, method.Name, service.FullName)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ServicesWithoutAServiceContractAttributeCan2, operationContractProviderType.Name, method.Name, service.FullName)));
                     }
                 }
             }
@@ -401,7 +393,7 @@ namespace System.ServiceModel.Description
                 {
                     if (implicitContract)
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxContractInheritanceRequiresInterfaces, service, t)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxContractInheritanceRequiresInterfaces, service, t)));
                     }
                     types.Add(t);
                 }
@@ -410,9 +402,9 @@ namespace System.ServiceModel.Description
             return types;
         }
 
-        private static Type GetAncestorImplicitContractClass(Type service)
+        static Type GetAncestorImplicitContractClass(Type service)
         {
-            for (service = service.BaseType(); service != null; service = service.BaseType())
+            for (service = service.BaseType; service != null; service = service.BaseType)
             {
                 if (ServiceReflector.GetSingleAttribute<ServiceContractAttribute>(service) != null)
                 {
@@ -432,7 +424,7 @@ namespace System.ServiceModel.Description
                     types.Add(t);
                 }
             }
-            for (service = service.BaseType(); service != null; service = service.BaseType())
+            for (service = service.BaseType; service != null; service = service.BaseType)
             {
                 if (ServiceReflector.GetSingleAttribute<ServiceContractAttribute>(service) != null)
                 {
@@ -442,33 +434,16 @@ namespace System.ServiceModel.Description
             return types;
         }
 
-        static internal object[] GetCustomAttributes(CustomAttributeProvider attrProvider, Type attrType)
+        static internal object[] GetCustomAttributes(ICustomAttributeProvider attrProvider, Type attrType)
         {
             return GetCustomAttributes(attrProvider, attrType, false);
         }
 
-        static internal object[] GetCustomAttributes(CustomAttributeProvider attrProvider, Type attrType, bool inherit)
+        static internal object[] GetCustomAttributes(ICustomAttributeProvider attrProvider, Type attrType, bool inherit)
         {
             try
             {
-                if (typeof(Attribute).IsAssignableFrom(attrType))
-                {
-                    return attrProvider.GetCustomAttributes(attrType, inherit);
-                }
-                else
-                {
-                    List<object> attrTypeAttributes = new List<object>();
-                    object[] allCustomAttributes = attrProvider.GetCustomAttributes(inherit);
-                    foreach (object customAttribute in allCustomAttributes)
-                    {
-                        if (attrType.IsAssignableFrom(customAttribute.GetType()))
-                        {
-                            attrTypeAttributes.Add(customAttribute);
-                        }
-                    }
-
-                    return attrTypeAttributes.ToArray();
-                }
+                return attrProvider.GetCustomAttributes(attrType, inherit);
             }
             catch (Exception e)
             {
@@ -477,20 +452,31 @@ namespace System.ServiceModel.Description
                     throw;
                 }
 
-                Type type = attrProvider.Type;
-                MethodInfo method = attrProvider.MethodInfo;
-                ParameterInfo param = attrProvider.ParameterInfo;
+                // where the exception is CustomAttributeFormatException and the InnerException is a TargetInvocationException, 
+                // drill into the InnerException as this will provide a better error experience (fewer nested InnerExceptions)
+                if (e is CustomAttributeFormatException && e.InnerException != null)
+                {
+                    e = e.InnerException;
+                    if (e is TargetInvocationException && e.InnerException != null)
+                    {
+                        e = e.InnerException;
+                    }
+                }
+
+                Type type = attrProvider as Type;
+                MethodInfo method = attrProvider as MethodInfo;
+                ParameterInfo param = attrProvider as ParameterInfo;
                 // there is no good way to know if this is a return type attribute
                 if (type != null)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.SFxErrorReflectingOnType2, attrType.Name, type.Name), e));
+                        SR.GetString(SR.SFxErrorReflectingOnType2, attrType.Name, type.Name), e));
                 }
                 else if (method != null)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.SFxErrorReflectingOnMethod3,
-                                     attrType.Name, method.Name, method.DeclaringType.Name), e));
+                        SR.GetString(SR.SFxErrorReflectingOnMethod3,
+                                     attrType.Name, method.Name, method.ReflectedType.Name), e));
                 }
                 else if (param != null)
                 {
@@ -498,16 +484,16 @@ namespace System.ServiceModel.Description
                     if (method != null)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                            SR.Format(SR.SFxErrorReflectingOnParameter4,
-                                         attrType.Name, param.Name, method.Name, method.DeclaringType.Name), e));
+                            SR.GetString(SR.SFxErrorReflectingOnParameter4,
+                                         attrType.Name, param.Name, method.Name, method.ReflectedType.Name), e));
                     }
                 }
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.SFxErrorReflectionOnUnknown1, attrType.Name), e));
+                    SR.GetString(SR.SFxErrorReflectionOnUnknown1, attrType.Name), e));
             }
         }
 
-        static internal T GetFirstAttribute<T>(CustomAttributeProvider attrProvider)
+        static internal T GetFirstAttribute<T>(ICustomAttributeProvider attrProvider)
             where T : class
         {
             Type attrType = typeof(T);
@@ -522,35 +508,67 @@ namespace System.ServiceModel.Description
             }
         }
 
-        static internal T GetSingleAttribute<T>(CustomAttributeProvider attrProvider)
+#if !NO_GENERIC
+        static internal T GetSingleAttribute<T>(ICustomAttributeProvider attrProvider)
             where T : class
         {
             Type attrType = typeof(T);
             object[] attrs = GetCustomAttributes(attrProvider, attrType);
-            if (attrs == null || attrs.Length == 0)
+            if (attrs.Length == 0)
             {
                 return null;
             }
             else if (attrs.Length > 1)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.tooManyAttributesOfTypeOn2, attrType, attrProvider.ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.tooManyAttributesOfTypeOn2, attrType, attrProvider.ToString())));
             }
             else
             {
                 return attrs[0] as T;
             }
         }
-        static internal T GetRequiredSingleAttribute<T>(CustomAttributeProvider attrProvider)
+#else
+        static internal object GetSingleAttribute(Type attrType, ICustomAttributeProvider attrProvider)
+        {
+            object[] attrs = GetCustomAttributes(attrProvider, attrType);
+            if (attrs.Length == 0)
+            {
+                return null;
+            }
+            else if (attrs.Length > 1)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.tooManyAttributesOfTypeOn2, attrType, attrProvider.ToString())));
+            }
+            else
+            {
+                return attrs[0];
+            }
+        }
+#endif
+#if !NO_GENERIC
+        static internal T GetRequiredSingleAttribute<T>(ICustomAttributeProvider attrProvider)
             where T : class
         {
             T result = GetSingleAttribute<T>(attrProvider);
             if (result == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.couldnTFindRequiredAttributeOfTypeOn2, typeof(T), attrProvider.ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.couldnTFindRequiredAttributeOfTypeOn2, typeof(T), attrProvider.ToString())));
             }
             return result;
         }
-        static internal T GetSingleAttribute<T>(CustomAttributeProvider attrProvider, Type[] attrTypeGroup)
+#else
+        static internal object GetRequiredSingleAttribute(Type attrType, ICustomAttributeProvider attrProvider)
+        {
+            object result = GetSingleAttribute(attrType, attrProvider);
+            if (result == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.couldnTFindRequiredAttributeOfTypeOn2, attrType, attrProvider.ToString())));
+            }
+            return result;
+        }
+#endif
+#if !NO_GENERIC
+        static internal T GetSingleAttribute<T>(ICustomAttributeProvider attrProvider, Type[] attrTypeGroup)
             where T : class
         {
             T result = GetSingleAttribute<T>(attrProvider);
@@ -566,22 +584,56 @@ namespace System.ServiceModel.Description
                     object[] attrs = GetCustomAttributes(attrProvider, otherType);
                     if (attrs != null && attrs.Length > 0)
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxDisallowedAttributeCombination, attrProvider, attrType.FullName, otherType.FullName)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxDisallowedAttributeCombination, attrProvider, attrType.FullName, otherType.FullName)));
                     }
                 }
             }
             return result;
         }
-        static internal T GetRequiredSingleAttribute<T>(CustomAttributeProvider attrProvider, Type[] attrTypeGroup)
+#else
+        static internal object GetSingleAttribute(Type attrType, ICustomAttributeProvider attrProvider, Type[] attrTypeGroup)
+        {
+            object result = GetSingleAttribute(attrType, attrProvider);
+            if (result != null)
+            {
+                foreach (Type otherType in attrTypeGroup)
+                {
+                    if (otherType == attrType)
+                    {
+                        continue;
+                    }
+                    object[] attrs = GetCustomAttributes(attrProvider, otherType);
+                    if (attrs != null && attrs.Length > 0)
+                    {
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxDisallowedAttributeCombination, attrProvider, attrType.FullName, otherType.FullName)));
+                    }
+                }
+            }
+            return result;
+        }
+#endif
+#if !NO_GENERIC
+        static internal T GetRequiredSingleAttribute<T>(ICustomAttributeProvider attrProvider, Type[] attrTypeGroup)
             where T : class
         {
             T result = GetSingleAttribute<T>(attrProvider, attrTypeGroup);
             if (result == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.couldnTFindRequiredAttributeOfTypeOn2, typeof(T), attrProvider.ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.couldnTFindRequiredAttributeOfTypeOn2, typeof(T), attrProvider.ToString())));
             }
             return result;
         }
+#else
+        static internal object GetRequiredSingleAttribute(Type attrType, ICustomAttributeProvider attrProvider, Type[] attrTypeGroup)
+        {
+            object result = GetSingleAttribute(attrType, attrProvider, attrTypeGroup);
+            if (result == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.couldnTFindRequiredAttributeOfTypeOn2, attrType, attrProvider.ToString())));
+            }
+            return result;
+        }
+#endif
         static internal Type GetContractType(Type interfaceType)
         {
             ServiceContractAttribute contractAttribute;
@@ -599,7 +651,7 @@ namespace System.ServiceModel.Description
             List<Type> types = new List<Type>(GetInheritedContractTypes(interfaceType));
             if (types.Count == 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.AttemptedToGetContractTypeForButThatTypeIs1, interfaceType.Name)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.AttemptedToGetContractTypeForButThatTypeIs1, interfaceType.Name)));
             }
 
 
@@ -620,13 +672,13 @@ namespace System.ServiceModel.Description
                 }
             }
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                SR.Format(SR.SFxNoMostDerivedContract, interfaceType.Name)));
+                SR.GetString(SR.SFxNoMostDerivedContract, interfaceType.Name)));
         }
 
-        private static List<MethodInfo> GetMethodsInternal(Type interfaceType)
+        static List<MethodInfo> GetMethodsInternal(Type interfaceType)
         {
             List<MethodInfo> methods = new List<MethodInfo>();
-            foreach (MethodInfo mi in interfaceType.GetRuntimeMethods().Where(m => !m.IsStatic))
+            foreach (MethodInfo mi in interfaceType.GetMethods(ServiceModelBindingFlags))
             {
                 if (GetSingleAttribute<OperationContractAttribute>(mi) != null)
                 {
@@ -662,7 +714,7 @@ namespace System.ServiceModel.Description
                     if (parameter.IsOut)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SFxBadByValueParameterMetadata,
+                            new InvalidOperationException(SR.GetString(SR.SFxBadByValueParameterMetadata,
                             methodInfo.Name, methodInfo.DeclaringType.Name)));
                     }
                 }
@@ -671,7 +723,7 @@ namespace System.ServiceModel.Description
                     if (parameter.IsIn && !parameter.IsOut)
                     {
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            new InvalidOperationException(SR.Format(SR.SFxBadByReferenceParameterMetadata,
+                            new InvalidOperationException(SR.GetString(SR.SFxBadByReferenceParameterMetadata,
                             methodInfo.Name, methodInfo.DeclaringType.Name)));
                     }
                 }
@@ -782,18 +834,18 @@ namespace System.ServiceModel.Description
             return false;
         }
 
-        private static MethodInfo GetEndMethodInternal(MethodInfo beginMethod)
+        static MethodInfo GetEndMethodInternal(MethodInfo beginMethod)
         {
             string logicalName = GetLogicalName(beginMethod);
             string endMethodName = EndMethodNamePrefix + logicalName;
-            MethodInfo[] endMethods = beginMethod.DeclaringType.GetTypeInfo().GetDeclaredMethods(endMethodName).ToArray();
+            MemberInfo[] endMethods = beginMethod.DeclaringType.GetMember(endMethodName, ServiceModelBindingFlags);
             if (endMethods.Length == 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.NoEndMethodFoundForAsyncBeginMethod3, beginMethod.Name, beginMethod.DeclaringType.FullName, endMethodName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.NoEndMethodFoundForAsyncBeginMethod3, beginMethod.Name, beginMethod.DeclaringType.FullName, endMethodName)));
             }
             if (endMethods.Length > 1)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.MoreThanOneEndMethodFoundForAsyncBeginMethod3, beginMethod.Name, beginMethod.DeclaringType.FullName, endMethodName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.MoreThanOneEndMethodFoundForAsyncBeginMethod3, beginMethod.Name, beginMethod.DeclaringType.FullName, endMethodName)));
             }
             return (MethodInfo)endMethods[0];
         }
@@ -804,7 +856,7 @@ namespace System.ServiceModel.Description
 
             if (!HasEndMethodShape(endMethod))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.InvalidAsyncEndMethodSignatureForMethod2, endMethod.Name, endMethod.DeclaringType.FullName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.InvalidAsyncEndMethodSignatureForMethod2, endMethod.Name, endMethod.DeclaringType.FullName)));
             }
 
             return endMethod;
@@ -822,9 +874,9 @@ namespace System.ServiceModel.Description
             ParameterInfo[] parameters = method.GetParameters();
             if (!method.Name.StartsWith(BeginMethodNamePrefix, StringComparison.Ordinal) ||
                 parameters.Length < 2 ||
-                parameters[parameters.Length - 2].ParameterType != s_asyncCallbackType ||
-                parameters[parameters.Length - 1].ParameterType != s_objectType ||
-                method.ReturnType != s_asyncResultType)
+                parameters[parameters.Length - 2].ParameterType != asyncCallbackType ||
+                parameters[parameters.Length - 1].ParameterType != objectType ||
+                method.ReturnType != asyncResultType)
             {
                 return false;
             }
@@ -837,7 +889,7 @@ namespace System.ServiceModel.Description
             {
                 if (!HasBeginMethodShape(method))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.InvalidAsyncBeginMethodSignatureForMethod2, method.Name, method.DeclaringType.FullName)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.InvalidAsyncBeginMethodSignatureForMethod2, method.Name, method.DeclaringType.FullName)));
                 }
 
                 return true;
@@ -849,9 +901,9 @@ namespace System.ServiceModel.Description
         {
             if (method.ReturnType == taskType)
             {
-                return true;
+                 return true;
             }
-            if (method.ReturnType.IsGenericType() && method.ReturnType.GetGenericTypeDefinition() == taskTResultType)
+            if (method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == taskTResultType)
             {
                 return true;
             }
@@ -868,7 +920,7 @@ namespace System.ServiceModel.Description
                 return true;
             }
 
-            if (methodReturnType.IsGenericType() && methodReturnType.GetGenericTypeDefinition() == taskTResultType)
+            if (methodReturnType.IsGenericType && methodReturnType.GetGenericTypeDefinition() == taskTResultType)
             {
                 taskTResult = methodReturnType.GetGenericArguments()[0];
                 return true;
@@ -882,7 +934,7 @@ namespace System.ServiceModel.Description
             ParameterInfo[] parameters = method.GetParameters();
             if (!method.Name.StartsWith(EndMethodNamePrefix, StringComparison.Ordinal) ||
                 parameters.Length < 1 ||
-                parameters[parameters.Length - 1].ParameterType != s_asyncResultType)
+                parameters[parameters.Length - 1].ParameterType != asyncResultType)
             {
                 return false;
             }
@@ -955,7 +1007,7 @@ namespace System.ServiceModel.Description
 
         static internal bool IsParameterDisposable(Type type)
         {
-            return ((!type.IsSealed()) || typeof(IDisposable).IsAssignableFrom(type));
+            return ((!type.IsSealed) || typeof(IDisposable).IsAssignableFrom(type));
         }
     }
 }

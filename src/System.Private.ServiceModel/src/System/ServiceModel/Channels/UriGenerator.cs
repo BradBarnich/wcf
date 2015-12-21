@@ -1,15 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Threading;
-using System.Globalization;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal class UriGenerator
+    using System.Threading;
+    using System.Globalization;
+
+    class UriGenerator
     {
-        private long _id;
-        private string _prefix;
+        long id;
+        string prefix;
 
         public UriGenerator()
             : this("uuid")
@@ -27,15 +28,15 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("scheme"));
 
             if (scheme.Length == 0)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.UriGeneratorSchemeMustNotBeEmpty, "scheme"));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.UriGeneratorSchemeMustNotBeEmpty), "scheme"));
 
-            _prefix = string.Concat(scheme, ":", Guid.NewGuid().ToString(), delimiter, "id=");
+            prefix = string.Concat(scheme, ":", Guid.NewGuid().ToString(), delimiter, "id=");
         }
 
         public string Next()
         {
-            long nextId = Interlocked.Increment(ref _id);
-            return _prefix + nextId.ToString(CultureInfo.InvariantCulture);
+            long nextId = Interlocked.Increment(ref id);
+            return prefix + nextId.ToString(CultureInfo.InvariantCulture);
         }
     }
 }

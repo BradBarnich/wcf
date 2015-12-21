@@ -1,43 +1,45 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class SynchronizedChannelCollection<TChannel> : SynchronizedCollection<TChannel>
+    using System;
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+
+    class SynchronizedChannelCollection<TChannel> : SynchronizedCollection<TChannel>
         where TChannel : IChannel
     {
-        private EventHandler _onChannelClosed;
-        private EventHandler _onChannelFaulted;
+        EventHandler onChannelClosed;
+        EventHandler onChannelFaulted;
 
         internal SynchronizedChannelCollection(object syncRoot)
             : base(syncRoot)
         {
-            _onChannelClosed = new EventHandler(OnChannelClosed);
-            _onChannelFaulted = new EventHandler(OnChannelFaulted);
+            this.onChannelClosed = new EventHandler(OnChannelClosed);
+            this.onChannelFaulted = new EventHandler(OnChannelFaulted);
         }
 
-        private void AddingChannel(TChannel channel)
+        void AddingChannel(TChannel channel)
         {
-            channel.Faulted += _onChannelFaulted;
-            channel.Closed += _onChannelClosed;
+            channel.Faulted += this.onChannelFaulted;
+            channel.Closed += this.onChannelClosed;
         }
 
-        private void RemovingChannel(TChannel channel)
+        void RemovingChannel(TChannel channel)
         {
-            channel.Faulted -= _onChannelFaulted;
-            channel.Closed -= _onChannelClosed;
+            channel.Faulted -= this.onChannelFaulted;
+            channel.Closed -= this.onChannelClosed;
         }
 
-        private void OnChannelClosed(object sender, EventArgs args)
+        void OnChannelClosed(object sender, EventArgs args)
         {
             TChannel channel = (TChannel)sender;
             this.Remove(channel);
         }
 
-        private void OnChannelFaulted(object sender, EventArgs args)
+        void OnChannelFaulted(object sender, EventArgs args)
         {
             TChannel channel = (TChannel)sender;
             this.Remove(channel);

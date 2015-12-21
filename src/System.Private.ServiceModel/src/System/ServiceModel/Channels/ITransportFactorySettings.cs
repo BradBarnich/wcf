@@ -1,16 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public interface IConnectionOrientedConnectionSettings
+    using System.Collections.Generic;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Diagnostics;
+
+    interface IConnectionOrientedConnectionSettings
     {
         int ConnectionBufferSize { get; }
         TimeSpan MaxOutputDelay { get; }
         TimeSpan IdleTimeout { get; }
     }
 
-    internal interface IConnectionOrientedListenerSettings : IConnectionOrientedConnectionSettings
+    interface IConnectionOrientedListenerSettings : IConnectionOrientedConnectionSettings
     {
         TimeSpan ChannelInitializationTimeout { get; }
         int MaxPendingConnections { get; }
@@ -18,7 +24,7 @@ namespace System.ServiceModel.Channels
         int MaxPooledConnections { get; }
     }
 
-    public interface ITransportFactorySettings : IDefaultCommunicationTimeouts
+    interface ITransportFactorySettings : IDefaultCommunicationTimeouts
     {
         bool ManualAddressing { get; }
         BufferManager BufferManager { get; }
@@ -27,33 +33,33 @@ namespace System.ServiceModel.Channels
         MessageVersion MessageVersion { get; }
     }
 
-    public interface IConnectionOrientedTransportFactorySettings : ITransportFactorySettings, IConnectionOrientedConnectionSettings
+    interface IConnectionOrientedTransportFactorySettings : ITransportFactorySettings, IConnectionOrientedConnectionSettings
     {
         int MaxBufferSize { get; }
         StreamUpgradeProvider Upgrade { get; }
         TransferMode TransferMode { get; }
         // Audit
-        //ServiceSecurityAuditBehavior AuditBehavior { get; }
+        ServiceSecurityAuditBehavior AuditBehavior { get; }
     }
 
-    public interface IConnectionOrientedTransportChannelFactorySettings : IConnectionOrientedTransportFactorySettings
+    interface IConnectionOrientedTransportChannelFactorySettings : IConnectionOrientedTransportFactorySettings
     {
         string ConnectionPoolGroupName { get; }
         int MaxOutboundConnectionsPerEndpoint { get; }
     }
 
-    public interface ITcpChannelFactorySettings : IConnectionOrientedTransportChannelFactorySettings
+    interface ITcpChannelFactorySettings : IConnectionOrientedTransportChannelFactorySettings
     {
         TimeSpan LeaseTimeout { get; }
     }
 
-    internal interface IHttpTransportFactorySettings : ITransportFactorySettings
+    interface IHttpTransportFactorySettings : ITransportFactorySettings
     {
         int MaxBufferSize { get; }
         TransferMode TransferMode { get; }
     }
 
-    internal interface IPipeTransportFactorySettings : IConnectionOrientedTransportChannelFactorySettings
+    interface IPipeTransportFactorySettings : IConnectionOrientedTransportChannelFactorySettings
     {
         NamedPipeSettings PipeSettings { get; }
     }

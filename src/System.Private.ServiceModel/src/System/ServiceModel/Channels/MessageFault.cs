@@ -1,18 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
-using System.Xml;
-using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Dispatcher;
-using System.Globalization;
 
 namespace System.ServiceModel.Channels
 {
+    using System.Xml;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Text;
+    using System.Collections.Generic;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Dispatcher;
+    using System.Globalization;
+
     public abstract class MessageFault
     {
-        private static MessageFault s_defaultMessageFault;
+        static MessageFault defaultMessageFault;
 
         public static MessageFault CreateFault(FaultCode code, string reason)
         {
@@ -64,6 +69,7 @@ namespace System.ServiceModel.Channels
             {
                 try
                 {
+#pragma warning suppress 56506 // [....], Message.Version can never be null
                     EnvelopeVersion envelopeVersion = message.Version.Envelope;
                     MessageFault fault;
                     if (envelopeVersion == EnvelopeVersion.Soap12)
@@ -80,7 +86,7 @@ namespace System.ServiceModel.Channels
                     }
                     else
                     {
-                        throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.EnvelopeVersionUnknown, envelopeVersion.ToString())), message);
+                        throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.EnvelopeVersionUnknown, envelopeVersion.ToString())), message);
                     }
                     message.ReadFromBodyContentsToEnd(reader);
                     return fault;
@@ -88,17 +94,17 @@ namespace System.ServiceModel.Channels
                 catch (InvalidOperationException e)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                        SR.SFxErrorDeserializingFault, e));
+                        SR.GetString(SR.SFxErrorDeserializingFault), e));
                 }
                 catch (FormatException e)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                        SR.SFxErrorDeserializingFault, e));
+                        SR.GetString(SR.SFxErrorDeserializingFault), e));
                 }
                 catch (XmlException e)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                        SR.SFxErrorDeserializingFault, e));
+                        SR.GetString(SR.SFxErrorDeserializingFault), e));
                 }
             }
         }
@@ -107,11 +113,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                if (s_defaultMessageFault == null)
+                if (defaultMessageFault == null)
                 {
-                    s_defaultMessageFault = MessageFault.CreateFault(new FaultCode("Default"), new FaultReason("", CultureInfo.CurrentCulture));
+                    defaultMessageFault = MessageFault.CreateFault(new FaultCode("Default"), new FaultReason("", CultureInfo.CurrentCulture));
                 }
-                return s_defaultMessageFault;
+                return defaultMessageFault;
             }
         }
 
@@ -172,7 +178,7 @@ namespace System.ServiceModel.Channels
             {
                 reader.MoveToContent();
                 if (reader.NodeType != XmlNodeType.EndElement && !reader.EOF)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.ExtraContentIsPresentInFaultDetail));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.GetString(SR.ExtraContentIsPresentInFaultDetail)));
             }
             return value;
         }
@@ -180,7 +186,7 @@ namespace System.ServiceModel.Channels
         public XmlDictionaryReader GetReaderAtDetailContents()
         {
             if (!HasDetail)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FaultDoesNotHaveAnyDetail));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FaultDoesNotHaveAnyDetail)));
             return OnGetReaderAtDetailContents();
         }
 
@@ -281,16 +287,16 @@ namespace System.ServiceModel.Channels
             }
             else
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.EnvelopeVersionUnknown, version.ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.EnvelopeVersionUnknown, version.ToString())));
             }
         }
 
-        private void WriteToNone(XmlDictionaryWriter writer)
+        void WriteToNone(XmlDictionaryWriter writer)
         {
             WriteTo12Driver(writer, EnvelopeVersion.None);
         }
 
-        private void WriteTo12Driver(XmlDictionaryWriter writer, EnvelopeVersion version)
+        void WriteTo12Driver(XmlDictionaryWriter writer, EnvelopeVersion version)
         {
             writer.WriteStartElement(XD.MessageDictionary.Fault, version.DictionaryNamespace);
             writer.WriteStartElement(XD.Message12Dictionary.FaultCode, version.DictionaryNamespace);
@@ -318,7 +324,7 @@ namespace System.ServiceModel.Channels
             writer.WriteEndElement();
         }
 
-        private void WriteFaultCode12Driver(XmlDictionaryWriter writer, FaultCode faultCode, EnvelopeVersion version)
+        void WriteFaultCode12Driver(XmlDictionaryWriter writer, FaultCode faultCode, EnvelopeVersion version)
         {
             writer.WriteStartElement(XD.Message12Dictionary.FaultValue, version.DictionaryNamespace);
             string name;
@@ -347,12 +353,12 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void WriteTo12(XmlDictionaryWriter writer)
+        void WriteTo12(XmlDictionaryWriter writer)
         {
             WriteTo12Driver(writer, EnvelopeVersion.Soap12);
         }
 
-        private void WriteTo11(XmlDictionaryWriter writer)
+        void WriteTo11(XmlDictionaryWriter writer)
         {
             writer.WriteStartElement(XD.MessageDictionary.Fault, XD.Message11Dictionary.Namespace);
             writer.WriteStartElement(XD.Message11Dictionary.FaultCode, XD.Message11Dictionary.FaultNamespace);
@@ -394,30 +400,30 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class XmlObjectSerializerFault : MessageFault
+    class XmlObjectSerializerFault : MessageFault
     {
-        private FaultCode _code;
-        private FaultReason _reason;
-        private string _actor;
-        private string _node;
-        private object _detail;
-        private XmlObjectSerializer _serializer;
+        FaultCode code;
+        FaultReason reason;
+        string actor;
+        string node;
+        object detail;
+        XmlObjectSerializer serializer;
 
         public XmlObjectSerializerFault(FaultCode code, FaultReason reason, object detail, XmlObjectSerializer serializer, string actor, string node)
         {
-            _code = code;
-            _reason = reason;
-            _detail = detail;
-            _serializer = serializer;
-            _actor = actor;
-            _node = node;
+            this.code = code;
+            this.reason = reason;
+            this.detail = detail;
+            this.serializer = serializer;
+            this.actor = actor;
+            this.node = node;
         }
 
         public override string Actor
         {
             get
             {
-                return _actor;
+                return actor;
             }
         }
 
@@ -425,7 +431,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _code;
+                return code;
             }
         }
 
@@ -433,7 +439,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _serializer != null;
+                return serializer != null;
             }
         }
 
@@ -441,7 +447,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _node;
+                return node;
             }
         }
 
@@ -449,56 +455,56 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _reason;
+                return reason;
             }
         }
 
-        private object ThisLock
+        object ThisLock
         {
             get
             {
-                return _code;
+                return code;
             }
         }
 
         protected override void OnWriteDetailContents(XmlDictionaryWriter writer)
         {
-            if (_serializer != null)
+            if (serializer != null)
             {
                 lock (ThisLock)
                 {
-                    _serializer.WriteObject(writer, _detail);
+                    serializer.WriteObject(writer, detail);
                 }
             }
         }
     }
 
-    internal class ReceivedFault : MessageFault
+    class ReceivedFault : MessageFault
     {
-        private FaultCode _code;
-        private FaultReason _reason;
-        private string _actor;
-        private string _node;
-        private XmlBuffer _detail;
-        private bool _hasDetail;
-        private EnvelopeVersion _receivedVersion;
+        FaultCode code;
+        FaultReason reason;
+        string actor;
+        string node;
+        XmlBuffer detail;
+        bool hasDetail;
+        EnvelopeVersion receivedVersion;
 
-        private ReceivedFault(FaultCode code, FaultReason reason, string actor, string node, XmlBuffer detail, EnvelopeVersion version)
+        ReceivedFault(FaultCode code, FaultReason reason, string actor, string node, XmlBuffer detail, EnvelopeVersion version)
         {
-            _code = code;
-            _reason = reason;
-            _actor = actor;
-            _node = node;
-            _receivedVersion = version;
-            _hasDetail = InferHasDetail(detail);
-            _detail = _hasDetail ? detail : null;
+            this.code = code;
+            this.reason = reason;
+            this.actor = actor;
+            this.node = node;
+            this.receivedVersion = version;
+            this.hasDetail = InferHasDetail(detail);
+            this.detail = this.hasDetail ? detail : null;
         }
 
         public override string Actor
         {
             get
             {
-                return _actor;
+                return actor;
             }
         }
 
@@ -506,7 +512,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _code;
+                return code;
             }
         }
 
@@ -514,7 +520,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _hasDetail;
+                return hasDetail;
             }
         }
 
@@ -522,7 +528,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _node;
+                return node;
             }
         }
 
@@ -530,11 +536,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _reason;
+                return reason;
             }
         }
 
-        private bool InferHasDetail(XmlBuffer detail)
+        bool InferHasDetail(XmlBuffer detail)
         {
             bool hasDetail = false;
             if (detail != null)
@@ -542,14 +548,14 @@ namespace System.ServiceModel.Channels
                 XmlDictionaryReader reader = detail.GetReader(0);
                 if (!reader.IsEmptyElement && reader.Read()) // check if the detail element contains data
                     hasDetail = (reader.MoveToContent() != XmlNodeType.EndElement);
-                reader.Dispose();
+                reader.Close();
             }
             return hasDetail;
         }
 
         protected override void OnWriteDetail(XmlDictionaryWriter writer, EnvelopeVersion version)
         {
-            using (XmlReader r = _detail.GetReader(0))
+            using (XmlReader r = detail.GetReader(0))
             {
                 // Start the element
                 base.OnWriteStartDetail(writer, version);
@@ -577,7 +583,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteStartDetail(XmlDictionaryWriter writer, EnvelopeVersion version)
         {
-            using (XmlReader r = _detail.GetReader(0))
+            using (XmlReader r = detail.GetReader(0))
             {
                 // Start the element
                 base.OnWriteStartDetail(writer, version);
@@ -595,7 +601,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteDetailContents(XmlDictionaryWriter writer)
         {
-            using (XmlReader r = _detail.GetReader(0))
+            using (XmlReader r = detail.GetReader(0))
             {
                 r.Read();
                 while (r.NodeType != XmlNodeType.EndElement)
@@ -605,18 +611,18 @@ namespace System.ServiceModel.Channels
 
         protected override XmlDictionaryReader OnGetReaderAtDetailContents()
         {
-            XmlDictionaryReader reader = _detail.GetReader(0);
+            XmlDictionaryReader reader = detail.GetReader(0);
             reader.Read(); // Skip the detail element
             return reader;
         }
 
-        private bool ShouldWriteDetailAttribute(EnvelopeVersion targetVersion, string prefix, string localName, string attributeValue)
+        bool ShouldWriteDetailAttribute(EnvelopeVersion targetVersion, string prefix, string localName, string attributeValue)
         {
             // Handle fault detail version conversion from Soap12 to Soap11 -- scope tightly to only conversion from Soap12 -> Soap11
             // SOAP 1.1 specifications allow an arbitrary element within <fault>, hence: 
             // transform this IFF the SOAP namespace specified will affect the namespace of the <detail> element, 
             // AND the namespace specified is exactly the Soap12 Namespace. 
-            bool shouldSkip = _receivedVersion == EnvelopeVersion.Soap12    // original incoming version
+            bool shouldSkip = this.receivedVersion == EnvelopeVersion.Soap12    // original incoming version
                                 && targetVersion == EnvelopeVersion.Soap11      // version to serialize to
                                 && string.IsNullOrEmpty(prefix)                 // attribute prefix
                                 && localName == "xmlns"                         // only transform namespace attributes, don't care about others
@@ -630,7 +636,7 @@ namespace System.ServiceModel.Channels
             return CreateFault12Driver(reader, maxBufferSize, EnvelopeVersion.None);
         }
 
-        private static ReceivedFault CreateFault12Driver(XmlDictionaryReader reader, int maxBufferSize, EnvelopeVersion version)
+        static ReceivedFault CreateFault12Driver(XmlDictionaryReader reader, int maxBufferSize, EnvelopeVersion version)
         {
             reader.ReadStartElement(XD.MessageDictionary.Fault, version.DictionaryNamespace);
             reader.ReadStartElement(XD.Message12Dictionary.FaultCode, version.DictionaryNamespace);
@@ -639,7 +645,7 @@ namespace System.ServiceModel.Channels
             List<FaultReasonText> translations = new List<FaultReasonText>();
             if (reader.IsEmptyElement)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.AtLeastOneFaultReasonMustBeSpecified));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.GetString(SR.AtLeastOneFaultReasonMustBeSpecified)));
             }
             else
             {
@@ -669,7 +675,7 @@ namespace System.ServiceModel.Channels
             return new ReceivedFault(code, reason, actor, node, detail, version);
         }
 
-        private static FaultCode ReadFaultCode12Driver(XmlDictionaryReader reader, EnvelopeVersion version)
+        static FaultCode ReadFaultCode12Driver(XmlDictionaryReader reader, EnvelopeVersion version)
         {
             string localName;
             string ns;
@@ -692,7 +698,7 @@ namespace System.ServiceModel.Channels
             return CreateFault12Driver(reader, maxBufferSize, EnvelopeVersion.Soap12);
         }
 
-        private static FaultReasonText ReadTranslation12(XmlDictionaryReader reader)
+        static FaultReasonText ReadTranslation12(XmlDictionaryReader reader)
         {
             string xmlLang = XmlUtil.GetXmlLangAttribute(reader);
             string text = reader.ReadElementContentAsString();

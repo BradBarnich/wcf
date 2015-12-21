@@ -1,16 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Globalization;
-using System.Net.Http;
-using System.Runtime;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
+﻿// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
-    internal static class WebSocketHelper
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Net;
+    using System.Net.WebSockets;
+    using System.Runtime;
+    using System.Runtime.InteropServices;
+    using System.Security.Cryptography;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+
+    static class WebSocketHelper
     {
         internal const int OperationNotStarted = 0;
         internal const int OperationFinished = 1;
@@ -28,24 +35,34 @@ namespace System.ServiceModel.Channels
 
         internal static readonly char[] ProtocolSeparators = new char[] { ',' };
 
-        private const string WebSocketKeyPostString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+        const string WebSocketKeyPostString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-        private const string SchemeWs = "ws";
-        private const string SchemeWss = "wss";
+        const string SchemeWs = "ws";
+        const string SchemeWss = "wss";
 
-        private static readonly int s_PropertyBufferSize = ((2 * Marshal.SizeOf<uint>()) + Marshal.SizeOf<bool>()) + IntPtr.Size;
-        private static readonly HashSet<char> s_InvalidSeparatorSet = new HashSet<char>(new char[] { '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}', ' ' });
-        private static string s_currentWebSocketVersion;
+        static readonly int PropertyBufferSize = ((2 * Marshal.SizeOf(typeof(uint))) + Marshal.SizeOf(typeof(bool))) + IntPtr.Size;
+        static readonly HashSet<char> InvalidSeparatorSet = new HashSet<char>(new char[] { '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}', ' ' });
+        static string currentWebSocketVersion;
 
         internal static string ComputeAcceptHeader(string webSocketKey)
         {
             Fx.Assert(webSocketKey != null, "webSocketKey should not be null.");
-            throw ExceptionHelper.PlatformNotSupported();
+            using (SHA1 sha = SHA1.Create())
+            {
+                string fullString = webSocketKey + WebSocketHelper.WebSocketKeyPostString;
+                byte[] bytes = Encoding.UTF8.GetBytes(fullString);
+                return Convert.ToBase64String(sha.ComputeHash(bytes));
+            }
         }
 
         internal static int ComputeClientBufferSize(long maxReceivedMessageSize)
         {
             return ComputeInternalBufferSize(maxReceivedMessageSize, false);
+        }
+
+        internal static int ComputeServerBufferSize(long maxReceivedMessageSize)
+        {
+            return ComputeInternalBufferSize(maxReceivedMessageSize, true);
         }
 
         internal static int GetReceiveBufferSize(long maxReceivedMessageSize)
@@ -65,14 +82,14 @@ namespace System.ServiceModel.Channels
             Fx.Assert(httpUri != null, "RemoteAddress.Uri should not be null.");
             UriBuilder builder = new UriBuilder(httpUri);
 
-            if (UriEx.UriSchemeHttp.Equals(httpUri.Scheme, StringComparison.OrdinalIgnoreCase))
+            if (Uri.UriSchemeHttp.Equals(httpUri.Scheme, StringComparison.OrdinalIgnoreCase))
             {
                 builder.Scheme = SchemeWs;
             }
             else
             {
                 Fx.Assert(
-                    UriEx.UriSchemeHttps.Equals(httpUri.Scheme, StringComparison.OrdinalIgnoreCase),
+                    Uri.UriSchemeHttps.Equals(httpUri.Scheme, StringComparison.OrdinalIgnoreCase),
                     "httpUri.Scheme should be http or https.");
                 builder.Scheme = SchemeWss;
             }
@@ -82,7 +99,7 @@ namespace System.ServiceModel.Channels
 
         internal static bool IsWebSocketUri(Uri uri)
         {
-            return uri != null &&
+            return uri != null && 
                 (WebSocketHelper.SchemeWs.Equals(uri.Scheme, StringComparison.OrdinalIgnoreCase) ||
                  WebSocketHelper.SchemeWss.Equals(uri.Scheme, StringComparison.OrdinalIgnoreCase));
         }
@@ -100,35 +117,10 @@ namespace System.ServiceModel.Channels
             switch (uri.Scheme.ToLowerInvariant())
             {
                 case SchemeWs:
-                    builder.Scheme = UriEx.UriSchemeHttp;
+                    builder.Scheme = Uri.UriSchemeHttp;
                     break;
                 case SchemeWss:
-                    builder.Scheme = UriEx.UriSchemeHttps;
-                    break;
-                default:
-                    break;
-            }
-
-            return builder.Uri;
-        }
-
-        internal static Uri NormalizeHttpSchemeWithWsScheme(Uri uri)
-        {
-            Fx.Assert(uri != null, "RemoteAddress.Uri should not be null.");
-            if (IsWebSocketUri(uri))
-            {
-                return uri;
-            }
-
-            UriBuilder builder = new UriBuilder(uri);
-
-            switch (uri.Scheme.ToLowerInvariant())
-            {
-                case UriEx.UriSchemeHttp:
-                    builder.Scheme = SchemeWs;
-                    break;
-                case UriEx.UriSchemeHttps:
-                    builder.Scheme = SchemeWss;
+                    builder.Scheme = Uri.UriSchemeHttps;
                     break;
                 default:
                     break;
@@ -160,8 +152,8 @@ namespace System.ServiceModel.Channels
                         }
                         else
                         {
-                            FxTrace.Exception.AsWarning(new HttpRequestException(
-                                SR.Format(SR.WebSocketInvalidProtocolInvalidCharInProtocolString, token, invalidChar)));
+                            FxTrace.Exception.AsWarning(new WebException(
+                                SR.GetString(SR.WebSocketInvalidProtocolInvalidCharInProtocolString, token, invalidChar)));
                             return false;
                         }
                     }
@@ -184,7 +176,7 @@ namespace System.ServiceModel.Channels
                     return true;
                 }
 
-                if (s_InvalidSeparatorSet.Contains(ch))
+                if (InvalidSeparatorSet.Contains(ch))
                 {
                     invalidChar = ch.ToString();
                     return true;
@@ -197,19 +189,32 @@ namespace System.ServiceModel.Channels
 
         internal static string GetCurrentVersion()
         {
-            if (s_currentWebSocketVersion == null)
+            if (currentWebSocketVersion == null)
             {
-                s_currentWebSocketVersion = string.Empty;
-                throw ExceptionHelper.PlatformNotSupported();
+                WebSocket.RegisterPrefixes();
+                HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create("ws://localhost");
+                string version = request.Headers[WebSocketHelper.SecWebSocketVersion];
+                Fx.Assert(version != null, "version should not be null.");
+                currentWebSocketVersion = version.Trim();
             }
 
-            return s_currentWebSocketVersion;
+            return currentWebSocketVersion;
         }
 
         internal static WebSocketTransportSettings GetRuntimeWebSocketSettings(WebSocketTransportSettings settings)
         {
             WebSocketTransportSettings runtimeSettings = settings.Clone();
+            if (runtimeSettings.MaxPendingConnections == WebSocketDefaults.DefaultMaxPendingConnections)
+            {
+                runtimeSettings.MaxPendingConnections = WebSocketDefaults.MaxPendingConnectionsCpuCount;
+            }
+
             return runtimeSettings;
+        }
+        
+        internal static bool OSSupportsWebSockets()
+        {
+            return OSEnvironmentHelper.IsAtLeast(OSVersion.Win8);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.ReliabilityBasic, FxCop.Rule.WrapExceptionsRule,
@@ -272,6 +277,22 @@ namespace System.ServiceModel.Channels
                 }
             }
 
+            WebSocketException webSocketException = ex as WebSocketException;
+            if (webSocketException != null)
+            {
+                switch (webSocketException.WebSocketErrorCode)
+                {
+                    case WebSocketError.InvalidMessageType:
+                    case WebSocketError.UnsupportedProtocol:
+                    case WebSocketError.UnsupportedVersion:
+                        ex = new ProtocolException(ex.Message, ex);
+                        break;
+                    default:
+                        ex = new CommunicationException(ex.Message, ex);
+                        break;
+                }
+            }
+
             return FxTrace.Exception.AsError(ex);
         }
 
@@ -279,7 +300,16 @@ namespace System.ServiceModel.Channels
                             Justification = "The exceptions will be wrapped by the callers.")]
         internal static Exception ConvertAggregateExceptionToCommunicationException(AggregateException ex)
         {
-            Exception exception = FxTrace.Exception.AsError<Exception>(ex);
+            Exception exception = FxTrace.Exception.AsError<WebSocketException>(ex);
+            WebSocketException webSocketException = exception as WebSocketException;
+            if (webSocketException != null && webSocketException.InnerException != null)
+            {
+                HttpListenerException httpListenerException = webSocketException.InnerException as HttpListenerException;
+                if (httpListenerException != null)
+                {
+                    return HttpChannelUtilities.CreateCommunicationException(httpListenerException);
+                }
+            }
 
             ObjectDisposedException objectDisposedException = exception as ObjectDisposedException;
             if (objectDisposedException != null)
@@ -296,24 +326,10 @@ namespace System.ServiceModel.Channels
             {
                 throw FxTrace.Exception.AsError<CommunicationException>(task.Exception);
             }
-            if (task.IsCanceled)
+            else if (task.IsCanceled)
             {
                 throw FxTrace.Exception.AsError(GetTimeoutException(null, timeout, operation));
             }
-        }
-
-        // TODO: Move to correct place alphabetically, it's here temporariliy to make editting easier
-        internal static Exception CreateExceptionOnTaskFailure(Task task, TimeSpan timeout, string operation)
-        {
-            if (task.IsFaulted)
-            {
-                return FxTrace.Exception.AsError<CommunicationException>(task.Exception);
-            }
-            if (task.IsCanceled)
-            {
-                throw FxTrace.Exception.AsError(GetTimeoutException(null, timeout, operation));
-            }
-            return null;
         }
 
         internal static TimeoutException GetTimeoutException(Exception innerException, TimeSpan timeout, string operation)
@@ -324,16 +340,16 @@ namespace System.ServiceModel.Channels
                 switch (operation)
                 {
                     case WebSocketHelper.CloseOperation:
-                        errorMsg = SR.Format(SR.CloseTimedOut, timeout);
+                        errorMsg = SR.GetString(SR.CloseTimedOut, timeout);
                         break;
                     case WebSocketHelper.SendOperation:
-                        errorMsg = SR.Format(SR.WebSocketSendTimedOut, timeout);
+                        errorMsg = SR.GetString(SR.WebSocketSendTimedOut, timeout);
                         break;
                     case WebSocketHelper.ReceiveOperation:
-                        errorMsg = SR.Format(SR.WebSocketReceiveTimedOut, timeout);
+                        errorMsg = SR.GetString(SR.WebSocketReceiveTimedOut, timeout);
                         break;
                     default:
-                        errorMsg = SR.Format(SR.WebSocketOperationTimedOut, operation, timeout);
+                        errorMsg = SR.GetString(SR.WebSocketOperationTimedOut, operation, timeout);
                         break;
                 }
             }
@@ -353,7 +369,7 @@ namespace System.ServiceModel.Channels
              *PBS = PropertyBufferSize (32-bit: 16, 64 bit: 20 bytes) */
 
             int nativeSendBufferSize = isServerBuffer ? WebSocketDefaults.MinSendBufferSize : WebSocketDefaults.BufferSize;
-            return (2 * GetReceiveBufferSize(maxReceivedMessageSize)) + nativeSendBufferSize + NativeOverheadBufferSize + s_PropertyBufferSize;
+            return (2 * GetReceiveBufferSize(maxReceivedMessageSize)) + nativeSendBufferSize + NativeOverheadBufferSize + PropertyBufferSize;
         }
     }
 }

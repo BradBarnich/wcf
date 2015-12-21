@@ -1,120 +1,286 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel;
-using System.Threading;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal class SynchronizedMessageSource
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Threading;
+
+    class SynchronizedMessageSource
     {
-        private IMessageSource _source;
-        private SemaphoreSlim _sourceLock;
+        IMessageSource source;
+        ThreadNeutralSemaphore sourceLock;
 
         public SynchronizedMessageSource(IMessageSource source)
         {
-            _source = source;
-            _sourceLock = new SemaphoreSlim(1);
+            this.source = source;
+            this.sourceLock = new ThreadNeutralSemaphore(1);
         }
 
-        public async Task<bool> WaitForMessageAsync(TimeSpan timeout)
+        public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
+            return new WaitForMessageAsyncResult(this, timeout, callback, state);
+        }
 
-            // If timeout == TimeSpan.MaxValue, then we want to pass Timeout.Infinite as 
-            // SemaphoreSlim doesn't accept timeouts > Int32.MaxValue.
-            // Using TimeoutHelper.RemainingTime() would yield a value less than TimeSpan.MaxValue
-            // and would result in the value Int32.MaxValue so we must use the original timeout specified.
-            if (!await _sourceLock.WaitAsync(TimeoutHelper.ToMilliseconds(timeout)))
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new TimeoutException(SR.Format(SR.WaitForMessageTimedOut, timeout),
-                    TimeoutHelper.CreateEnterTimedOutException(timeout)));
-            }
-            try
-            {
-                return await _source.WaitForMessageAsync(timeoutHelper.RemainingTime());
-            }
-            finally
-            {
-                _sourceLock.Release();
-            }
+        public bool EndWaitForMessage(IAsyncResult result)
+        {
+            return WaitForMessageAsyncResult.End(result);
         }
 
         public bool WaitForMessage(TimeSpan timeout)
         {
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
-
-            // If timeout == TimeSpan.MaxValue, then we want to pass Timeout.Infinite as 
-            // SemaphoreSlim doesn't accept timeouts > Int32.MaxValue.
-            // Using TimeoutHelper.RemainingTime() would yield a value less than TimeSpan.MaxValue
-            // and would result in the value Int32.MaxValue so we must use the original timeout specified.
-            if (!_sourceLock.Wait(TimeoutHelper.ToMilliseconds(timeout)))
+            if (!this.sourceLock.TryEnter(timeoutHelper.RemainingTime()))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new TimeoutException(SR.Format(SR.WaitForMessageTimedOut, timeout),
-                    TimeoutHelper.CreateEnterTimedOutException(timeout)));
+                    new TimeoutException(SR.GetString(SR.WaitForMessageTimedOut, timeout),
+                    ThreadNeutralSemaphore.CreateEnterTimedOutException(timeout)));
             }
 
             try
             {
-                return _source.WaitForMessage(timeoutHelper.RemainingTime());
+                return source.WaitForMessage(timeoutHelper.RemainingTime());
             }
             finally
             {
-                _sourceLock.Release();
+                this.sourceLock.Exit();
             }
         }
 
-        public async Task<Message> ReceiveAsync(TimeSpan timeout)
+        public IAsyncResult BeginReceive(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
+            return new ReceiveAsyncResult(this, timeout, callback, state);
+        }
 
-            // If timeout == TimeSpan.MaxValue, then we want to pass Timeout.Infinite as 
-            // SemaphoreSlim doesn't accept timeouts > Int32.MaxValue.
-            // Using TimeoutHelper.RemainingTime() would yield a value less than TimeSpan.MaxValue
-            // and would result in the value Int32.MaxValue so we must use the original timeout specified.
-            if (!await _sourceLock.WaitAsync(TimeoutHelper.ToMilliseconds(timeout)))
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new TimeoutException(SR.Format(SR.ReceiveTimedOut2, timeout),
-                    TimeoutHelper.CreateEnterTimedOutException(timeout)));
-            }
-
-            try
-            {
-                return await _source.ReceiveAsync(timeoutHelper.RemainingTime());
-            }
-            finally
-            {
-                _sourceLock.Release();
-            }
+        public Message EndReceive(IAsyncResult result)
+        {
+            return ReceiveAsyncResult.End(result);
         }
 
         public Message Receive(TimeSpan timeout)
         {
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
-
-            // If timeout == TimeSpan.MaxValue, then we want to pass Timeout.Infinite as 
-            // SemaphoreSlim doesn't accept timeouts > Int32.MaxValue.
-            // Using TimeoutHelper.RemainingTime() would yield a value less than TimeSpan.MaxValue
-            // and would result in the value Int32.MaxValue so we must use the original timeout specified.
-            if (!_sourceLock.Wait(TimeoutHelper.ToMilliseconds(timeout)))
+            if (!this.sourceLock.TryEnter(timeoutHelper.RemainingTime()))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new TimeoutException(SR.Format(SR.ReceiveTimedOut2, timeout),
-                    TimeoutHelper.CreateEnterTimedOutException(timeout)));
+                    new TimeoutException(SR.GetString(SR.ReceiveTimedOut2, timeout),
+                    ThreadNeutralSemaphore.CreateEnterTimedOutException(timeout)));
             }
 
             try
             {
-                return _source.Receive(timeoutHelper.RemainingTime());
+                return source.Receive(timeoutHelper.RemainingTime());
             }
             finally
             {
-                _sourceLock.Release();
+                this.sourceLock.Exit();
+            }
+        }
+
+        abstract class SynchronizedAsyncResult<T> : AsyncResult
+        {
+            T returnValue;
+            bool exitLock;
+            SynchronizedMessageSource syncSource;
+            static FastAsyncCallback onEnterComplete = new FastAsyncCallback(OnEnterComplete);
+            TimeoutHelper timeoutHelper;
+
+            public SynchronizedAsyncResult(SynchronizedMessageSource syncSource, TimeSpan timeout,
+                AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                this.syncSource = syncSource;
+                this.timeoutHelper = new TimeoutHelper(timeout);
+
+                if (!syncSource.sourceLock.EnterAsync(this.timeoutHelper.RemainingTime(), onEnterComplete, this))
+                {
+                    return;
+                }
+
+                exitLock = true;
+                bool success = false;
+                bool completeSelf;
+                try
+                {
+                    completeSelf = PerformOperation(timeoutHelper.RemainingTime());
+                    success = true;
+                }
+                finally
+                {
+                    if (!success)
+                    {
+                        ExitLock();
+                    }
+                }
+                if (completeSelf)
+                {
+                    CompleteWithUnlock(true);
+                }
+            }
+
+            protected IMessageSource Source
+            {
+                get { return syncSource.source; }
+            }
+
+            protected void SetReturnValue(T returnValue)
+            {
+                this.returnValue = returnValue;
+            }
+
+            protected abstract bool PerformOperation(TimeSpan timeout);
+
+            void ExitLock()
+            {
+                if (exitLock)
+                {
+                    syncSource.sourceLock.Exit();
+                    exitLock = false;
+                }
+            }
+
+            protected void CompleteWithUnlock(bool synchronous)
+            {
+                CompleteWithUnlock(synchronous, null);
+            }
+
+            protected void CompleteWithUnlock(bool synchronous, Exception exception)
+            {
+                ExitLock();
+                base.Complete(synchronous, exception);
+            }
+
+            public static T End(IAsyncResult result)
+            {
+                SynchronizedAsyncResult<T> thisPtr = AsyncResult.End<SynchronizedAsyncResult<T>>(result);
+                return thisPtr.returnValue;
+            }
+
+            static void OnEnterComplete(object state, Exception asyncException)
+            {
+                SynchronizedAsyncResult<T> thisPtr = (SynchronizedAsyncResult<T>)state;
+
+                Exception completionException = asyncException;
+                bool completeSelf;
+
+                if (completionException != null)
+                {
+                    completeSelf = true;
+                }
+                else
+                {
+                    try
+                    {
+                        thisPtr.exitLock = true;
+                        completeSelf = thisPtr.PerformOperation(thisPtr.timeoutHelper.RemainingTime());
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completeSelf = true;
+                        completionException = e;
+                    }
+                }
+
+                if (completeSelf)
+                {
+                    thisPtr.CompleteWithUnlock(false, completionException);
+                }
+            }
+        }
+
+        class ReceiveAsyncResult : SynchronizedAsyncResult<Message>
+        {
+            static WaitCallback onReceiveComplete = new WaitCallback(OnReceiveComplete);
+
+            public ReceiveAsyncResult(SynchronizedMessageSource syncSource, TimeSpan timeout,
+                AsyncCallback callback, object state)
+                : base(syncSource, timeout, callback, state)
+            {
+            }
+
+            protected override bool PerformOperation(TimeSpan timeout)
+            {
+                if (Source.BeginReceive(timeout, onReceiveComplete, this) == AsyncReceiveResult.Completed)
+                {
+                    SetReturnValue(Source.EndReceive());
+                    return true;
+                }
+
+                return false;
+            }
+
+            static void OnReceiveComplete(object state)
+            {
+                ReceiveAsyncResult thisPtr = ((ReceiveAsyncResult)state);
+                Exception completionException = null;
+                try
+                {
+                    thisPtr.SetReturnValue(thisPtr.Source.EndReceive());
+                }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+
+                    completionException = e;
+                }
+
+                thisPtr.CompleteWithUnlock(false, completionException);
+            }
+        }
+
+        class WaitForMessageAsyncResult : SynchronizedAsyncResult<bool>
+        {
+            static WaitCallback onWaitForMessageComplete = new WaitCallback(OnWaitForMessageComplete);
+
+            public WaitForMessageAsyncResult(SynchronizedMessageSource syncSource, TimeSpan timeout,
+                AsyncCallback callback, object state)
+                : base(syncSource, timeout, callback, state)
+            {
+            }
+
+            protected override bool PerformOperation(TimeSpan timeout)
+            {
+                if (Source.BeginWaitForMessage(timeout, onWaitForMessageComplete, this) == AsyncReceiveResult.Completed)
+                {
+                    SetReturnValue(Source.EndWaitForMessage());
+                    return true;
+                }
+
+                return false;
+            }
+
+            static void OnWaitForMessageComplete(object state)
+            {
+                WaitForMessageAsyncResult thisPtr = (WaitForMessageAsyncResult)state;
+                Exception completionException = null;
+
+                try
+                {
+                    thisPtr.SetReturnValue(thisPtr.Source.EndWaitForMessage());
+                }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+
+                    completionException = e;
+                }
+                thisPtr.CompleteWithUnlock(false, completionException);
             }
         }
     }

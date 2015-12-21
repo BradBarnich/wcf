@@ -1,10 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+
     public abstract class BufferManager
     {
         public abstract byte[] TakeBuffer(int bufferSize);
@@ -16,13 +19,13 @@ namespace System.ServiceModel.Channels
             if (maxBufferPoolSize < 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("maxBufferPoolSize",
-                    maxBufferPoolSize, SR.ValueMustBeNonNegative));
+                    maxBufferPoolSize, SR.GetString(SR.ValueMustBeNonNegative)));
             }
 
             if (maxBufferSize < 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("maxBufferSize",
-                    maxBufferSize, SR.ValueMustBeNonNegative));
+                    maxBufferSize, SR.GetString(SR.ValueMustBeNonNegative)));
             }
 
             return new WrappingBufferManager(InternalBufferManager.Create(maxBufferPoolSize, maxBufferSize));
@@ -40,18 +43,18 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        internal class WrappingBufferManager : BufferManager
+        class WrappingBufferManager : BufferManager
         {
-            private InternalBufferManager _innerBufferManager;
+            InternalBufferManager innerBufferManager;
 
             public WrappingBufferManager(InternalBufferManager innerBufferManager)
             {
-                _innerBufferManager = innerBufferManager;
+                this.innerBufferManager = innerBufferManager;
             }
 
             public InternalBufferManager InternalBufferManager
             {
-                get { return _innerBufferManager; }
+                get { return this.innerBufferManager; }
             }
 
             public override byte[] TakeBuffer(int bufferSize)
@@ -59,10 +62,10 @@ namespace System.ServiceModel.Channels
                 if (bufferSize < 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("bufferSize", bufferSize,
-                        SR.ValueMustBeNonNegative));
+                        SR.GetString(SR.ValueMustBeNonNegative)));
                 }
 
-                return _innerBufferManager.TakeBuffer(bufferSize);
+                return this.innerBufferManager.TakeBuffer(bufferSize);
             }
 
             public override void ReturnBuffer(byte[] buffer)
@@ -72,37 +75,37 @@ namespace System.ServiceModel.Channels
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("buffer");
                 }
 
-                _innerBufferManager.ReturnBuffer(buffer);
+                this.innerBufferManager.ReturnBuffer(buffer);
             }
 
             public override void Clear()
             {
-                _innerBufferManager.Clear();
+                this.innerBufferManager.Clear();
             }
         }
 
-        internal class WrappingInternalBufferManager : InternalBufferManager
+        class WrappingInternalBufferManager : InternalBufferManager
         {
-            private BufferManager _innerBufferManager;
+            BufferManager innerBufferManager;
 
             public WrappingInternalBufferManager(BufferManager innerBufferManager)
             {
-                _innerBufferManager = innerBufferManager;
+                this.innerBufferManager = innerBufferManager;
             }
 
             public override void Clear()
             {
-                _innerBufferManager.Clear();
+                this.innerBufferManager.Clear();
             }
 
             public override void ReturnBuffer(byte[] buffer)
             {
-                _innerBufferManager.ReturnBuffer(buffer);
+                this.innerBufferManager.ReturnBuffer(buffer);
             }
 
             public override byte[] TakeBuffer(int bufferSize)
             {
-                return _innerBufferManager.TakeBuffer(bufferSize);
+                return this.innerBufferManager.TakeBuffer(bufferSize);
             }
         }
     }

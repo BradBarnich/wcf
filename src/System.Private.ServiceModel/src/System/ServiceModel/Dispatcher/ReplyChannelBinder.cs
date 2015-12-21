@@ -1,18 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ReplyChannelBinder : IChannelBinder
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+
+    class ReplyChannelBinder : IChannelBinder
     {
-        private IReplyChannel _channel;
-        private Uri _listenUri;
+        IReplyChannel channel;
+        Uri listenUri;
 
         internal ReplyChannelBinder(IReplyChannel channel, Uri listenUri)
         {
@@ -21,111 +22,112 @@ namespace System.ServiceModel.Dispatcher
                 Fx.Assert("ReplyChannelBinder.ReplyChannelBinder: (channel != null)");
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("channel");
             }
-            _channel = channel;
-            _listenUri = listenUri;
+            this.channel = channel;
+            this.listenUri = listenUri;
         }
 
         public IChannel Channel
         {
-            get { return _channel; }
+            get { return this.channel; }
         }
 
         public bool HasSession
         {
-            get { return _channel is ISessionChannel<IInputSession>; }
+            get { return this.channel is ISessionChannel<IInputSession>; }
         }
 
         public Uri ListenUri
         {
-            get { return _listenUri; }
+            get { return this.listenUri; }
         }
 
         public EndpointAddress LocalAddress
         {
-            get { return _channel.LocalAddress; }
+            get { return this.channel.LocalAddress; }
         }
 
         public EndpointAddress RemoteAddress
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(NotImplemented.ByDesign);
+#pragma warning suppress 56503 // [....], the property is really not implemented, cannot lie, API not public
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException()); 
             }
         }
 
         public void Abort()
         {
-            _channel.Abort();
+            this.channel.Abort();
         }
 
         public void CloseAfterFault(TimeSpan timeout)
         {
-            _channel.Close(timeout);
+            this.channel.Close(timeout);
         }
 
         public IAsyncResult BeginTryReceive(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginTryReceiveRequest(timeout, callback, state);
+            return this.channel.BeginTryReceiveRequest(timeout, callback, state);
         }
 
         public bool EndTryReceive(IAsyncResult result, out RequestContext requestContext)
         {
-            return _channel.EndTryReceiveRequest(result, out requestContext);
+            return this.channel.EndTryReceiveRequest(result, out requestContext);
         }
 
         public RequestContext CreateRequestContext(Message message)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public IAsyncResult BeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public void EndSend(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public void Send(Message message, TimeSpan timeout)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public Message EndRequest(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public bool TryReceive(TimeSpan timeout, out RequestContext requestContext)
         {
-            return _channel.TryReceiveRequest(timeout, out requestContext);
+            return this.channel.TryReceiveRequest(timeout, out requestContext);
         }
 
         public Message Request(Message message, TimeSpan timeout)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public bool WaitForMessage(TimeSpan timeout)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public bool EndWaitForMessage(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
     }
 }

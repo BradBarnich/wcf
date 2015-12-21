@@ -1,26 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿// <copyright>
+//   Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
+    using System.Globalization;
+    using System.Runtime;
+
     public sealed class ApplicationContainerSettings
     {
         public const int CurrentSession = ApplicationContainerSettingsDefaults.CurrentSession;
         public const int ServiceSession = ApplicationContainerSettingsDefaults.ServiceSession;
-        private const string GroupNameSuffixFormat = ";SessionId={0};PackageFullName={1}";
-
-        private int _sessionId;
+        const string GroupNameSuffixFormat = ";SessionId={0};PackageFullName={1}";
+                
+        int sessionId;
 
         internal ApplicationContainerSettings()
         {
             this.PackageFullName = ApplicationContainerSettingsDefaults.PackageFullNameDefaultString;
-            _sessionId = ApplicationContainerSettingsDefaults.CurrentSession;
+            this.sessionId = ApplicationContainerSettingsDefaults.CurrentSession;
         }
 
-        private ApplicationContainerSettings(ApplicationContainerSettings source)
+        ApplicationContainerSettings(ApplicationContainerSettings source)
         {
             this.PackageFullName = source.PackageFullName;
-            _sessionId = source._sessionId;
+            this.sessionId = source.sessionId;
         }
 
         public string PackageFullName
@@ -33,7 +37,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _sessionId;
+                return this.sessionId;
             }
 
             set
@@ -42,10 +46,10 @@ namespace System.ServiceModel.Channels
                 // non-negative windows session Id.
                 if (value < ApplicationContainerSettingsDefaults.CurrentSession)
                 {
-                    throw FxTrace.Exception.Argument("value", SR.Format(SR.SessionValueInvalid, value));
+                    throw FxTrace.Exception.Argument("value", SR.GetString(SR.SessionValueInvalid, value));
                 }
 
-                _sessionId = value;
+                this.sessionId = value;
             }
         }
 
@@ -62,6 +66,17 @@ namespace System.ServiceModel.Channels
             return new ApplicationContainerSettings(this);
         }
 
+        internal string GetConnectionGroupSuffix()
+        {
+            string suffix = string.Empty;
+            if (AppContainerInfo.IsAppContainerSupported && this.TargetingAppContainer)
+            {
+                suffix = string.Format(CultureInfo.InvariantCulture, GroupNameSuffixFormat, this.SessionId, this.PackageFullName);
+            }
+
+            return suffix;
+        }
+
         internal bool IsMatch(ApplicationContainerSettings applicationContainerSettings)
         {
             if (applicationContainerSettings == null)
@@ -74,7 +89,7 @@ namespace System.ServiceModel.Channels
                 return false;
             }
 
-            if (_sessionId != applicationContainerSettings._sessionId)
+            if (this.sessionId != applicationContainerSettings.sessionId)
             {
                 return false;
             }

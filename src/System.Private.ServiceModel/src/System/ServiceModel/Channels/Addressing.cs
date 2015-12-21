@@ -1,23 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal abstract class AddressingHeader : DictionaryHeader, IMessageHeaderWithSharedNamespace
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Xml;
+
+    abstract class AddressingHeader : DictionaryHeader, IMessageHeaderWithSharedNamespace
     {
-        private AddressingVersion _version;
+        AddressingVersion version;
 
         protected AddressingHeader(AddressingVersion version)
         {
-            _version = version;
+            this.version = version;
         }
 
         internal AddressingVersion Version
         {
-            get { return _version; }
+            get { return this.version; }
         }
 
         XmlDictionaryString IMessageHeaderWithSharedNamespace.SharedPrefix
@@ -27,29 +29,29 @@ namespace System.ServiceModel.Channels
 
         XmlDictionaryString IMessageHeaderWithSharedNamespace.SharedNamespace
         {
-            get { return _version.DictionaryNamespace; }
+            get { return this.version.DictionaryNamespace; }
         }
 
         public override XmlDictionaryString DictionaryNamespace
         {
-            get { return _version.DictionaryNamespace; }
+            get { return this.version.DictionaryNamespace; }
         }
     }
 
-    internal class ActionHeader : AddressingHeader
+    class ActionHeader : AddressingHeader
     {
-        private string _action;
-        private const bool mustUnderstandValue = true;
+        string action;
+        const bool mustUnderstandValue = true;
 
-        private ActionHeader(string action, AddressingVersion version)
+        ActionHeader(string action, AddressingVersion version)
             : base(version)
         {
-            _action = action;
+            this.action = action;
         }
 
         public string Action
         {
-            get { return _action; }
+            get { return action; }
         }
 
         public override bool MustUnderstand
@@ -82,7 +84,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            writer.WriteString(_action);
+            writer.WriteString(action);
         }
 
         public static string ReadHeaderValue(XmlDictionaryReader reader, AddressingVersion addressingVersion)
@@ -111,67 +113,67 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        internal class DictionaryActionHeader : ActionHeader
+        class DictionaryActionHeader : ActionHeader
         {
-            private XmlDictionaryString _dictionaryAction;
+            XmlDictionaryString dictionaryAction;
 
             public DictionaryActionHeader(XmlDictionaryString dictionaryAction, AddressingVersion version)
                 : base(dictionaryAction.Value, version)
             {
-                _dictionaryAction = dictionaryAction;
+                this.dictionaryAction = dictionaryAction;
             }
 
             protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
             {
-                writer.WriteString(_dictionaryAction);
+                writer.WriteString(dictionaryAction);
             }
         }
 
-        internal class FullActionHeader : ActionHeader
+        class FullActionHeader : ActionHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullActionHeader(string action, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(action, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class FromHeader : AddressingHeader
+    class FromHeader : AddressingHeader
     {
-        private EndpointAddress _from;
-        private const bool mustUnderstandValue = false;
+        EndpointAddress from;
+        const bool mustUnderstandValue = false;
 
-        private FromHeader(EndpointAddress from, AddressingVersion version)
+        FromHeader(EndpointAddress from, AddressingVersion version)
             : base(version)
         {
-            _from = from;
+            this.from = from;
         }
 
         public EndpointAddress From
         {
-            get { return _from; }
+            get { return from; }
         }
 
         public override XmlDictionaryString DictionaryName
@@ -195,7 +197,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            _from.WriteContentsTo(this.Version, writer);
+            from.WriteContentsTo(this.Version, writer);
         }
 
         public static FromHeader ReadHeader(XmlDictionaryReader reader, AddressingVersion version,
@@ -219,51 +221,51 @@ namespace System.ServiceModel.Channels
             return EndpointAddress.ReadFrom(addressingVersion, reader);
         }
 
-        internal class FullFromHeader : FromHeader
+        class FullFromHeader : FromHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullFromHeader(EndpointAddress from, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(from, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class FaultToHeader : AddressingHeader
+    class FaultToHeader : AddressingHeader
     {
-        private EndpointAddress _faultTo;
-        private const bool mustUnderstandValue = false;
+        EndpointAddress faultTo;
+        const bool mustUnderstandValue = false;
 
-        private FaultToHeader(EndpointAddress faultTo, AddressingVersion version)
+        FaultToHeader(EndpointAddress faultTo, AddressingVersion version)
             : base(version)
         {
-            _faultTo = faultTo;
+            this.faultTo = faultTo;
         }
 
         public EndpointAddress FaultTo
         {
-            get { return _faultTo; }
+            get { return faultTo; }
         }
 
         public override XmlDictionaryString DictionaryName
@@ -278,7 +280,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            _faultTo.WriteContentsTo(this.Version, writer);
+            faultTo.WriteContentsTo(this.Version, writer);
         }
 
         public static FaultToHeader Create(EndpointAddress faultTo, AddressingVersion addressingVersion)
@@ -311,60 +313,70 @@ namespace System.ServiceModel.Channels
             return EndpointAddress.ReadFrom(version, reader);
         }
 
-        internal class FullFaultToHeader : FaultToHeader
+        class FullFaultToHeader : FaultToHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullFaultToHeader(EndpointAddress faultTo, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(faultTo, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class ToHeader : AddressingHeader
+    class ToHeader : AddressingHeader
     {
-        private Uri _to;
-        private const bool mustUnderstandValue = true;
+        Uri to;
+        const bool mustUnderstandValue = true;
 
-        private static ToHeader s_anonymousToHeader10;
+        static ToHeader anonymousToHeader10;
+        static ToHeader anonymousToHeader200408;
 
         protected ToHeader(Uri to, AddressingVersion version)
             : base(version)
         {
-            _to = to;
+            this.to = to;
         }
 
-        private static ToHeader AnonymousTo10
+        static ToHeader AnonymousTo10
         {
             get
             {
-                if (s_anonymousToHeader10 == null)
-                    s_anonymousToHeader10 = new AnonymousToHeader(AddressingVersion.WSAddressing10);
-                return s_anonymousToHeader10;
+                if (anonymousToHeader10 == null)
+                    anonymousToHeader10 = new AnonymousToHeader(AddressingVersion.WSAddressing10);
+                return anonymousToHeader10;
             }
         }
 
+        static ToHeader AnonymousTo200408
+        {
+            get
+            {
+                if (anonymousToHeader200408 == null)
+                    anonymousToHeader200408 = new AnonymousToHeader(AddressingVersion.WSAddressingAugust2004);
+                return anonymousToHeader200408;
+            }
+        }
 
         public override XmlDictionaryString DictionaryName
         {
@@ -378,7 +390,7 @@ namespace System.ServiceModel.Channels
 
         public Uri To
         {
-            get { return _to; }
+            get { return to; }
         }
 
         public static ToHeader Create(Uri toUri, XmlDictionaryString dictionaryTo, AddressingVersion addressingVersion)
@@ -391,8 +403,7 @@ namespace System.ServiceModel.Channels
                 if (addressingVersion == AddressingVersion.WSAddressing10)
                     return AnonymousTo10;
                 else
-                    // Verify that only WSA10 is supported
-                    throw ExceptionHelper.PlatformNotSupported();
+                    return AnonymousTo200408;
             }
             else
             {
@@ -411,8 +422,7 @@ namespace System.ServiceModel.Channels
                 if (addressingVersion == AddressingVersion.WSAddressing10)
                     return AnonymousTo10;
                 else
-                    // Verify that only WSA10 is supported
-                    throw ExceptionHelper.PlatformNotSupported();
+                    return AnonymousTo200408;
             }
             else
             {
@@ -422,7 +432,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            writer.WriteString(_to.AbsoluteUri);
+            writer.WriteString(to.AbsoluteUri);
         }
 
         public static Uri ReadHeaderValue(XmlDictionaryReader reader, AddressingVersion version)
@@ -461,7 +471,7 @@ namespace System.ServiceModel.Channels
                     if (version == AddressingVersion.WSAddressing10)
                         return AnonymousTo10;
                     else
-                        throw ExceptionHelper.PlatformNotSupported();
+                        return AnonymousTo200408;
                 }
                 else
                 {
@@ -474,7 +484,7 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private class AnonymousToHeader : ToHeader
+        class AnonymousToHeader : ToHeader
         {
             public AnonymousToHeader(AddressingVersion version)
                 : base(version.AnonymousUri, version)
@@ -487,68 +497,69 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        internal class DictionaryToHeader : ToHeader
+        class DictionaryToHeader : ToHeader
         {
-            private XmlDictionaryString _dictionaryTo;
+            XmlDictionaryString dictionaryTo;
 
             public DictionaryToHeader(Uri to, XmlDictionaryString dictionaryTo, AddressingVersion version)
                 : base(to, version)
             {
-                _dictionaryTo = dictionaryTo;
+                this.dictionaryTo = dictionaryTo;
             }
 
             protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
             {
-                writer.WriteString(_dictionaryTo);
+                writer.WriteString(dictionaryTo);
             }
         }
 
-        internal class FullToHeader : ToHeader
+        class FullToHeader : ToHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullToHeader(Uri to, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(to, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class ReplyToHeader : AddressingHeader
+    class ReplyToHeader : AddressingHeader
     {
-        private EndpointAddress _replyTo;
-        private const bool mustUnderstandValue = false;
-        private static ReplyToHeader s_anonymousReplyToHeader10;
+        EndpointAddress replyTo;
+        const bool mustUnderstandValue = false;
+        static ReplyToHeader anonymousReplyToHeader10;
+        static ReplyToHeader anonymousReplyToHeader200408;
 
-        private ReplyToHeader(EndpointAddress replyTo, AddressingVersion version)
+        ReplyToHeader(EndpointAddress replyTo, AddressingVersion version)
             : base(version)
         {
-            _replyTo = replyTo;
+            this.replyTo = replyTo;
         }
 
         public EndpointAddress ReplyTo
         {
-            get { return _replyTo; }
+            get { return replyTo; }
         }
 
         public override XmlDictionaryString DictionaryName
@@ -565,12 +576,21 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                if (s_anonymousReplyToHeader10 == null)
-                    s_anonymousReplyToHeader10 = new ReplyToHeader(EndpointAddress.AnonymousAddress, AddressingVersion.WSAddressing10);
-                return s_anonymousReplyToHeader10;
+                if (anonymousReplyToHeader10 == null)
+                    anonymousReplyToHeader10 = new ReplyToHeader(EndpointAddress.AnonymousAddress, AddressingVersion.WSAddressing10);
+                return anonymousReplyToHeader10;
             }
         }
 
+        public static ReplyToHeader AnonymousReplyTo200408
+        {
+            get
+            {
+                if (anonymousReplyToHeader200408 == null)
+                    anonymousReplyToHeader200408 = new ReplyToHeader(EndpointAddress.AnonymousAddress, AddressingVersion.WSAddressingAugust2004);
+                return anonymousReplyToHeader200408;
+            }
+        }
 
         public static ReplyToHeader Create(EndpointAddress replyTo, AddressingVersion addressingVersion)
         {
@@ -583,7 +603,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            _replyTo.WriteContentsTo(this.Version, writer);
+            replyTo.WriteContentsTo(this.Version, writer);
         }
 
         public static ReplyToHeader ReadHeader(XmlDictionaryReader reader, AddressingVersion version,
@@ -598,8 +618,7 @@ namespace System.ServiceModel.Channels
                     if (version == AddressingVersion.WSAddressing10)
                         return AnonymousReplyTo10;
                     else
-                        // Verify that only WSA10 is supported
-                        throw ExceptionHelper.PlatformNotSupported();
+                        return AnonymousReplyTo200408;
                 }
                 return new ReplyToHeader(replyTo, version);
             }
@@ -615,46 +634,46 @@ namespace System.ServiceModel.Channels
             return EndpointAddress.ReadFrom(version, reader);
         }
 
-        internal class FullReplyToHeader : ReplyToHeader
+        class FullReplyToHeader : ReplyToHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullReplyToHeader(EndpointAddress replyTo, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(replyTo, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class MessageIDHeader : AddressingHeader
+    class MessageIDHeader : AddressingHeader
     {
-        private UniqueId _messageId;
-        private const bool mustUnderstandValue = false;
+        UniqueId messageId;
+        const bool mustUnderstandValue = false;
 
-        private MessageIDHeader(UniqueId messageId, AddressingVersion version)
+        MessageIDHeader(UniqueId messageId, AddressingVersion version)
             : base(version)
         {
-            _messageId = messageId;
+            this.messageId = messageId;
         }
 
         public override XmlDictionaryString DictionaryName
@@ -664,7 +683,7 @@ namespace System.ServiceModel.Channels
 
         public UniqueId MessageId
         {
-            get { return _messageId; }
+            get { return messageId; }
         }
 
         public override bool MustUnderstand
@@ -683,7 +702,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            writer.WriteValue(_messageId);
+            writer.WriteValue(messageId);
         }
 
         public static UniqueId ReadHeaderValue(XmlDictionaryReader reader, AddressingVersion version)
@@ -707,47 +726,47 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        internal class FullMessageIDHeader : MessageIDHeader
+        class FullMessageIDHeader : MessageIDHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
 
             public FullMessageIDHeader(UniqueId messageId, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(messageId, version)
             {
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
         }
     }
 
-    internal class RelatesToHeader : AddressingHeader
+    class RelatesToHeader : AddressingHeader
     {
-        private UniqueId _messageId;
-        private const bool mustUnderstandValue = false;
+        UniqueId messageId;
+        const bool mustUnderstandValue = false;
         internal static readonly Uri ReplyRelationshipType = new Uri(Addressing10Strings.ReplyRelationship);
 
-        private RelatesToHeader(UniqueId messageId, AddressingVersion version)
+        RelatesToHeader(UniqueId messageId, AddressingVersion version)
             : base(version)
         {
-            _messageId = messageId;
+            this.messageId = messageId;
         }
 
         public override XmlDictionaryString DictionaryName
@@ -757,7 +776,7 @@ namespace System.ServiceModel.Channels
 
         public UniqueId UniqueId
         {
-            get { return _messageId; }
+            get { return messageId; }
         }
 
         public override bool MustUnderstand
@@ -799,7 +818,7 @@ namespace System.ServiceModel.Channels
 
         protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
         {
-            writer.WriteValue(_messageId);
+            writer.WriteValue(messageId);
         }
 
         public static void ReadHeaderValue(XmlDictionaryReader reader, AddressingVersion version, out Uri relationshipType, out UniqueId messageId)
@@ -840,30 +859,30 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        internal class FullRelatesToHeader : RelatesToHeader
+        class FullRelatesToHeader : RelatesToHeader
         {
-            private string _actor;
-            private bool _mustUnderstand;
-            private bool _relay;
+            string actor;
+            bool mustUnderstand;
+            bool relay;
             //Uri relationship;
 
             public FullRelatesToHeader(UniqueId messageId, string actor, bool mustUnderstand, bool relay, AddressingVersion version)
                 : base(messageId, version)
             {
                 //this.relationship = relationship;
-                _actor = actor;
-                _mustUnderstand = mustUnderstand;
-                _relay = relay;
+                this.actor = actor;
+                this.mustUnderstand = mustUnderstand;
+                this.relay = relay;
             }
 
             public override string Actor
             {
-                get { return _actor; }
+                get { return actor; }
             }
 
             public override bool MustUnderstand
             {
-                get { return _mustUnderstand; }
+                get { return mustUnderstand; }
             }
 
             /*
@@ -875,7 +894,7 @@ namespace System.ServiceModel.Channels
 
             public override bool Relay
             {
-                get { return _relay; }
+                get { return relay; }
             }
 
             protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
@@ -889,7 +908,7 @@ namespace System.ServiceModel.Channels
                     writer.WriteEndAttribute();
                 }
                 */
-                writer.WriteValue(_messageId);
+                writer.WriteValue(messageId);
             }
         }
     }

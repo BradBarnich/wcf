@@ -1,23 +1,24 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime;
-using System.ServiceModel.Diagnostics;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public abstract class RequestChannel : ChannelBase, IRequestChannel, IAsyncRequestChannel
-    {
-        private bool _manualAddressing;
-        private List<IRequestBase> _outstandingRequests = new List<IRequestBase>();
-        private EndpointAddress _to;
-        private Uri _via;
-        private TaskCompletionSource<object> _closedTcs;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+    using System.Threading;
 
-        private bool _closed;
+    abstract class RequestChannel : ChannelBase, IRequestChannel
+    {
+        bool manualAddressing;
+        List<IRequestBase> outstandingRequests = new List<IRequestBase>();
+        EndpointAddress to;
+        Uri via;
+        ManualResetEvent closedEvent;
+        bool closed;
 
         protected RequestChannel(ChannelManagerBase channelFactory, EndpointAddress to, Uri via, bool manualAddressing)
             : base(channelFactory)
@@ -30,16 +31,16 @@ namespace System.ServiceModel.Channels
                 }
             }
 
-            _manualAddressing = manualAddressing;
-            _to = to;
-            _via = via;
+            this.manualAddressing = manualAddressing;
+            this.to = to;
+            this.via = via;
         }
 
         protected bool ManualAddressing
         {
             get
             {
-                return _manualAddressing;
+                return this.manualAddressing;
             }
         }
 
@@ -47,7 +48,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _to;
+                return this.to;
             }
         }
 
@@ -55,7 +56,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _via;
+                return this.via;
             }
         }
 
@@ -74,46 +75,41 @@ namespace System.ServiceModel.Channels
 
         protected IAsyncResult BeginWaitForPendingRequests(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return WaitForPendingRequestsAsync(timeout).ToApm(callback, state);
+            IRequestBase[] pendingRequests = SetupWaitForPendingRequests();
+            return new WaitForPendingRequestsAsyncResult(timeout, this, pendingRequests, callback, state);
         }
 
         protected void EndWaitForPendingRequests(IAsyncResult result)
         {
-            result.ToApmEnd();
+            WaitForPendingRequestsAsyncResult.End(result);
         }
 
-        private void FinishClose()
+        void FinishClose()
         {
-            lock (_outstandingRequests)
+            lock (outstandingRequests)
             {
-                if (!_closed)
+                if (!closed)
                 {
-                    _closed = true;
-                    if (_closedTcs != null)
+                    closed = true;
+                    if (closedEvent != null)
                     {
-                        _closedTcs.TrySetResult(null);
-                        _closedTcs = null;
+                        this.closedEvent.Close();
                     }
                 }
             }
         }
 
-        private IRequestBase[] SetupWaitForPendingRequests()
+        IRequestBase[] SetupWaitForPendingRequests()
         {
             return this.CopyPendingRequests(true);
         }
 
         protected void WaitForPendingRequests(TimeSpan timeout)
         {
-            WaitForPendingRequestsAsync(timeout).Wait();
-        }
-
-        internal protected async Task WaitForPendingRequestsAsync(TimeSpan timeout)
-        {
             IRequestBase[] pendingRequests = SetupWaitForPendingRequests();
             if (pendingRequests != null)
             {
-                if (!await _closedTcs.Task.AwaitWithTimeout(timeout))
+                if (!closedEvent.WaitOne(timeout, false))
                 {
                     foreach (IRequestBase request in pendingRequests)
                     {
@@ -124,21 +120,21 @@ namespace System.ServiceModel.Channels
             FinishClose();
         }
 
-        private IRequestBase[] CopyPendingRequests(bool createTcsIfNecessary)
+        IRequestBase[] CopyPendingRequests(bool createEventIfNecessary)
         {
             IRequestBase[] requests = null;
 
-            lock (_outstandingRequests)
+            lock (outstandingRequests)
             {
-                if (_outstandingRequests.Count > 0)
+                if (outstandingRequests.Count > 0)
                 {
-                    requests = new IRequestBase[_outstandingRequests.Count];
-                    _outstandingRequests.CopyTo(requests);
-                    _outstandingRequests.Clear();
+                    requests = new IRequestBase[outstandingRequests.Count];
+                    outstandingRequests.CopyTo(requests);
+                    outstandingRequests.Clear();
 
-                    if (createTcsIfNecessary && _closedTcs == null)
+                    if (createEventIfNecessary && closedEvent == null)
                     {
-                        _closedTcs = new TaskCompletionSource<object>();
+                        closedEvent = new ManualResetEvent(false);
                     }
                 }
             }
@@ -180,7 +176,7 @@ namespace System.ServiceModel.Channels
             AbortPendingRequests();
         }
 
-        private void ReleaseRequest(IRequestBase request)
+        void ReleaseRequest(IRequestBase request)
         {
             if (request != null)
             {
@@ -189,28 +185,27 @@ namespace System.ServiceModel.Channels
                 request.OnReleaseRequest();
             }
 
-            lock (_outstandingRequests)
+            lock (outstandingRequests)
             {
                 // Remove supports the connection having been removed, so don't need extra Contains() check,
                 // even though this may have been removed by Abort()
-                _outstandingRequests.Remove(request);
-                if (_outstandingRequests.Count == 0)
+                outstandingRequests.Remove(request);
+                if (outstandingRequests.Count == 0)
                 {
-                    if (!_closed && _closedTcs != null)
+                    if (!closed && closedEvent != null)
                     {
-                        _closedTcs.TrySetResult(null);
-                        _closedTcs = null;
+                        closedEvent.Set();
                     }
                 }
             }
         }
 
-        private void TrackRequest(IRequestBase request)
+        void TrackRequest(IRequestBase request)
         {
-            lock (_outstandingRequests)
+            lock (outstandingRequests)
             {
                 ThrowIfDisposedOrNotOpen(); // make sure that we haven't already snapshot our collection
-                _outstandingRequests.Add(request);
+                outstandingRequests.Add(request);
             }
         }
 
@@ -221,14 +216,69 @@ namespace System.ServiceModel.Channels
 
         public IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return RequestAsync(message, timeout).ToApm(callback, state);
+            if (message == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("message");
+
+            if (timeout < TimeSpan.Zero)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                    new ArgumentOutOfRangeException("timeout", timeout, SR.GetString(SR.SFxTimeoutOutOfRange0)));
+
+            ThrowIfDisposedOrNotOpen();
+
+            AddHeadersTo(message);
+            IAsyncRequest asyncRequest = CreateAsyncRequest(message, callback, state);
+            TrackRequest(asyncRequest);
+
+            bool throwing = true;
+            try
+            {
+                asyncRequest.BeginSendRequest(message, timeout);
+                throwing = false;
+            }
+            finally
+            {
+                if (throwing)
+                {
+                    ReleaseRequest(asyncRequest);
+                }
+            }
+
+            return asyncRequest;
         }
 
-        protected abstract IAsyncRequest CreateAsyncRequest(Message message);
+        protected abstract IRequest CreateRequest(Message message);
+        protected abstract IAsyncRequest CreateAsyncRequest(Message message, AsyncCallback callback, object state);
 
         public Message EndRequest(IAsyncResult result)
         {
-            return result.ToApmEnd<Message>();
+            if (result == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("result");
+            }
+
+            IAsyncRequest asyncRequest = result as IAsyncRequest;
+
+            if (asyncRequest == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("result", SR.GetString(SR.InvalidAsyncResult));
+            }
+
+            try
+            {
+                Message reply = asyncRequest.End();
+
+                if (DiagnosticUtility.ShouldTraceInformation)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.RequestChannelReplyReceived,
+                        SR.GetString(SR.TraceCodeRequestChannelReplyReceived), reply);
+                }
+
+                return reply;
+            }
+            finally
+            {
+                ReleaseRequest(asyncRequest);
+            }
         }
 
         public Message Request(Message message)
@@ -238,22 +288,6 @@ namespace System.ServiceModel.Channels
 
         public Message Request(Message message, TimeSpan timeout)
         {
-            return RequestAsyncInternal(message, timeout).WaitForCompletion();
-        }
-
-        public Task<Message> RequestAsync(Message message)
-        {
-            return RequestAsync(message, this.DefaultSendTimeout);
-        }
-
-        private async Task<Message> RequestAsyncInternal(Message message, TimeSpan timeout)
-        {
-            await TaskHelpers.EnsureDefaultTaskScheduler();
-            return await RequestAsync(message, timeout);
-        }
-
-        public async Task<Message> RequestAsync(Message message, TimeSpan timeout)
-        {
             if (message == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("message");
@@ -261,12 +295,12 @@ namespace System.ServiceModel.Channels
 
             if (timeout < TimeSpan.Zero)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("timeout", timeout, SR.SFxTimeoutOutOfRange0));
+                    new ArgumentOutOfRangeException("timeout", timeout, SR.GetString(SR.SFxTimeoutOutOfRange0)));
 
             ThrowIfDisposedOrNotOpen();
 
             AddHeadersTo(message);
-            IAsyncRequest request = CreateAsyncRequest(message);
+            IRequest request = CreateRequest(message);
             TrackRequest(request);
             try
             {
@@ -276,11 +310,11 @@ namespace System.ServiceModel.Channels
                 TimeSpan savedTimeout = timeoutHelper.RemainingTime();
                 try
                 {
-                    await request.SendRequestAsync(message, timeoutHelper);
+                    request.SendRequest(message, savedTimeout);
                 }
                 catch (TimeoutException timeoutException)
                 {
-                    throw TraceUtility.ThrowHelperError(new TimeoutException(SR.Format(SR.RequestChannelSendTimedOut, savedTimeout),
+                    throw TraceUtility.ThrowHelperError(new TimeoutException(SR.GetString(SR.RequestChannelSendTimedOut, savedTimeout),
                         timeoutException), message);
                 }
 
@@ -288,12 +322,19 @@ namespace System.ServiceModel.Channels
 
                 try
                 {
-                    reply = await request.ReceiveReplyAsync(timeoutHelper);
+                    reply = request.WaitForReply(savedTimeout);
                 }
                 catch (TimeoutException timeoutException)
                 {
-                    throw TraceUtility.ThrowHelperError(new TimeoutException(SR.Format(SR.RequestChannelWaitForReplyTimedOut, savedTimeout),
+                    throw TraceUtility.ThrowHelperError(new TimeoutException(SR.GetString(SR.RequestChannelWaitForReplyTimedOut, savedTimeout),
                         timeoutException), message);
+                }
+
+
+                if (DiagnosticUtility.ShouldTraceInformation)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.RequestChannelReplyReceived,
+                        SR.GetString(SR.TraceCodeRequestChannelReplyReceived), reply);
                 }
 
                 return reply;
@@ -306,29 +347,110 @@ namespace System.ServiceModel.Channels
 
         protected virtual void AddHeadersTo(Message message)
         {
-            if (!_manualAddressing && _to != null)
+            if (!manualAddressing && to != null)
             {
-                _to.ApplyTo(message);
+                to.ApplyTo(message);
+            }
+        }
+
+        class WaitForPendingRequestsAsyncResult : AsyncResult
+        {
+            static WaitOrTimerCallback completeWaitCallBack = new WaitOrTimerCallback(OnCompleteWaitCallBack);
+            IRequestBase[] pendingRequests;
+            RequestChannel requestChannel;
+            TimeSpan timeout;
+            RegisteredWaitHandle waitHandle;
+
+            public WaitForPendingRequestsAsyncResult(TimeSpan timeout, RequestChannel requestChannel, IRequestBase[] pendingRequests, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                this.requestChannel = requestChannel;
+                this.pendingRequests = pendingRequests;
+                this.timeout = timeout;
+
+                if (this.timeout == TimeSpan.Zero || this.pendingRequests == null)
+                {
+                    AbortRequests();
+                    CleanupEvents();
+                    Complete(true);
+                }
+                else
+                {
+                    this.waitHandle = ThreadPool.RegisterWaitForSingleObject(this.requestChannel.closedEvent, completeWaitCallBack, this, TimeoutHelper.ToMilliseconds(timeout), true);
+                }
+            }
+
+            void AbortRequests()
+            {
+                if (pendingRequests != null)
+                {
+                    foreach (IRequestBase request in pendingRequests)
+                    {
+                        request.Abort(this.requestChannel);
+                    }
+                }
+            }
+
+            void CleanupEvents()
+            {
+                if (requestChannel.closedEvent != null)
+                {
+                    if (waitHandle != null)
+                    {
+                        waitHandle.Unregister(requestChannel.closedEvent);
+                    }
+                    requestChannel.FinishClose();
+                }
+            }
+
+            static void OnCompleteWaitCallBack(object state, bool timedOut)
+            {
+                WaitForPendingRequestsAsyncResult thisPtr = (WaitForPendingRequestsAsyncResult)state;
+                Exception completionException = null;
+                try
+                {
+                    if (timedOut)
+                    {
+                        thisPtr.AbortRequests();
+                    }
+                    thisPtr.CleanupEvents();
+                }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    completionException = e;
+                }
+
+                thisPtr.Complete(false, completionException);
+            }
+
+            public static void End(IAsyncResult result)
+            {
+                AsyncResult.End<WaitForPendingRequestsAsyncResult>(result);
             }
         }
     }
 
-    public interface IRequestBase
+    interface IRequestBase
     {
         void Abort(RequestChannel requestChannel);
         void Fault(RequestChannel requestChannel);
         void OnReleaseRequest();
     }
 
-    public interface IRequest : IRequestBase
+    interface IRequest : IRequestBase
     {
         void SendRequest(Message message, TimeSpan timeout);
         Message WaitForReply(TimeSpan timeout);
     }
 
-    public interface IAsyncRequest : IRequestBase
+    interface IAsyncRequest : IAsyncResult, IRequestBase
     {
-        Task SendRequestAsync(Message message, TimeoutHelper timeoutHelper);
-        Task<Message> ReceiveReplyAsync(TimeoutHelper timeoutHelper);
+        void BeginSendRequest(Message message, TimeSpan timeout);
+        Message End();
     }
 }

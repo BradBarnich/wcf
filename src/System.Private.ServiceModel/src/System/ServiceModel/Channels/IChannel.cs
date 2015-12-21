@@ -1,11 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.ServiceModel;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.ServiceModel;
+
     public interface IChannel : ICommunicationObject
     {
         T GetProperty<T>() where T : class;

@@ -1,32 +1,36 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Description;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.ComponentModel;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+
     public abstract class Binding : IDefaultCommunicationTimeouts
     {
-        private TimeSpan _closeTimeout = ServiceDefaults.CloseTimeout;
-        private string _name;
-        private string _namespaceIdentifier;
-        private TimeSpan _openTimeout = ServiceDefaults.OpenTimeout;
-        private TimeSpan _receiveTimeout = ServiceDefaults.ReceiveTimeout;
-        private TimeSpan _sendTimeout = ServiceDefaults.SendTimeout;
+        TimeSpan closeTimeout = ServiceDefaults.CloseTimeout;
+        string name;
+        string namespaceIdentifier;
+        TimeSpan openTimeout = ServiceDefaults.OpenTimeout;
+        TimeSpan receiveTimeout = ServiceDefaults.ReceiveTimeout;
+        TimeSpan sendTimeout = ServiceDefaults.SendTimeout;
         internal const string DefaultNamespace = NamingHelper.DefaultNamespace;
 
         protected Binding()
         {
-            _name = null;
-            _namespaceIdentifier = DefaultNamespace;
+            this.name = null;
+            this.namespaceIdentifier = DefaultNamespace;
         }
 
         protected Binding(string name, string ns)
         {
             if (string.IsNullOrEmpty(name))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("name", SR.SFXBindingNameCannotBeNullOrEmpty);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("name", SR.GetString(SR.SFXBindingNameCannotBeNullOrEmpty));
             }
             if (ns == null)
             {
@@ -38,25 +42,27 @@ namespace System.ServiceModel.Channels
                 NamingHelper.CheckUriParameter(ns, "ns");
             }
 
-            _name = name;
-            _namespaceIdentifier = ns;
+            this.name = name;
+            this.namespaceIdentifier = ns;
         }
 
+
+        [DefaultValue(typeof(TimeSpan), ServiceDefaults.CloseTimeoutString)]
         public TimeSpan CloseTimeout
         {
-            get { return _closeTimeout; }
+            get { return this.closeTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRange0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
                 if (TimeoutHelper.IsTooLarge(value))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRangeTooBig));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _closeTimeout = value;
+                this.closeTimeout = value;
             }
         }
 
@@ -64,23 +70,23 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                if (_name == null)
-                    _name = this.GetType().Name;
+                if (this.name == null)
+                    this.name = this.GetType().Name;
 
-                return _name;
+                return this.name;
             }
             set
             {
                 if (string.IsNullOrEmpty(value))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("value", SR.SFXBindingNameCannotBeNullOrEmpty);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("value", SR.GetString(SR.SFXBindingNameCannotBeNullOrEmpty));
 
-                _name = value;
+                this.name = value;
             }
         }
 
         public string Namespace
         {
-            get { return _namespaceIdentifier; }
+            get { return this.namespaceIdentifier; }
             set
             {
                 if (value == null)
@@ -92,43 +98,45 @@ namespace System.ServiceModel.Channels
                 {
                     NamingHelper.CheckUriProperty(value, "Namespace");
                 }
-                _namespaceIdentifier = value;
+                this.namespaceIdentifier = value;
             }
         }
 
+        [DefaultValue(typeof(TimeSpan), ServiceDefaults.OpenTimeoutString)]
         public TimeSpan OpenTimeout
         {
-            get { return _openTimeout; }
+            get { return this.openTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRange0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
                 if (TimeoutHelper.IsTooLarge(value))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRangeTooBig));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _openTimeout = value;
+                this.openTimeout = value;
             }
         }
 
+        [DefaultValue(typeof(TimeSpan), ServiceDefaults.ReceiveTimeoutString)]
         public TimeSpan ReceiveTimeout
         {
-            get { return _receiveTimeout; }
+            get { return this.receiveTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRange0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
                 if (TimeoutHelper.IsTooLarge(value))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRangeTooBig));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _receiveTimeout = value;
+                this.receiveTimeout = value;
             }
         }
 
@@ -142,21 +150,22 @@ namespace System.ServiceModel.Channels
             }
         }
 
+        [DefaultValue(typeof(TimeSpan), ServiceDefaults.SendTimeoutString)]
         public TimeSpan SendTimeout
         {
-            get { return _sendTimeout; }
+            get { return this.sendTimeout; }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRange0));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
                 if (TimeoutHelper.IsTooLarge(value))
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.SFxTimeoutOutOfRangeTooBig));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value, SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _sendTimeout = value;
+                this.sendTimeout = value;
             }
         }
 
@@ -176,15 +185,70 @@ namespace System.ServiceModel.Channels
             return channelFactory;
         }
 
-        private void ValidateSecurityCapabilities(ISecurityCapabilities runtimeSecurityCapabilities, BindingParameterCollection parameters)
+        void ValidateSecurityCapabilities(ISecurityCapabilities runtimeSecurityCapabilities, BindingParameterCollection parameters)
         {
             ISecurityCapabilities bindingSecurityCapabilities = this.GetProperty<ISecurityCapabilities>(parameters);
 
             if (!SecurityCapabilities.IsEqual(bindingSecurityCapabilities, runtimeSecurityCapabilities))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new InvalidOperationException(SR.Format(SR.SecurityCapabilitiesMismatched, this)));
+                    new InvalidOperationException(SR.GetString(SR.SecurityCapabilitiesMismatched, this)));
             }
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(params object[] parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(new BindingParameterCollection(parameters));
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, params object[] parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(listenUriBaseAddress, new BindingParameterCollection(parameters));
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, string listenUriRelativeAddress, params object[] parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(listenUriBaseAddress, listenUriRelativeAddress, new BindingParameterCollection(parameters));
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, string listenUriRelativeAddress, ListenUriMode listenUriMode, params object[] parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(listenUriBaseAddress, listenUriRelativeAddress, listenUriMode, new BindingParameterCollection(parameters));
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(BindingParameterCollection parameters)
+            where TChannel : class, IChannel
+        {
+            UriBuilder listenUriBuilder = new UriBuilder(this.Scheme, DnsCache.MachineName);
+            return this.BuildChannelListener<TChannel>(listenUriBuilder.Uri, String.Empty, ListenUriMode.Unique, parameters);
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, BindingParameterCollection parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(listenUriBaseAddress, String.Empty, ListenUriMode.Explicit, parameters);
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, string listenUriRelativeAddress, BindingParameterCollection parameters)
+            where TChannel : class, IChannel
+        {
+            return this.BuildChannelListener<TChannel>(listenUriBaseAddress, listenUriRelativeAddress, ListenUriMode.Explicit, parameters);
+        }
+
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(Uri listenUriBaseAddress, string listenUriRelativeAddress, ListenUriMode listenUriMode, BindingParameterCollection parameters)
+            where TChannel : class, IChannel
+        {
+            EnsureInvariants();
+            BindingContext context = new BindingContext(new CustomBinding(this), parameters, listenUriBaseAddress, listenUriRelativeAddress, listenUriMode);
+            IChannelListener<TChannel> channelListener = context.BuildInnerChannelListener<TChannel>();
+            context.ValidateBindingElementsConsumed();
+            this.ValidateSecurityCapabilities(channelListener.GetProperty<ISecurityCapabilities>(), parameters);
+
+            return channelListener;
         }
 
         public bool CanBuildChannelFactory<TChannel>(params object[] parameters)
@@ -198,6 +262,17 @@ namespace System.ServiceModel.Channels
             return context.CanBuildInnerChannelFactory<TChannel>();
         }
 
+        public bool CanBuildChannelListener<TChannel>(params object[] parameters) where TChannel : class, IChannel
+        {
+            return this.CanBuildChannelListener<TChannel>(new BindingParameterCollection(parameters));
+        }
+
+        public virtual bool CanBuildChannelListener<TChannel>(BindingParameterCollection parameters) where TChannel : class, IChannel
+        {
+            BindingContext context = new BindingContext(new CustomBinding(this), parameters);
+            return context.CanBuildInnerChannelListener<TChannel>();
+        }
+
         // the elements should NOT reference internal elements used by the Binding
         public abstract BindingElementCollection CreateBindingElements();
 
@@ -208,7 +283,7 @@ namespace System.ServiceModel.Channels
             return context.GetInnerProperty<T>();
         }
 
-        private void EnsureInvariants()
+        void EnsureInvariants()
         {
             EnsureInvariants(null);
         }
@@ -230,29 +305,29 @@ namespace System.ServiceModel.Channels
                 if (contractName == null)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.CustomBindingRequiresTransport, this.Name)));
+                        SR.GetString(SR.CustomBindingRequiresTransport, this.Name)));
                 }
                 else
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.SFxCustomBindingNeedsTransport1, contractName)));
+                        SR.GetString(SR.SFxCustomBindingNeedsTransport1, contractName)));
                 }
             }
             if (index != elements.Count - 1)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.TransportBindingElementMustBeLast, this.Name, transport.GetType().Name)));
+                    SR.GetString(SR.TransportBindingElementMustBeLast, this.Name, transport.GetType().Name)));
             }
             if (string.IsNullOrEmpty(transport.Scheme))
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.InvalidBindingScheme, transport.GetType().Name)));
+                    SR.GetString(SR.InvalidBindingScheme, transport.GetType().Name)));
             }
 
             if (this.MessageVersion == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                    SR.Format(SR.MessageVersionMissingFromBinding, this.Name)));
+                    SR.GetString(SR.MessageVersionMissingFromBinding, this.Name)));
             }
         }
 
@@ -262,6 +337,18 @@ namespace System.ServiceModel.Channels
             this.OpenTimeout = source.OpenTimeout;
             this.ReceiveTimeout = source.ReceiveTimeout;
             this.SendTimeout = source.SendTimeout;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeName()
+        {
+            return (this.Name != this.GetType().Name);
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeNamespace()
+        {
+            return (this.Namespace != DefaultNamespace);
         }
     }
 }

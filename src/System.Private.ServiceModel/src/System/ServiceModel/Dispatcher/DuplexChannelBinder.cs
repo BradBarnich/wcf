@@ -1,52 +1,56 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Security;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class DuplexChannelBinder : IChannelBinder
+    using System;
+    using System.Collections.Generic;
+    using System.Runtime;
+    using System.Runtime.CompilerServices;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Security;
+    using System.Threading;
+    using System.Xml;
+    using System.ServiceModel.Diagnostics.Application;
+
+    class DuplexChannelBinder : IChannelBinder
     {
-        private IDuplexChannel _channel;
-        private IRequestReplyCorrelator _correlator;
-        private TimeSpan _defaultCloseTimeout;
-        private TimeSpan _defaultSendTimeout;
-        private IdentityVerifier _identityVerifier;
-        private bool _isSession;
-        private Uri _listenUri;
-        private int _pending;
-        private bool _syncPumpEnabled;
-        private List<IDuplexRequest> _requests;
-        private List<ICorrelatorKey> _timedOutRequests;
-        private ChannelHandler _channelHandler;
-        private volatile bool _requestAborted;
+        IDuplexChannel channel;
+        IRequestReplyCorrelator correlator;
+        TimeSpan defaultCloseTimeout;
+        TimeSpan defaultSendTimeout;
+        IdentityVerifier identityVerifier;
+        bool isSession;
+        Uri listenUri;
+        int pending;
+        bool syncPumpEnabled;
+        List<IDuplexRequest> requests;
+        List<ICorrelatorKey> timedOutRequests;
+        ChannelHandler channelHandler;
+        volatile bool requestAborted;
 
         internal DuplexChannelBinder(IDuplexChannel channel, IRequestReplyCorrelator correlator)
         {
             Fx.Assert(channel != null, "caller must verify");
             Fx.Assert(correlator != null, "caller must verify");
-            _channel = channel;
-            _correlator = correlator;
-            _channel.Faulted += new EventHandler(OnFaulted);
+            this.channel = channel;
+            this.correlator = correlator;
+            this.channel.Faulted += new EventHandler(OnFaulted);
         }
 
         internal DuplexChannelBinder(IDuplexChannel channel, IRequestReplyCorrelator correlator, Uri listenUri)
             : this(channel, correlator)
         {
-            _listenUri = listenUri;
+            this.listenUri = listenUri;
         }
 
         internal DuplexChannelBinder(IDuplexSessionChannel channel, IRequestReplyCorrelator correlator, Uri listenUri)
             : this((IDuplexChannel)channel, correlator, listenUri)
         {
-            _isSession = true;
+            this.isSession = true;
         }
 
         internal DuplexChannelBinder(IDuplexSessionChannel channel, IRequestReplyCorrelator correlator, bool useActiveAutoClose)
@@ -56,56 +60,56 @@ namespace System.ServiceModel.Dispatcher
 
         public IChannel Channel
         {
-            get { return _channel; }
+            get { return this.channel; }
         }
 
         public TimeSpan DefaultCloseTimeout
         {
-            get { return _defaultCloseTimeout; }
-            set { _defaultCloseTimeout = value; }
+            get { return this.defaultCloseTimeout; }
+            set { this.defaultCloseTimeout = value; }
         }
 
         internal ChannelHandler ChannelHandler
         {
             get
             {
-                if (!(_channelHandler != null))
+                if (!(this.channelHandler != null))
                 {
                     Fx.Assert("DuplexChannelBinder.ChannelHandler: (channelHandler != null)");
                 }
-                return _channelHandler;
+                return this.channelHandler;
             }
             set
             {
-                if (!(_channelHandler == null))
+                if (!(this.channelHandler == null))
                 {
                     Fx.Assert("DuplexChannelBinder.ChannelHandler: (channelHandler == null)");
                 }
-                _channelHandler = value;
+                this.channelHandler = value;
             }
         }
 
         public TimeSpan DefaultSendTimeout
         {
-            get { return _defaultSendTimeout; }
-            set { _defaultSendTimeout = value; }
+            get { return this.defaultSendTimeout; }
+            set { this.defaultSendTimeout = value; }
         }
 
         public bool HasSession
         {
-            get { return _isSession; }
+            get { return this.isSession; }
         }
 
         internal IdentityVerifier IdentityVerifier
         {
             get
             {
-                if (_identityVerifier == null)
+                if (this.identityVerifier == null)
                 {
-                    _identityVerifier = IdentityVerifier.CreateDefault();
+                    this.identityVerifier = IdentityVerifier.CreateDefault();
                 }
 
-                return _identityVerifier;
+                return this.identityVerifier;
             }
             set
             {
@@ -114,25 +118,25 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                _identityVerifier = value;
+                this.identityVerifier = value;
             }
         }
 
         public Uri ListenUri
         {
-            get { return _listenUri; }
+            get { return this.listenUri; }
         }
 
         public EndpointAddress LocalAddress
         {
-            get { return _channel.LocalAddress; }
+            get { return this.channel.LocalAddress; }
         }
 
-        private bool Pumping
+        bool Pumping
         {
             get
             {
-                if (_syncPumpEnabled)
+                if (this.syncPumpEnabled)
                     return true;
 
                 if (this.ChannelHandler != null && this.ChannelHandler.HasRegisterBeenCalled)
@@ -144,43 +148,43 @@ namespace System.ServiceModel.Dispatcher
 
         public EndpointAddress RemoteAddress
         {
-            get { return _channel.RemoteAddress; }
+            get { return this.channel.RemoteAddress; }
         }
 
-        private List<IDuplexRequest> Requests
+        List<IDuplexRequest> Requests
         {
             get
             {
                 lock (this.ThisLock)
                 {
-                    if (_requests == null)
-                        _requests = new List<IDuplexRequest>();
-                    return _requests;
+                    if (this.requests == null)
+                        this.requests = new List<IDuplexRequest>();
+                    return this.requests;
                 }
             }
         }
 
-        private List<ICorrelatorKey> TimedOutRequests
+        List<ICorrelatorKey> TimedOutRequests
         {
             get
             {
                 lock (this.ThisLock)
                 {
-                    if (_timedOutRequests == null)
+                    if (this.timedOutRequests == null)
                     {
-                        _timedOutRequests = new List<ICorrelatorKey>();
+                        this.timedOutRequests = new List<ICorrelatorKey>();
                     }
-                    return _timedOutRequests;
+                    return this.timedOutRequests;
                 }
             }
         }
 
-        private object ThisLock
+        object ThisLock
         {
             get { return this; }
         }
 
-        private void OnFaulted(object sender, EventArgs e)
+        void OnFaulted(object sender, EventArgs e)
         {
             //Some unhandled exception happened on the channel. 
             //So close all pending requests so the callbacks (in case of async)
@@ -190,32 +194,32 @@ namespace System.ServiceModel.Dispatcher
 
         public void Abort()
         {
-            _channel.Abort();
+            this.channel.Abort();
             this.AbortRequests();
         }
 
         public void CloseAfterFault(TimeSpan timeout)
         {
-            _channel.Close(timeout);
+            this.channel.Close(timeout);
             this.AbortRequests();
         }
 
-        private void AbortRequests()
+        void AbortRequests()
         {
             IDuplexRequest[] array = null;
             lock (this.ThisLock)
             {
-                if (_requests != null)
+                if (this.requests != null)
                 {
-                    array = _requests.ToArray();
+                    array = this.requests.ToArray();
 
                     foreach (IDuplexRequest request in array)
                     {
                         request.Abort();
                     }
                 }
-                _requests = null;
-                _requestAborted = true;
+                this.requests = null;
+                this.requestAborted = true;
             }
 
             // Remove requests from the correlator since the channel might be either faulting or aborting,
@@ -223,7 +227,7 @@ namespace System.ServiceModel.Dispatcher
             // This operation does not have to be under the lock
             if (array != null && array.Length > 0)
             {
-                RequestReplyCorrelator requestReplyCorrelator = _correlator as RequestReplyCorrelator;
+                RequestReplyCorrelator requestReplyCorrelator = this.correlator as RequestReplyCorrelator;
                 if (requestReplyCorrelator != null)
                 {
                     foreach (IDuplexRequest request in array)
@@ -241,16 +245,16 @@ namespace System.ServiceModel.Dispatcher
             this.DeleteTimedoutRequestsFromCorrelator();
         }
 
-        private TimeoutException GetReceiveTimeoutException(TimeSpan timeout)
+        TimeoutException GetReceiveTimeoutException(TimeSpan timeout)
         {
-            EndpointAddress address = _channel.RemoteAddress ?? _channel.LocalAddress;
+            EndpointAddress address = this.channel.RemoteAddress ?? this.channel.LocalAddress;
             if (address != null)
             {
-                return new TimeoutException(SR.Format(SR.SFxRequestTimedOut2, address, timeout));
+                return new TimeoutException(SR.GetString(SR.SFxRequestTimedOut2, address, timeout));
             }
             else
             {
-                return new TimeoutException(SR.Format(SR.SFxRequestTimedOut1, timeout));
+                return new TimeoutException(SR.GetString(SR.SFxRequestTimedOut1, timeout));
             }
         }
 
@@ -275,9 +279,9 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private bool HandleRequestAsReplyCore(Message message)
+        bool HandleRequestAsReplyCore(Message message)
         {
-            IDuplexRequest request = _correlator.Find<IDuplexRequest>(message, true);
+            IDuplexRequest request = correlator.Find<IDuplexRequest>(message, true);
             if (request != null)
             {
                 request.GotReply(message);
@@ -290,7 +294,7 @@ namespace System.ServiceModel.Dispatcher
         {
             lock (this.ThisLock)
             {
-                if (!_syncPumpEnabled)
+                if (!this.syncPumpEnabled)
                 {
                     if (!this.ChannelHandler.HasRegisterBeenCalled)
                     {
@@ -302,10 +306,10 @@ namespace System.ServiceModel.Dispatcher
 
         public IAsyncResult BeginTryReceive(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            if (_channel.State == CommunicationState.Faulted)
+            if (this.channel.State == CommunicationState.Faulted)
                 return new ChannelFaultedAsyncResult(callback, state);
 
-            return _channel.BeginTryReceive(timeout, callback, state);
+            return this.channel.BeginTryReceive(timeout, callback, state);
         }
 
         public bool EndTryReceive(IAsyncResult result, out RequestContext requestContext)
@@ -319,11 +323,11 @@ namespace System.ServiceModel.Dispatcher
             }
 
             Message message;
-            if (_channel.EndTryReceive(result, out message))
+            if (this.channel.EndTryReceive(result, out message))
             {
                 if (message != null)
                 {
-                    requestContext = new DuplexRequestContext(_channel, message, this);
+                    requestContext = new DuplexRequestContext(this.channel, message, this);
                 }
                 else
                 {
@@ -341,22 +345,22 @@ namespace System.ServiceModel.Dispatcher
 
         public RequestContext CreateRequestContext(Message message)
         {
-            return new DuplexRequestContext(_channel, message, this);
+            return new DuplexRequestContext(this.channel, message, this);
         }
 
         public IAsyncResult BeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginSend(message, timeout, callback, state);
+            return this.channel.BeginSend(message, timeout, callback, state);
         }
 
         public void EndSend(IAsyncResult result)
         {
-            _channel.EndSend(result);
+            this.channel.EndSend(result);
         }
 
         public void Send(Message message, TimeSpan timeout)
         {
-            _channel.Send(message, timeout);
+            this.channel.Send(message, timeout);
         }
 
         public IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state)
@@ -374,7 +378,7 @@ namespace System.ServiceModel.Dispatcher
                     this.RequestStarting(message, duplexRequest);
                 }
 
-                IAsyncResult result = _channel.BeginSend(message, timeout, Fx.ThunkCallback(new AsyncCallback(this.SendCallback)), duplexRequest);
+                IAsyncResult result = this.channel.BeginSend(message, timeout, Fx.ThunkCallback(new AsyncCallback(this.SendCallback)), duplexRequest);
 
                 if (result.CompletedSynchronously)
                     duplexRequest.FinishedSend(result, true);
@@ -405,14 +409,14 @@ namespace System.ServiceModel.Dispatcher
             AsyncDuplexRequest duplexRequest = result as AsyncDuplexRequest;
 
             if (duplexRequest == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.SPS_InvalidAsyncResult));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.InvalidAsyncResult)));
 
             return duplexRequest.End();
         }
 
         public bool TryReceive(TimeSpan timeout, out RequestContext requestContext)
         {
-            if (_channel.State == CommunicationState.Faulted)
+            if (this.channel.State == CommunicationState.Faulted)
             {
                 this.AbortRequests();
                 requestContext = null;
@@ -420,11 +424,11 @@ namespace System.ServiceModel.Dispatcher
             }
 
             Message message;
-            if (_channel.TryReceive(timeout, out message))
+            if (this.channel.TryReceive(timeout, out message))
             {
                 if (message != null)
                 {
-                    requestContext = new DuplexRequestContext(_channel, message, this);
+                    requestContext = new DuplexRequestContext(this.channel, message, this);
                 }
                 else
                 {
@@ -452,7 +456,7 @@ namespace System.ServiceModel.Dispatcher
                 if (!Pumping)
                 {
                     optimized = true;
-                    _syncPumpEnabled = true;
+                    syncPumpEnabled = true;
                 }
 
                 if (!optimized)
@@ -468,7 +472,7 @@ namespace System.ServiceModel.Dispatcher
 
                 try
                 {
-                    _channel.Send(message, timeoutHelper.RemainingTime());
+                    this.channel.Send(message, timeoutHelper.RemainingTime());
                     if (DiagnosticUtility.ShouldUseActivity &&
                         ServiceModelActivity.Current != null &&
                         ServiceModelActivity.Current.ActivityType == ActivityType.ProcessAction)
@@ -476,12 +480,12 @@ namespace System.ServiceModel.Dispatcher
                         ServiceModelActivity.Current.Suspend();
                     }
 
-                    for (; ;)
+                    for (;;)
                     {
                         TimeSpan remaining = timeoutHelper.RemainingTime();
                         Message reply;
 
-                        if (!_channel.TryReceive(remaining, out reply))
+                        if (!this.channel.TryReceive(remaining, out reply))
                         {
                             throw TraceUtility.ThrowHelperError(this.GetReceiveTimeoutException(timeout), message);
                         }
@@ -494,11 +498,21 @@ namespace System.ServiceModel.Dispatcher
 
                         if (reply.Headers.RelatesTo == messageId)
                         {
+                            this.ThrowIfInvalidReplyIdentity(reply);
                             return reply;
                         }
                         else if (!this.HandleRequestAsReply(reply))
                         {
                             // SFx drops a message here
+                            if (DiagnosticUtility.ShouldTraceInformation)
+                            {
+                                EndpointDispatcher dispatcher = null;
+                                if (this.ChannelHandler != null && this.ChannelHandler.Channel != null)
+                                {
+                                    dispatcher = this.ChannelHandler.Channel.EndpointDispatcher;
+                                }
+                                TraceUtility.TraceDroppedMessage(reply, dispatcher);
+                            }
                             reply.Close();
                         }
                     }
@@ -508,8 +522,8 @@ namespace System.ServiceModel.Dispatcher
                     lock (this.ThisLock)
                     {
                         this.RequestCompleting(null);
-                        _syncPumpEnabled = false;
-                        if (_pending > 0)
+                        syncPumpEnabled = false;
+                        if (this.pending > 0)
                             EnsurePumping();
                     }
                 }
@@ -517,66 +531,69 @@ namespace System.ServiceModel.Dispatcher
             else
             {
                 TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
-                _channel.Send(message, timeoutHelper.RemainingTime());
+                this.channel.Send(message, timeoutHelper.RemainingTime());
                 EnsurePumping();
                 return duplexRequest.WaitForReply(timeoutHelper.RemainingTime());
             }
         }
 
-        private void RequestStarting(Message message, IDuplexRequest request)
+        // ASSUMPTION: ([....]) caller holds lock (this.mutex)
+        void RequestStarting(Message message, IDuplexRequest request)
         {
             if (request != null)
             {
                 this.Requests.Add(request);
-                if (!_requestAborted)
+                if (!this.requestAborted)
                 {
-                    _correlator.Add<IDuplexRequest>(message, request);
+                    this.correlator.Add<IDuplexRequest>(message, request);
                 }
             }
-            _pending++;
+            this.pending++;
+
         }
 
-        private void RequestCompleting(IDuplexRequest request)
+        // ASSUMPTION: ([....]) caller holds lock (this.mutex)
+        void RequestCompleting(IDuplexRequest request)
         {
-            _pending--;
-            if (_pending == 0)
+            this.pending--;
+            if (this.pending == 0)
             {
-                _requests = null;
+                this.requests = null;
             }
-            else if ((request != null) && (_requests != null))
+            else if ((request != null) && (this.requests != null))
             {
-                _requests.Remove(request);
+                this.requests.Remove(request);
             }
         }
 
         // ASSUMPTION: caller holds ThisLock
-        private void AddToTimedOutRequestList(ICorrelatorKey request)
+        void AddToTimedOutRequestList(ICorrelatorKey request)
         {
             Fx.Assert(request != null, "request cannot be null");
             this.TimedOutRequests.Add(request);
         }
 
         // ASSUMPTION: caller holds  ThisLock
-        private void RemoveFromTimedOutRequestList(ICorrelatorKey request)
+        void RemoveFromTimedOutRequestList(ICorrelatorKey request)
         {
             Fx.Assert(request != null, "request cannot be null");
-            if (_timedOutRequests != null)
+            if (this.timedOutRequests != null)
             {
-                _timedOutRequests.Remove(request);
+                this.timedOutRequests.Remove(request);
             }
         }
 
-        private void DeleteTimedoutRequestsFromCorrelator()
+        void DeleteTimedoutRequestsFromCorrelator()
         {
             ICorrelatorKey[] array = null;
-            if (_timedOutRequests != null && _timedOutRequests.Count > 0)
+            if (this.timedOutRequests != null && this.timedOutRequests.Count > 0)
             {
                 lock (this.ThisLock)
                 {
-                    if (_timedOutRequests != null && _timedOutRequests.Count > 0)
+                    if (this.timedOutRequests != null && this.timedOutRequests.Count > 0)
                     {
-                        array = _timedOutRequests.ToArray();
-                        _timedOutRequests = null;
+                        array = this.timedOutRequests.ToArray();
+                        this.timedOutRequests = null;
                     }
                 }
             }
@@ -586,7 +603,7 @@ namespace System.ServiceModel.Dispatcher
             // This operation does not have to be under the lock
             if (array != null && array.Length > 0)
             {
-                RequestReplyCorrelator requestReplyCorrelator = _correlator as RequestReplyCorrelator;
+                RequestReplyCorrelator requestReplyCorrelator = this.correlator as RequestReplyCorrelator;
                 if (requestReplyCorrelator != null)
                 {
                     foreach (ICorrelatorKey request in array)
@@ -595,9 +612,10 @@ namespace System.ServiceModel.Dispatcher
                     }
                 }
             }
+
         }
 
-        private void SendCallback(IAsyncResult result)
+        void SendCallback(IAsyncResult result)
         {
             AsyncDuplexRequest duplexRequest = result.AsyncState as AsyncDuplexRequest;
             if (!((duplexRequest != null)))
@@ -609,31 +627,51 @@ namespace System.ServiceModel.Dispatcher
                 duplexRequest.FinishedSend(result, false);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        void EnsureIncomingIdentity(SecurityMessageProperty property, EndpointAddress address, Message reply)
+        {
+            this.IdentityVerifier.EnsureIncomingIdentity(address, property.ServiceSecurityContext.AuthorizationContext);
+        }
+
+        void ThrowIfInvalidReplyIdentity(Message reply)
+        {
+            if (!this.isSession)
+            {
+                SecurityMessageProperty property = reply.Properties.Security;
+                EndpointAddress address = this.channel.RemoteAddress;
+
+                if ((property != null) && (address != null))
+                {
+                    EnsureIncomingIdentity(property, address, reply);
+                }
+            }
+        }
+
         public bool WaitForMessage(TimeSpan timeout)
         {
-            return _channel.WaitForMessage(timeout);
+            return this.channel.WaitForMessage(timeout);
         }
 
         public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginWaitForMessage(timeout, callback, state);
+            return this.channel.BeginWaitForMessage(timeout, callback, state);
         }
 
         public bool EndWaitForMessage(IAsyncResult result)
         {
-            return _channel.EndWaitForMessage(result);
+            return this.channel.EndWaitForMessage(result);
         }
 
-        internal class DuplexRequestContext : RequestContextBase
+        class DuplexRequestContext : RequestContextBase
         {
-            private DuplexChannelBinder _binder;
-            private IDuplexChannel _channel;
+            DuplexChannelBinder binder;
+            IDuplexChannel channel;
 
             internal DuplexRequestContext(IDuplexChannel channel, Message request, DuplexChannelBinder binder)
                 : base(request, binder.DefaultCloseTimeout, binder.DefaultSendTimeout)
             {
-                _channel = channel;
-                _binder = binder;
+                this.channel = channel;
+                this.binder = binder;
             }
 
             protected override void OnAbort()
@@ -648,7 +686,7 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (message != null)
                 {
-                    _channel.Send(message, timeout);
+                    this.channel.Send(message, timeout);
                 }
             }
 
@@ -662,27 +700,28 @@ namespace System.ServiceModel.Dispatcher
                 ReplyAsyncResult.End(result);
             }
 
-            internal class ReplyAsyncResult : AsyncResult
+            class ReplyAsyncResult : AsyncResult
             {
-                private static AsyncCallback s_onSend;
-                private DuplexRequestContext _context;
+                static AsyncCallback onSend;
+                DuplexRequestContext context;
 
                 public ReplyAsyncResult(DuplexRequestContext context, Message message, TimeSpan timeout, AsyncCallback callback, object state)
                     : base(callback, state)
                 {
                     if (message != null)
                     {
-                        if (s_onSend == null)
+                        if (onSend == null)
                         {
-                            s_onSend = Fx.ThunkCallback(new AsyncCallback(OnSend));
+
+                            onSend = Fx.ThunkCallback(new AsyncCallback(OnSend));
                         }
-                        _context = context;
-                        IAsyncResult result = context._channel.BeginSend(message, timeout, s_onSend, this);
+                        this.context = context;
+                        IAsyncResult result = context.channel.BeginSend(message, timeout, onSend, this);
                         if (!result.CompletedSynchronously)
                         {
                             return;
                         }
-                        context._channel.EndSend(result);
+                        context.channel.EndSend(result);
                     }
 
                     base.Complete(true);
@@ -693,7 +732,7 @@ namespace System.ServiceModel.Dispatcher
                     AsyncResult.End<ReplyAsyncResult>(result);
                 }
 
-                private static void OnSend(IAsyncResult result)
+                static void OnSend(IAsyncResult result)
                 {
                     if (result.CompletedSynchronously)
                     {
@@ -704,7 +743,7 @@ namespace System.ServiceModel.Dispatcher
                     ReplyAsyncResult thisPtr = (ReplyAsyncResult)result.AsyncState;
                     try
                     {
-                        thisPtr._context._channel.EndSend(result);
+                        thisPtr.context.channel.EndSend(result);
                     }
 #pragma warning suppress 56500 // covered by FxCOP
                     catch (Exception exception)
@@ -721,50 +760,50 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private interface IDuplexRequest
+        interface IDuplexRequest
         {
             void Abort();
             void GotReply(Message reply);
         }
 
-        internal class SyncDuplexRequest : IDuplexRequest, ICorrelatorKey
+        class SyncDuplexRequest : IDuplexRequest, ICorrelatorKey
         {
-            private Message _reply;
-            private DuplexChannelBinder _parent;
-            private ManualResetEvent _wait = new ManualResetEvent(false);
-            private int _waitCount = 0;
-            private RequestReplyCorrelator.Key _requestCorrelatorKey;
+            Message reply;
+            DuplexChannelBinder parent;
+            ManualResetEvent wait = new ManualResetEvent(false);
+            int waitCount = 0;
+            RequestReplyCorrelator.Key requestCorrelatorKey;
 
             internal SyncDuplexRequest(DuplexChannelBinder parent)
             {
-                _parent = parent;
+                this.parent = parent;
             }
 
             RequestReplyCorrelator.Key ICorrelatorKey.RequestCorrelatorKey
             {
                 get
                 {
-                    return _requestCorrelatorKey;
+                    return this.requestCorrelatorKey;
                 }
                 set
                 {
-                    Fx.Assert(_requestCorrelatorKey == null, "RequestCorrelatorKey is already set for this request");
-                    _requestCorrelatorKey = value;
+                    Fx.Assert(this.requestCorrelatorKey == null, "RequestCorrelatorKey is already set for this request");
+                    this.requestCorrelatorKey = value;
                 }
             }
 
             public void Abort()
             {
-                _wait.Set();
+                this.wait.Set();
             }
 
             internal Message WaitForReply(TimeSpan timeout)
             {
                 try
                 {
-                    if (!TimeoutHelper.WaitOne(_wait, timeout))
+                    if (!TimeoutHelper.WaitOne(this.wait, timeout))
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(_parent.GetReceiveTimeoutException(timeout));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(this.parent.GetReceiveTimeoutException(timeout));
                     }
                 }
                 finally
@@ -772,75 +811,77 @@ namespace System.ServiceModel.Dispatcher
                     this.CloseWaitHandle();
                 }
 
-                return _reply;
+                this.parent.ThrowIfInvalidReplyIdentity(this.reply);
+                return this.reply;
             }
 
             public void GotReply(Message reply)
             {
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
-                    _parent.RequestCompleting(this);
+                    this.parent.RequestCompleting(this);
                 }
-                _reply = reply;
-                _wait.Set();
+                this.reply = reply;
+                this.wait.Set();
                 this.CloseWaitHandle();
             }
 
-            private void CloseWaitHandle()
+            void CloseWaitHandle()
             {
-                if (Interlocked.Increment(ref _waitCount) == 2)
+                if (Interlocked.Increment(ref this.waitCount) == 2)
                 {
-                    _wait.Dispose();
+                    this.wait.Close();
                 }
             }
         }
 
-        internal class AsyncDuplexRequest : AsyncResult, IDuplexRequest, ICorrelatorKey
+        class AsyncDuplexRequest : AsyncResult, IDuplexRequest, ICorrelatorKey
         {
-            private static Action<object> s_timerCallback = new Action<object>(AsyncDuplexRequest.TimerCallback);
+            static Action<object> timerCallback = new Action<object>(AsyncDuplexRequest.TimerCallback);
 
-            private bool _aborted;
-            private bool _enableComplete;
-            private bool _gotReply;
-            private Exception _sendException;
-            private IAsyncResult _sendResult;
-            private DuplexChannelBinder _parent;
-            private Message _reply;
-            private bool _timedOut;
-            private TimeSpan _timeout;
-            private Timer _timer;
-            private ServiceModelActivity _activity;
-            private RequestReplyCorrelator.Key _requestCorrelatorKey;
+            bool aborted;
+            bool enableComplete;
+            bool gotReply;
+            Exception sendException;
+            IAsyncResult sendResult;
+            DuplexChannelBinder parent;
+            Message reply;
+            bool timedOut;
+            TimeSpan timeout;
+            IOThreadTimer timer;
+            ServiceModelActivity activity;
+            RequestReplyCorrelator.Key requestCorrelatorKey;
 
             internal AsyncDuplexRequest(Message message, DuplexChannelBinder parent, TimeSpan timeout, AsyncCallback callback, object state)
                 : base(callback, state)
             {
-                _parent = parent;
-                _timeout = timeout;
+                this.parent = parent;
+                this.timeout = timeout;
 
                 if (timeout != TimeSpan.MaxValue)
                 {
-                    _timer = new Timer(new TimerCallback(AsyncDuplexRequest.s_timerCallback), this, timeout, TimeSpan.FromMilliseconds(-1));
+                    this.timer = new IOThreadTimer(AsyncDuplexRequest.timerCallback, this, true);
+                    this.timer.Set(timeout);
                 }
                 if (DiagnosticUtility.ShouldUseActivity)
                 {
-                    _activity = TraceUtility.ExtractActivity(message);
+                    this.activity = TraceUtility.ExtractActivity(message);
                 }
             }
 
-            private bool IsDone
+            bool IsDone
             {
                 get
                 {
-                    if (!_enableComplete)
+                    if (!this.enableComplete)
                     {
                         return false;
                     }
 
-                    return (((_sendResult != null) && _gotReply) ||
-                            (_sendException != null) ||
-                            _timedOut ||
-                            _aborted);
+                    return (((this.sendResult != null) && this.gotReply) ||
+                            (this.sendException != null) ||
+                            this.timedOut ||
+                            this.aborted);
                 }
             }
 
@@ -848,12 +889,12 @@ namespace System.ServiceModel.Dispatcher
             {
                 get
                 {
-                    return _requestCorrelatorKey;
+                    return this.requestCorrelatorKey;
                 }
                 set
                 {
-                    Fx.Assert(_requestCorrelatorKey == null, "RequestCorrelatorKey is already set for this request");
-                    _requestCorrelatorKey = value;
+                    Fx.Assert(this.requestCorrelatorKey == null, "RequestCorrelatorKey is already set for this request");
+                    this.requestCorrelatorKey = value;
                 }
             }
 
@@ -861,10 +902,10 @@ namespace System.ServiceModel.Dispatcher
             {
                 bool done;
 
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
                     bool wasDone = this.IsDone;
-                    _aborted = true;
+                    this.aborted = true;
                     done = !wasDone && this.IsDone;
                 }
 
@@ -872,32 +913,33 @@ namespace System.ServiceModel.Dispatcher
                     this.Done(false);
             }
 
-            private void Done(bool completedSynchronously)
+            void Done(bool completedSynchronously)
             {
                 // Make sure that we are acting on the Reply activity.
                 ServiceModelActivity replyActivity = DiagnosticUtility.ShouldUseActivity ?
-                    TraceUtility.ExtractActivity(_reply) : null;
+                    TraceUtility.ExtractActivity(this.reply) : null;
                 using (ServiceModelActivity.BoundOperation(replyActivity))
                 {
-                    if (_timer != null)
+                    if (this.timer != null)
                     {
-                        _timer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
+                        this.timer.Cancel();
+                        this.timer = null;
                     }
 
-                    lock (_parent.ThisLock)
+                    lock (this.parent.ThisLock)
                     {
-                        if (_timedOut)
+                        if (this.timedOut)
                         {
                             // this needs to be saved in a list since we need to remove these from the correlator table when the channel aborts or closes
-                            _parent.AddToTimedOutRequestList(this);
+                            this.parent.AddToTimedOutRequestList(this);
                         }
-                        _parent.RequestCompleting(this);
+                        this.parent.RequestCompleting(this);
                     }
 
-                    if (_sendException != null)
-                        this.Complete(completedSynchronously, _sendException);
-                    else if (_timedOut)
-                        this.Complete(completedSynchronously, _parent.GetReceiveTimeoutException(_timeout));
+                    if (this.sendException != null)
+                        this.Complete(completedSynchronously, this.sendException);
+                    else if (this.timedOut)
+                        this.Complete(completedSynchronously, this.parent.GetReceiveTimeoutException(this.timeout));
                     else
                         this.Complete(completedSynchronously);
                 }
@@ -907,10 +949,10 @@ namespace System.ServiceModel.Dispatcher
             {
                 bool done;
 
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
                     bool wasDone = this.IsDone;
-                    _enableComplete = true;
+                    this.enableComplete = true;
                     done = !wasDone && this.IsDone;
                 }
 
@@ -924,7 +966,7 @@ namespace System.ServiceModel.Dispatcher
 
                 try
                 {
-                    _parent._channel.EndSend(sendResult);
+                    this.parent.channel.EndSend(sendResult);
                 }
 #pragma warning suppress 56500 // covered by FxCOP
                 catch (Exception e)
@@ -937,11 +979,11 @@ namespace System.ServiceModel.Dispatcher
 
                 bool done;
 
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
                     bool wasDone = this.IsDone;
-                    _sendResult = sendResult;
-                    _sendException = sendException;
+                    this.sendResult = sendResult;
+                    this.sendException = sendException;
                     done = !wasDone && this.IsDone;
                 }
 
@@ -952,7 +994,8 @@ namespace System.ServiceModel.Dispatcher
             internal Message End()
             {
                 AsyncResult.End<AsyncDuplexRequest>(this);
-                return _reply;
+                this.parent.ThrowIfInvalidReplyIdentity(this.reply);
+                return this.reply;
             }
 
             public void GotReply(Message reply)
@@ -964,27 +1007,27 @@ namespace System.ServiceModel.Dispatcher
 
                 using (ServiceModelActivity.BoundOperation(replyActivity))
                 {
-                    lock (_parent.ThisLock)
+                    lock (this.parent.ThisLock)
                     {
                         bool wasDone = this.IsDone;
-                        _reply = reply;
-                        _gotReply = true;
+                        this.reply = reply;
+                        this.gotReply = true;
                         done = !wasDone && this.IsDone;
                         // we got reply on the channel after the request timed out, let's delete it from the pending timed out requests
                         // we don't neeed to hold on to it since it is now  removed from the correlator table
-                        if (wasDone && _timedOut)
+                        if (wasDone && this.timedOut)
                         {
-                            _parent.RemoveFromTimedOutRequestList(this);
+                            this.parent.RemoveFromTimedOutRequestList(this);
                         }
                     }
                     if (replyActivity != null && DiagnosticUtility.ShouldUseActivity)
                     {
-                        TraceUtility.SetActivity(reply, _activity);
-                        if (DiagnosticUtility.ShouldUseActivity && _activity != null)
+                        TraceUtility.SetActivity(reply, this.activity);
+                        if (DiagnosticUtility.ShouldUseActivity && this.activity != null)
                         {
                             if (null != FxTrace.Trace)
                             {
-                                FxTrace.Trace.TraceTransfer(_activity.Id);
+                                FxTrace.Trace.TraceTransfer(this.activity.Id);
                             }
                         }
                     }
@@ -998,14 +1041,14 @@ namespace System.ServiceModel.Dispatcher
                     this.Done(false);
             }
 
-            private void TimedOut()
+            void TimedOut()
             {
                 bool done;
 
-                lock (_parent.ThisLock)
+                lock (this.parent.ThisLock)
                 {
                     bool wasDone = this.IsDone;
-                    _timedOut = true;
+                    this.timedOut = true;
                     done = !wasDone && this.IsDone;
                 }
 
@@ -1013,13 +1056,13 @@ namespace System.ServiceModel.Dispatcher
                     this.Done(false);
             }
 
-            private static void TimerCallback(object state)
+            static void TimerCallback(object state)
             {
                 ((AsyncDuplexRequest)state).TimedOut();
             }
         }
 
-        private class ChannelFaultedAsyncResult : CompletedAsyncResult
+        class ChannelFaultedAsyncResult : CompletedAsyncResult
         {
             public ChannelFaultedAsyncResult(AsyncCallback callback, object state)
                 : base(callback, state)
@@ -1028,25 +1071,25 @@ namespace System.ServiceModel.Dispatcher
         }
 
         // used to read-ahead by a single message and auto-close the session when we read null
-        internal class AutoCloseDuplexSessionChannel : IDuplexSessionChannel
+        class AutoCloseDuplexSessionChannel : IDuplexSessionChannel
         {
-            private static AsyncCallback s_receiveAsyncCallback;
-            private static Action<object> s_receiveThreadSchedulerCallback;
-            private static AsyncCallback s_closeInnerChannelCallback;
-            private IDuplexSessionChannel _innerChannel;
-            private InputQueue<Message> _pendingMessages;
-            private Action _messageDequeuedCallback;
-            private CloseState _closeState;
+            static AsyncCallback receiveAsyncCallback;
+            static Action<object> receiveThreadSchedulerCallback;
+            static AsyncCallback closeInnerChannelCallback;
+            IDuplexSessionChannel innerChannel;
+            InputQueue<Message> pendingMessages;
+            Action messageDequeuedCallback;
+            CloseState closeState;
 
             public AutoCloseDuplexSessionChannel(IDuplexSessionChannel innerChannel)
             {
-                _innerChannel = innerChannel;
-                _pendingMessages = new InputQueue<Message>();
-                _messageDequeuedCallback = new Action(StartBackgroundReceive); // kick off a new receive when a message is picked up
-                _closeState = new CloseState();
+                this.innerChannel = innerChannel;
+                this.pendingMessages = new InputQueue<Message>();
+                this.messageDequeuedCallback = new Action(StartBackgroundReceive); // kick off a new receive when a message is picked up
+                this.closeState = new CloseState();
             }
 
-            private object ThisLock
+            object ThisLock
             {
                 get
                 {
@@ -1056,64 +1099,64 @@ namespace System.ServiceModel.Dispatcher
 
             public EndpointAddress LocalAddress
             {
-                get { return _innerChannel.LocalAddress; }
+                get { return this.innerChannel.LocalAddress; }
             }
 
             public EndpointAddress RemoteAddress
             {
-                get { return _innerChannel.RemoteAddress; }
+                get { return this.innerChannel.RemoteAddress; }
             }
 
             public Uri Via
             {
-                get { return _innerChannel.Via; }
+                get { return this.innerChannel.Via; }
             }
 
             public IDuplexSession Session
             {
-                get { return _innerChannel.Session; }
+                get { return this.innerChannel.Session; }
             }
 
             public CommunicationState State
             {
-                get { return _innerChannel.State; }
+                get { return this.innerChannel.State; }
             }
 
             public event EventHandler Closing
             {
-                add { _innerChannel.Closing += value; }
-                remove { _innerChannel.Closing -= value; }
+                add { this.innerChannel.Closing += value; }
+                remove { this.innerChannel.Closing -= value; }
             }
 
             public event EventHandler Closed
             {
-                add { _innerChannel.Closed += value; }
-                remove { _innerChannel.Closed -= value; }
+                add { this.innerChannel.Closed += value; }
+                remove { this.innerChannel.Closed -= value; }
             }
 
             public event EventHandler Faulted
             {
-                add { _innerChannel.Faulted += value; }
-                remove { _innerChannel.Faulted -= value; }
+                add { this.innerChannel.Faulted += value; }
+                remove { this.innerChannel.Faulted -= value; }
             }
 
             public event EventHandler Opened
             {
-                add { _innerChannel.Opened += value; }
-                remove { _innerChannel.Opened -= value; }
+                add { this.innerChannel.Opened += value; }
+                remove { this.innerChannel.Opened -= value; }
             }
 
             public event EventHandler Opening
             {
-                add { _innerChannel.Opening += value; }
-                remove { _innerChannel.Opening -= value; }
+                add { this.innerChannel.Opening += value; }
+                remove { this.innerChannel.Opening -= value; }
             }
 
-            private TimeSpan DefaultCloseTimeout
+            TimeSpan DefaultCloseTimeout
             {
                 get
                 {
-                    IDefaultCommunicationTimeouts defaultTimeouts = _innerChannel as IDefaultCommunicationTimeouts;
+                    IDefaultCommunicationTimeouts defaultTimeouts = this.innerChannel as IDefaultCommunicationTimeouts;
 
                     if (defaultTimeouts != null)
                     {
@@ -1126,11 +1169,11 @@ namespace System.ServiceModel.Dispatcher
                 }
             }
 
-            private TimeSpan DefaultReceiveTimeout
+            TimeSpan DefaultReceiveTimeout
             {
                 get
                 {
-                    IDefaultCommunicationTimeouts defaultTimeouts = _innerChannel as IDefaultCommunicationTimeouts;
+                    IDefaultCommunicationTimeouts defaultTimeouts = this.innerChannel as IDefaultCommunicationTimeouts;
 
                     if (defaultTimeouts != null)
                     {
@@ -1144,18 +1187,18 @@ namespace System.ServiceModel.Dispatcher
             }
 
             // kick off an async receive so that we notice when the server is trying to shutdown
-            private void StartBackgroundReceive()
+            void StartBackgroundReceive()
             {
-                if (s_receiveAsyncCallback == null)
+                if (receiveAsyncCallback == null)
                 {
-                    s_receiveAsyncCallback = Fx.ThunkCallback(new AsyncCallback(ReceiveAsyncCallback));
+                    receiveAsyncCallback = Fx.ThunkCallback(new AsyncCallback(ReceiveAsyncCallback));
                 }
 
                 IAsyncResult result = null;
                 Exception exceptionFromBeginReceive = null;
                 try
                 {
-                    result = _innerChannel.BeginReceive(TimeSpan.MaxValue, s_receiveAsyncCallback, this);
+                    result = this.innerChannel.BeginReceive(TimeSpan.MaxValue, receiveAsyncCallback, this);
                 }
                 catch (Exception e)
                 {
@@ -1169,28 +1212,26 @@ namespace System.ServiceModel.Dispatcher
 
                 if (exceptionFromBeginReceive != null)
                 {
-                    _pendingMessages.EnqueueAndDispatch(exceptionFromBeginReceive, _messageDequeuedCallback, false);
+                    this.pendingMessages.EnqueueAndDispatch(exceptionFromBeginReceive, messageDequeuedCallback, false);
                 }
                 else if (result.CompletedSynchronously)
                 {
-                    if (s_receiveThreadSchedulerCallback == null)
+                    if (receiveThreadSchedulerCallback == null)
                     {
-                        s_receiveThreadSchedulerCallback = new Action<object>(ReceiveThreadSchedulerCallback);
+                        receiveThreadSchedulerCallback = new Action<object>(ReceiveThreadSchedulerCallback);
                     }
-
-                    //Deskcop: IOThreadScheduler.ScheduleCallbackLowPriNoFlow(receiveThreadSchedulerCallback, result);
-                    Task.Factory.StartNew(s_receiveThreadSchedulerCallback, result, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                    IOThreadScheduler.ScheduleCallbackLowPriNoFlow(receiveThreadSchedulerCallback, result);
                 }
             }
 
-            private static void ReceiveThreadSchedulerCallback(object state)
+            static void ReceiveThreadSchedulerCallback(object state)
             {
                 IAsyncResult result = (IAsyncResult)state;
                 AutoCloseDuplexSessionChannel thisPtr = (AutoCloseDuplexSessionChannel)result.AsyncState;
                 thisPtr.OnReceive(result);
             }
 
-            private static void ReceiveAsyncCallback(IAsyncResult result)
+            static void ReceiveAsyncCallback(IAsyncResult result)
             {
                 if (result.CompletedSynchronously)
                 {
@@ -1200,13 +1241,13 @@ namespace System.ServiceModel.Dispatcher
                 thisPtr.OnReceive(result);
             }
 
-            private void OnReceive(IAsyncResult result)
+            void OnReceive(IAsyncResult result)
             {
                 Message message = null;
                 Exception receiveException = null;
                 try
                 {
-                    message = _innerChannel.EndReceive(result);
+                    message = this.innerChannel.EndReceive(result);
                 }
                 catch (Exception e)
                 {
@@ -1220,28 +1261,28 @@ namespace System.ServiceModel.Dispatcher
 
                 if (receiveException != null)
                 {
-                    _pendingMessages.EnqueueAndDispatch(receiveException, _messageDequeuedCallback, true);
+                    this.pendingMessages.EnqueueAndDispatch(receiveException, this.messageDequeuedCallback, true);
                 }
                 else
                 {
                     if (message == null)
                     {
                         // we've hit end of session, time for auto-close to kick in
-                        _pendingMessages.Shutdown();
+                        this.pendingMessages.Shutdown();
                         this.CloseInnerChannel();
                     }
                     else
                     {
-                        _pendingMessages.EnqueueAndDispatch(message, _messageDequeuedCallback, true);
+                        this.pendingMessages.EnqueueAndDispatch(message, this.messageDequeuedCallback, true);
                     }
                 }
             }
 
-            private void CloseInnerChannel()
+            void CloseInnerChannel()
             {
                 lock (ThisLock)
                 {
-                    if (!_closeState.TryBackgroundClose() || this.State != CommunicationState.Opened)
+                    if (!this.closeState.TryBackgroundClose() || this.State != CommunicationState.Opened)
                     {
                         return;
                     }
@@ -1251,11 +1292,11 @@ namespace System.ServiceModel.Dispatcher
                 Exception backgroundCloseException = null;
                 try
                 {
-                    if (s_closeInnerChannelCallback == null)
+                    if (closeInnerChannelCallback == null)
                     {
-                        s_closeInnerChannelCallback = Fx.ThunkCallback(new AsyncCallback(CloseInnerChannelCallback));
+                        closeInnerChannelCallback = Fx.ThunkCallback(new AsyncCallback(CloseInnerChannelCallback));
                     }
-                    result = _innerChannel.BeginClose(s_closeInnerChannelCallback, this);
+                    result = this.innerChannel.BeginClose(closeInnerChannelCallback, this);
                 }
                 catch (Exception e)
                 {
@@ -1264,7 +1305,7 @@ namespace System.ServiceModel.Dispatcher
                         throw;
                     }
 
-                    _innerChannel.Abort();
+                    this.innerChannel.Abort();
 
                     backgroundCloseException = e;
                 }
@@ -1272,7 +1313,7 @@ namespace System.ServiceModel.Dispatcher
                 if (backgroundCloseException != null)
                 {
                     // stash away exception to throw out of user's Close()
-                    _closeState.CaptureBackgroundException(backgroundCloseException);
+                    this.closeState.CaptureBackgroundException(backgroundCloseException);
                 }
                 else if (result.CompletedSynchronously)
                 {
@@ -1280,7 +1321,7 @@ namespace System.ServiceModel.Dispatcher
                 }
             }
 
-            private static void CloseInnerChannelCallback(IAsyncResult result)
+            static void CloseInnerChannelCallback(IAsyncResult result)
             {
                 if (result.CompletedSynchronously)
                 {
@@ -1290,12 +1331,12 @@ namespace System.ServiceModel.Dispatcher
                 ((AutoCloseDuplexSessionChannel)result.AsyncState).OnCloseInnerChannel(result);
             }
 
-            private void OnCloseInnerChannel(IAsyncResult result)
+            void OnCloseInnerChannel(IAsyncResult result)
             {
                 Exception backgroundCloseException = null;
                 try
                 {
-                    _innerChannel.EndClose(result);
+                    this.innerChannel.EndClose(result);
                 }
                 catch (Exception e)
                 {
@@ -1304,18 +1345,18 @@ namespace System.ServiceModel.Dispatcher
                         throw;
                     }
 
-                    _innerChannel.Abort();
+                    this.innerChannel.Abort();
                     backgroundCloseException = e;
                 }
 
                 if (backgroundCloseException != null)
                 {
                     // stash away exception to throw out of user's Close()
-                    _closeState.CaptureBackgroundException(backgroundCloseException);
+                    this.closeState.CaptureBackgroundException(backgroundCloseException);
                 }
                 else
                 {
-                    _closeState.FinishBackgroundClose();
+                    this.closeState.FinishBackgroundClose();
                 }
             }
 
@@ -1326,7 +1367,7 @@ namespace System.ServiceModel.Dispatcher
 
             public Message Receive(TimeSpan timeout)
             {
-                return _pendingMessages.Dequeue(timeout);
+                return this.pendingMessages.Dequeue(timeout);
             }
 
             public IAsyncResult BeginReceive(AsyncCallback callback, object state)
@@ -1336,52 +1377,52 @@ namespace System.ServiceModel.Dispatcher
 
             public IAsyncResult BeginReceive(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _pendingMessages.BeginDequeue(timeout, callback, state);
+                return this.pendingMessages.BeginDequeue(timeout, callback, state);
             }
 
             public Message EndReceive(IAsyncResult result)
             {
-                throw NotImplemented.ByDesign;
+                throw FxTrace.Exception.AsError(new NotImplementedException());
             }
 
             public bool TryReceive(TimeSpan timeout, out Message message)
             {
-                return _pendingMessages.Dequeue(timeout, out message);
+                return this.pendingMessages.Dequeue(timeout, out message);
             }
 
             public IAsyncResult BeginTryReceive(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _pendingMessages.BeginDequeue(timeout, callback, state);
+                return this.pendingMessages.BeginDequeue(timeout, callback, state);
             }
 
             public bool EndTryReceive(IAsyncResult result, out Message message)
             {
-                return _pendingMessages.EndDequeue(result, out message);
+                return this.pendingMessages.EndDequeue(result, out message);
             }
 
             public bool WaitForMessage(TimeSpan timeout)
             {
-                return _pendingMessages.WaitForItem(timeout);
+                return this.pendingMessages.WaitForItem(timeout);
             }
 
             public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _pendingMessages.BeginWaitForItem(timeout, callback, state);
+                return this.pendingMessages.BeginWaitForItem(timeout, callback, state);
             }
 
             public bool EndWaitForMessage(IAsyncResult result)
             {
-                return _pendingMessages.EndWaitForItem(result);
+                return this.pendingMessages.EndWaitForItem(result);
             }
 
             public T GetProperty<T>() where T : class
             {
-                return _innerChannel.GetProperty<T>();
+                return this.innerChannel.GetProperty<T>();
             }
 
             public void Abort()
             {
-                _innerChannel.Abort();
+                this.innerChannel.Abort();
                 Cleanup();
             }
 
@@ -1395,15 +1436,15 @@ namespace System.ServiceModel.Dispatcher
                 bool performChannelClose;
                 lock (ThisLock)
                 {
-                    performChannelClose = _closeState.TryUserClose();
+                    performChannelClose = this.closeState.TryUserClose();
                 }
                 if (performChannelClose)
                 {
-                    _innerChannel.Close(timeout);
+                    this.innerChannel.Close(timeout);
                 }
                 else
                 {
-                    _closeState.WaitForBackgroundClose(timeout);
+                    this.closeState.WaitForBackgroundClose(timeout);
                 }
                 Cleanup();
             }
@@ -1418,63 +1459,63 @@ namespace System.ServiceModel.Dispatcher
                 bool performChannelClose;
                 lock (ThisLock)
                 {
-                    performChannelClose = _closeState.TryUserClose();
+                    performChannelClose = this.closeState.TryUserClose();
                 }
                 if (performChannelClose)
                 {
-                    return _innerChannel.BeginClose(timeout, callback, state);
+                    return this.innerChannel.BeginClose(timeout, callback, state);
                 }
                 else
                 {
-                    return _closeState.BeginWaitForBackgroundClose(timeout, callback, state);
+                    return this.closeState.BeginWaitForBackgroundClose(timeout, callback, state);
                 }
             }
 
             public void EndClose(IAsyncResult result)
             {
-                // don't need to lock here since BeginClose is the sync-point
-                if (_closeState.TryUserClose())
+                // don't need to lock here since BeginClose is the [....]-point
+                if (this.closeState.TryUserClose())
                 {
-                    _innerChannel.EndClose(result);
+                    this.innerChannel.EndClose(result);
                 }
                 else
                 {
-                    _closeState.EndWaitForBackgroundClose(result);
+                    this.closeState.EndWaitForBackgroundClose(result);
                 }
                 Cleanup();
             }
 
             // called from both Abort and Close paths
-            private void Cleanup()
+            void Cleanup()
             {
-                _pendingMessages.Dispose();
+                this.pendingMessages.Dispose();
             }
 
             public void Open()
             {
-                _innerChannel.Open();
+                this.innerChannel.Open();
                 this.StartBackgroundReceive();
             }
 
             public void Open(TimeSpan timeout)
             {
-                _innerChannel.Open(timeout);
+                this.innerChannel.Open(timeout);
                 this.StartBackgroundReceive();
             }
 
             public IAsyncResult BeginOpen(AsyncCallback callback, object state)
             {
-                return _innerChannel.BeginOpen(callback, state);
+                return this.innerChannel.BeginOpen(callback, state);
             }
 
             public IAsyncResult BeginOpen(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _innerChannel.BeginOpen(timeout, callback, state);
+                return this.innerChannel.BeginOpen(timeout, callback, state);
             }
 
             public void EndOpen(IAsyncResult result)
             {
-                _innerChannel.EndOpen(result);
+                this.innerChannel.EndOpen(result);
                 this.StartBackgroundReceive();
             }
 
@@ -1490,23 +1531,23 @@ namespace System.ServiceModel.Dispatcher
 
             public IAsyncResult BeginSend(Message message, AsyncCallback callback, object state)
             {
-                return _innerChannel.BeginSend(message, callback, state);
+                return this.innerChannel.BeginSend(message, callback, state);
             }
 
             public IAsyncResult BeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _innerChannel.BeginSend(message, timeout, callback, state);
+                return this.innerChannel.BeginSend(message, timeout, callback, state);
             }
 
             public void EndSend(IAsyncResult result)
             {
-                _innerChannel.EndSend(result);
+                this.innerChannel.EndSend(result);
             }
 
-            internal class CloseState
+            class CloseState
             {
-                private bool _userClose;
-                private InputQueue<object> _backgroundCloseData;
+                bool userClose;
+                InputQueue<object> backgroundCloseData;
 
                 public CloseState()
                 {
@@ -1514,10 +1555,10 @@ namespace System.ServiceModel.Dispatcher
 
                 public bool TryBackgroundClose()
                 {
-                    Fx.Assert(_backgroundCloseData == null, "can't try twice");
-                    if (!_userClose)
+                    Fx.Assert(this.backgroundCloseData == null, "can't try twice");
+                    if (!this.userClose)
                     {
-                        _backgroundCloseData = new InputQueue<object>();
+                        this.backgroundCloseData = new InputQueue<object>();
                         return true;
                     }
                     else
@@ -1528,15 +1569,15 @@ namespace System.ServiceModel.Dispatcher
 
                 public void FinishBackgroundClose()
                 {
-                    Fx.Assert(_backgroundCloseData != null, "Only callable from background close");
-                    _backgroundCloseData.Close();
+                    Fx.Assert(this.backgroundCloseData != null, "Only callable from background close");
+                    this.backgroundCloseData.Close();
                 }
 
                 public bool TryUserClose()
                 {
-                    if (_backgroundCloseData == null)
+                    if (this.backgroundCloseData == null)
                     {
-                        _userClose = true;
+                        this.userClose = true;
                         return true;
                     }
                     else
@@ -1547,28 +1588,29 @@ namespace System.ServiceModel.Dispatcher
 
                 public void WaitForBackgroundClose(TimeSpan timeout)
                 {
-                    Fx.Assert(_backgroundCloseData != null, "Need to check background close first");
-                    object dummy = _backgroundCloseData.Dequeue(timeout);
+                    Fx.Assert(this.backgroundCloseData != null, "Need to check background close first");
+                    object dummy = this.backgroundCloseData.Dequeue(timeout);
                     Fx.Assert(dummy == null, "we should get an exception or null");
                 }
 
                 public IAsyncResult BeginWaitForBackgroundClose(TimeSpan timeout, AsyncCallback callback, object state)
                 {
-                    Fx.Assert(_backgroundCloseData != null, "Need to check background close first");
-                    return _backgroundCloseData.BeginDequeue(timeout, callback, state);
+                    Fx.Assert(this.backgroundCloseData != null, "Need to check background close first");
+                    return this.backgroundCloseData.BeginDequeue(timeout, callback, state);
                 }
 
                 public void EndWaitForBackgroundClose(IAsyncResult result)
                 {
-                    Fx.Assert(_backgroundCloseData != null, "Need to check background close first");
-                    object dummy = _backgroundCloseData.EndDequeue(result);
+                    Fx.Assert(this.backgroundCloseData != null, "Need to check background close first");
+                    object dummy = this.backgroundCloseData.EndDequeue(result);
                     Fx.Assert(dummy == null, "we should get an exception or null");
                 }
 
                 public void CaptureBackgroundException(Exception exception)
                 {
-                    _backgroundCloseData.EnqueueAndDispatch(exception, null, true);
+                    this.backgroundCloseData.EnqueueAndDispatch(exception, null, true);
                 }
+
             }
         }
     }

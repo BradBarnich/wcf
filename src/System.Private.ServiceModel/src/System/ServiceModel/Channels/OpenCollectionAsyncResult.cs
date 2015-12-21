@@ -1,28 +1,29 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Runtime;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
-    internal class OpenCollectionAsyncResult : AsyncResult
+    using System.Collections.Generic;
+    using System.Runtime;
+    using System.Threading;
+
+    class OpenCollectionAsyncResult : AsyncResult
     {
-        private bool _completedSynchronously;
-        private Exception _exception;
-        private static AsyncCallback s_nestedCallback = Fx.ThunkCallback(new AsyncCallback(Callback));
-        private int _count;
-        private TimeoutHelper _timeoutHelper;
+        bool completedSynchronously;
+        Exception exception;
+        static AsyncCallback nestedCallback = Fx.ThunkCallback(new AsyncCallback(Callback));
+        int count;
+        TimeoutHelper timeoutHelper;
 
         public OpenCollectionAsyncResult(TimeSpan timeout, AsyncCallback otherCallback, object state, IList<ICommunicationObject> collection)
             : base(otherCallback, state)
         {
-            _timeoutHelper = new TimeoutHelper(timeout);
-            _completedSynchronously = true;
+            this.timeoutHelper = new TimeoutHelper(timeout);
+            completedSynchronously = true;
 
-            _count = collection.Count;
-            if (_count == 0)
+            count = collection.Count;
+            if (count == 0)
             {
                 Complete(true);
                 return;
@@ -31,10 +32,10 @@ namespace System.ServiceModel
             for (int index = 0; index < collection.Count; index++)
             {
                 // Throw exception if there was a failure calling EndOpen in the callback (skips remaining items)
-                if (_exception != null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(_exception);
+                if (this.exception != null)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(this.exception);
                 CallbackState callbackState = new CallbackState(this, collection[index]);
-                IAsyncResult result = collection[index].BeginOpen(_timeoutHelper.RemainingTime(), s_nestedCallback, callbackState);
+                IAsyncResult result = collection[index].BeginOpen(this.timeoutHelper.RemainingTime(), nestedCallback, callbackState);
                 if (result.CompletedSynchronously)
                 {
                     collection[index].EndOpen(result);
@@ -43,7 +44,7 @@ namespace System.ServiceModel
             }
         }
 
-        private static void Callback(IAsyncResult result)
+        static void Callback(IAsyncResult result)
         {
             if (result.CompletedSynchronously)
                 return;
@@ -63,22 +64,22 @@ namespace System.ServiceModel
             }
         }
 
-        private void Decrement(bool completedSynchronously)
+        void Decrement(bool completedSynchronously)
         {
             if (completedSynchronously == false)
-                _completedSynchronously = false;
-            if (Interlocked.Decrement(ref _count) == 0)
+                this.completedSynchronously = false;
+            if (Interlocked.Decrement(ref count) == 0)
             {
-                if (_exception != null)
-                    Complete(_completedSynchronously, _exception);
+                if (this.exception != null)
+                    Complete(this.completedSynchronously, this.exception);
                 else
-                    Complete(_completedSynchronously);
+                    Complete(this.completedSynchronously);
             }
         }
 
-        private void Decrement(bool completedSynchronously, Exception exception)
+        void Decrement(bool completedSynchronously, Exception exception)
         {
-            _exception = exception;
+            this.exception = exception;
             this.Decrement(completedSynchronously);
         }
 
@@ -87,25 +88,25 @@ namespace System.ServiceModel
             AsyncResult.End<OpenCollectionAsyncResult>(result);
         }
 
-        internal class CallbackState
+        class CallbackState
         {
-            private ICommunicationObject _instance;
-            private OpenCollectionAsyncResult _result;
+            ICommunicationObject instance;
+            OpenCollectionAsyncResult result;
 
             public CallbackState(OpenCollectionAsyncResult result, ICommunicationObject instance)
             {
-                _result = result;
-                _instance = instance;
+                this.result = result;
+                this.instance = instance;
             }
 
             public ICommunicationObject Instance
             {
-                get { return _instance; }
+                get { return instance; }
             }
 
             public OpenCollectionAsyncResult Result
             {
-                get { return _result; }
+                get { return result; }
             }
         }
     }

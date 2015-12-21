@@ -1,40 +1,44 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel;
-using System.Xml;
-using System.Runtime.Diagnostics;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public abstract class TransportOutputChannel : OutputChannel
+    using System.Collections.Generic;
+    using System.ServiceModel;
+    using System.Diagnostics;
+    using System.Xml;
+    using System.Runtime.Diagnostics;
+    using System.Runtime;
+
+    abstract class TransportOutputChannel : OutputChannel
     {
-        private bool _anyHeadersToAdd;
-        private bool _manualAddressing;
-        private MessageVersion _messageVersion;
-        private EndpointAddress _to;
-        private Uri _via;
-        private ToHeader _toHeader;
-        private EventTraceActivity _channelEventTraceActivity;
+        bool anyHeadersToAdd;
+        bool manualAddressing;
+        MessageVersion messageVersion;
+        EndpointAddress to;
+        Uri via;
+        ToHeader toHeader;
+        EventTraceActivity channelEventTraceActivity;
 
         protected TransportOutputChannel(ChannelManagerBase channelManager, EndpointAddress to, Uri via, bool manualAddressing, MessageVersion messageVersion)
             : base(channelManager)
         {
-            _manualAddressing = manualAddressing;
-            _messageVersion = messageVersion;
-            _to = to;
-            _via = via;
+            this.manualAddressing = manualAddressing;
+            this.messageVersion = messageVersion;
+            this.to = to;
+            this.via = via;
 
             if (!manualAddressing && to != null)
             {
                 Uri toUri;
                 if (to.IsAnonymous)
                 {
-                    toUri = _messageVersion.Addressing.AnonymousUri;
+                    toUri = this.messageVersion.Addressing.AnonymousUri;
                 }
                 else if (to.IsNone)
                 {
-                    toUri = _messageVersion.Addressing.NoneUri;
+                    toUri = this.messageVersion.Addressing.NoneUri;
                 }
                 else
                 {
@@ -44,15 +48,15 @@ namespace System.ServiceModel.Channels
                 if (toUri != null)
                 {
                     XmlDictionaryString dictionaryTo = new ToDictionary(toUri.AbsoluteUri).To;
-                    _toHeader = ToHeader.Create(toUri, dictionaryTo, messageVersion.Addressing);
+                    this.toHeader = ToHeader.Create(toUri, dictionaryTo, messageVersion.Addressing);
                 }
 
-                _anyHeadersToAdd = to.Headers.Count > 0;
+                this.anyHeadersToAdd = to.Headers.Count > 0;
             }
 
             if (FxTrace.Trace.IsEnd2EndActivityTracingEnabled)
             {
-                _channelEventTraceActivity = EventTraceActivity.GetFromThreadOrCreate();
+                this.channelEventTraceActivity = EventTraceActivity.GetFromThreadOrCreate();
             }
         }
 
@@ -60,7 +64,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _manualAddressing;
+                return this.manualAddressing;
             }
         }
 
@@ -68,7 +72,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _messageVersion;
+                return this.messageVersion;
             }
         }
 
@@ -76,7 +80,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _to;
+                return this.to;
             }
         }
 
@@ -84,7 +88,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _via;
+                return this.via;
             }
         }
 
@@ -92,7 +96,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _channelEventTraceActivity;
+                return this.channelEventTraceActivity;
             }
         }
 
@@ -100,32 +104,32 @@ namespace System.ServiceModel.Channels
         {
             base.AddHeadersTo(message);
 
-            if (_toHeader != null)
+            if (toHeader != null)
             {
                 // we don't use to.ApplyTo(message) since it's faster to cache and
                 // use the actual <To> header then to call message.Headers.To = Uri...
-                message.Headers.SetToHeader(_toHeader);
-                if (_anyHeadersToAdd)
+                message.Headers.SetToHeader(toHeader);
+                if (anyHeadersToAdd)
                 {
-                    _to.Headers.AddHeadersTo(message);
+                    to.Headers.AddHeadersTo(message);
                 }
             }
         }
 
-        internal class ToDictionary : IXmlDictionary
+        class ToDictionary : IXmlDictionary
         {
-            private XmlDictionaryString _to;
+            XmlDictionaryString to;
 
             public ToDictionary(string to)
             {
-                _to = new XmlDictionaryString(this, to, 0);
+                this.to = new XmlDictionaryString(this, to, 0);
             }
 
             public XmlDictionaryString To
             {
                 get
                 {
-                    return _to;
+                    return to;
                 }
             }
 
@@ -133,9 +137,9 @@ namespace System.ServiceModel.Channels
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                if (value == _to.Value)
+                if (value == to.Value)
                 {
-                    result = _to;
+                    result = to;
                     return true;
                 }
                 result = null;
@@ -146,7 +150,7 @@ namespace System.ServiceModel.Channels
             {
                 if (key == 0)
                 {
-                    result = _to;
+                    result = to;
                     return true;
                 }
                 result = null;
@@ -157,9 +161,9 @@ namespace System.ServiceModel.Channels
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                if (value == _to)
+                if (value == to)
                 {
-                    result = _to;
+                    result = to;
                     return true;
                 }
                 result = null;

@@ -1,11 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
+﻿// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
-    internal interface IStreamedMessageEncoder
+    using System.IO;
+
+    interface IStreamedMessageEncoder
     {
         Stream GetResponseMessageStream(Message message);
     }

@@ -1,28 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Diagnostics;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Diagnostics
 {
-    internal abstract class TraceAsyncResult : AsyncResult
+    using System.Runtime;
+    using System.Diagnostics;
+
+    abstract class TraceAsyncResult : AsyncResult
     {
-        private static Action<AsyncCallback, IAsyncResult> s_waitResultCallback = new Action<AsyncCallback, IAsyncResult>(DoCallback);
+        static Action<AsyncCallback, IAsyncResult> waitResultCallback = new Action<AsyncCallback, IAsyncResult>(DoCallback);
 
         protected TraceAsyncResult(AsyncCallback callback, object state) :
             base(callback, state)
         {
             if (TraceUtility.MessageFlowTracingOnly)
             {
-                base.VirtualCallback = s_waitResultCallback;
-            }
+                this.CallbackActivity = ServiceModelActivity.CreateLightWeightAsyncActivity(Trace.CorrelationManager.ActivityId);
+                base.VirtualCallback = waitResultCallback;
+            } 
             else if (DiagnosticUtility.ShouldUseActivity)
             {
                 this.CallbackActivity = ServiceModelActivity.Current;
                 if (this.CallbackActivity != null)
                 {
-                    base.VirtualCallback = s_waitResultCallback;
+                    base.VirtualCallback = waitResultCallback;
                 }
             }
         }
@@ -33,7 +35,7 @@ namespace System.ServiceModel.Diagnostics
             private set;
         }
 
-        private static void DoCallback(AsyncCallback callback, IAsyncResult result)
+        static void DoCallback(AsyncCallback callback, IAsyncResult result)
         {
             if (result is TraceAsyncResult)
             {
@@ -42,6 +44,7 @@ namespace System.ServiceModel.Diagnostics
 
                 if (TraceUtility.MessageFlowTracingOnly)
                 {
+                    Trace.CorrelationManager.ActivityId = thisPtr.CallbackActivity.Id;
                     thisPtr.CallbackActivity = null;
                 }
 

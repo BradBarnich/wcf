@@ -1,62 +1,64 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Net.Security;
-using System.Reflection;
-using System.ServiceModel.Security;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Name={_name}, Namespace={_ns}, Type={Type}, Index={_index}}")]
+    using System;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Net.Security;
+    using System.Reflection;
+    using System.ServiceModel.Security;
+
+    [DebuggerDisplay("Name={name}, Namespace={ns}, Type={Type}, Index={index}}")]
     public class MessagePartDescription
     {
-        private XmlName _name;
-        private string _ns;
-        private int _index;
-        private Type _type;
-        private int _serializationPosition;
-        private ProtectionLevel _protectionLevel;
-        private bool _hasProtectionLevel;
-        private MemberInfo _memberInfo;
-        private CustomAttributeProvider _additionalAttributesProvider;
+        XmlName name;
+        string ns;        
+        int index;
+        Type type;
+        int serializationPosition;
+        ProtectionLevel protectionLevel;
+        bool hasProtectionLevel;
+        MemberInfo memberInfo;
+        ICustomAttributeProvider additionalAttributesProvider;
 
-        private bool _multiple;
-        private string _baseType;
-        private string _uniquePartName;
+        bool multiple;
+        string baseType;
+        string uniquePartName;
 
         public MessagePartDescription(string name, string ns)
         {
             if (name == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("name", SR.SFxParameterNameCannotBeNull);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("name", SR.GetString(SR.SFxParameterNameCannotBeNull));
             }
 
-            _name = new XmlName(name, true /*isEncoded*/);
+            this.name = new XmlName(name, true /*isEncoded*/);
 
             if (!string.IsNullOrEmpty(ns))
             {
                 NamingHelper.CheckUriParameter(ns, "ns");
             }
 
-            _ns = ns;
+            this.ns = ns;
         }
 
         internal MessagePartDescription(MessagePartDescription other)
         {
-            _name = other._name;
-            _ns = other._ns;
-            _index = other._index;
-            _type = other._type;
-            _serializationPosition = other._serializationPosition;
-            _hasProtectionLevel = other._hasProtectionLevel;
-            _protectionLevel = other._protectionLevel;
-            _memberInfo = other._memberInfo;
-            _multiple = other._multiple;
-            _additionalAttributesProvider = other._additionalAttributesProvider;
-            _baseType = other._baseType;
-            _uniquePartName = other._uniquePartName;
+            this.name = other.name;
+            this.ns = other.ns;
+            this.index = other.index;
+            this.type = other.type;
+            this.serializationPosition = other.serializationPosition;
+            this.hasProtectionLevel = other.hasProtectionLevel;
+            this.protectionLevel = other.protectionLevel;
+            this.memberInfo = other.memberInfo;
+            this.multiple = other.multiple;
+            this.additionalAttributesProvider = other.additionalAttributesProvider;
+            this.baseType = other.baseType;
+            this.uniquePartName = other.uniquePartName;
         }
 
         internal virtual MessagePartDescription Clone()
@@ -66,94 +68,94 @@ namespace System.ServiceModel.Description
 
         internal string BaseType
         {
-            get { return _baseType; }
-            set { _baseType = value; }
+            get { return this.baseType; }
+            set { this.baseType = value; }
         }
 
         internal XmlName XmlName
         {
-            get { return _name; }
+            get { return this.name; }
         }
 
         internal string CodeName
         {
-            get { return _name.DecodedName; }
+            get { return this.name.DecodedName; }
         }
 
         public string Name
         {
-            get { return _name.EncodedName; }
+            get { return this.name.EncodedName; }
         }
 
         public string Namespace
         {
-            get { return _ns; }
+            get { return this.ns; }            
         }
 
         public Type Type
         {
-            get { return _type; }
-            set { _type = value; }
+            get { return type; }
+            set { type = value; }
         }
 
         public int Index
         {
-            get { return _index; }
-            set { _index = value; }
+            get { return index; }
+            set { index = value; }
         }
-
+        
         [DefaultValue(false)]
         public bool Multiple
         {
-            get { return _multiple; }
-            set { _multiple = value; }
+            get { return this.multiple; }
+            set { this.multiple = value; }
         }
-
+        
         public ProtectionLevel ProtectionLevel
         {
-            get { return _protectionLevel; }
+            get { return this.protectionLevel; }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         public MemberInfo MemberInfo
         {
-            get { return _memberInfo; }
-            set { _memberInfo = value; }
+            get { return this.memberInfo; }
+            set { this.memberInfo = value; }
         }
 
-        internal CustomAttributeProvider AdditionalAttributesProvider
+        internal ICustomAttributeProvider AdditionalAttributesProvider
         {
-            get { return _additionalAttributesProvider ?? _memberInfo; }
-            set { _additionalAttributesProvider = value; }
+            get { return this.additionalAttributesProvider ?? this.memberInfo; }
+            set { this.additionalAttributesProvider = value; }
         }
 
         internal string UniquePartName
         {
-            get { return _uniquePartName; }
-            set { _uniquePartName = value; }
+            get { return this.uniquePartName; }
+            set { this.uniquePartName = value; }
         }
 
         internal int SerializationPosition
         {
-            get { return _serializationPosition; }
-            set { _serializationPosition = value; }
+            get { return serializationPosition; }
+            set { serializationPosition = value; }
         }
 
         internal void ResetProtectionLevel()
         {
-            _protectionLevel = ProtectionLevel.None;
-            _hasProtectionLevel = false;
+            this.protectionLevel = ProtectionLevel.None;
+            this.hasProtectionLevel = false;
         }
     }
 }

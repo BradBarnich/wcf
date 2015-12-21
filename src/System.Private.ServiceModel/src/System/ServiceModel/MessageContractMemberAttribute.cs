@@ -1,25 +1,27 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Description;
-using System.ServiceModel.Security;
-using System.Net.Security;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Security;
+    using System.Net.Security;
+
     public abstract class MessageContractMemberAttribute : Attribute
     {
-        private string _name;
-        private string _ns;
-        private bool _isNameSetExplicit;
-        private bool _isNamespaceSetExplicit;
-        private ProtectionLevel _protectionLevel = ProtectionLevel.None;
-        private bool _hasProtectionLevel = false;
+        string name;
+        string ns;
+        bool isNameSetExplicit;
+        bool isNamespaceSetExplicit;
+        ProtectionLevel protectionLevel = ProtectionLevel.None;
+        bool hasProtectionLevel = false;
 
         internal const string NamespacePropertyName = "Namespace";
         public string Namespace
         {
-            get { return _ns; }
+            get { return ns; }
             set
             {
                 if (value == null)
@@ -31,20 +33,20 @@ namespace System.ServiceModel
                 {
                     NamingHelper.CheckUriProperty(value, "Namespace");
                 }
-                _ns = value;
-                _isNamespaceSetExplicit = true;
+                ns = value;
+                isNamespaceSetExplicit = true;
             }
         }
 
         internal bool IsNamespaceSetExplicit
         {
-            get { return _isNamespaceSetExplicit; }
+            get { return isNamespaceSetExplicit; }
         }
 
         internal const string NamePropertyName = "Name";
         public string Name
         {
-            get { return _name; }
+            get { return name; }
             set
             {
                 if (value == null)
@@ -54,15 +56,15 @@ namespace System.ServiceModel
                 if (value == string.Empty)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxNameCannotBeEmpty));
+                        SR.GetString(SR.SFxNameCannotBeEmpty)));
                 }
-                _name = value; _isNameSetExplicit = true;
+                name = value; isNameSetExplicit = true;
             }
         }
 
         internal bool IsNameSetExplicit
         {
-            get { return _isNameSetExplicit; }
+            get { return isNameSetExplicit; }
         }
 
         internal const string ProtectionLevelPropertyName = "ProtectionLevel";
@@ -70,20 +72,20 @@ namespace System.ServiceModel
         {
             get
             {
-                return _protectionLevel;
+                return this.protectionLevel;
             }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
     }
 }

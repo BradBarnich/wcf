@@ -1,12 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.ServiceModel.Channels;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal static class ListenerBinder
+    using System;
+    using System.ServiceModel.Channels;
+
+    static class ListenerBinder
     {
         internal static IListenerBinder GetBinder(IChannelListener listener, MessageVersion messageVersion)
         {
@@ -34,283 +35,283 @@ namespace System.ServiceModel.Dispatcher
             if (duplexSession != null)
                 return new DuplexSessionListenerBinder(duplexSession, messageVersion);
 
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.UnknownListenerType1, listener.Uri.AbsoluteUri)));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.UnknownListenerType1, listener.Uri.AbsoluteUri)));
         }
 
         // ------------------------------------------------------------------------------------------------------------
         // Listener Binders
 
-        internal class DuplexListenerBinder : IListenerBinder
+        class DuplexListenerBinder : IListenerBinder
         {
-            private IRequestReplyCorrelator _correlator;
-            private IChannelListener<IDuplexChannel> _listener;
-            private MessageVersion _messageVersion;
+            IRequestReplyCorrelator correlator;
+            IChannelListener<IDuplexChannel> listener;
+            MessageVersion messageVersion;
 
             internal DuplexListenerBinder(IChannelListener<IDuplexChannel> listener, MessageVersion messageVersion)
             {
-                _correlator = new RequestReplyCorrelator();
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.correlator = new RequestReplyCorrelator();
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IDuplexChannel channel = _listener.AcceptChannel(timeout);
+                IDuplexChannel channel = this.listener.AcceptChannel(timeout);
                 if (channel == null)
                     return null;
 
-                return new DuplexChannelBinder(channel, _correlator, _listener.Uri);
+                return new DuplexChannelBinder(channel, this.correlator, this.listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IDuplexChannel channel = _listener.EndAcceptChannel(result);
+                IDuplexChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new DuplexChannelBinder(channel, _correlator, _listener.Uri);
+                return new DuplexChannelBinder(channel, this.correlator, this.listener.Uri);
             }
         }
 
-        internal class DuplexSessionListenerBinder : IListenerBinder
+        class DuplexSessionListenerBinder : IListenerBinder
         {
-            private IRequestReplyCorrelator _correlator;
-            private IChannelListener<IDuplexSessionChannel> _listener;
-            private MessageVersion _messageVersion;
+            IRequestReplyCorrelator correlator;
+            IChannelListener<IDuplexSessionChannel> listener;
+            MessageVersion messageVersion;
 
             internal DuplexSessionListenerBinder(IChannelListener<IDuplexSessionChannel> listener, MessageVersion messageVersion)
             {
-                _correlator = new RequestReplyCorrelator();
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.correlator = new RequestReplyCorrelator();
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IDuplexSessionChannel channel = _listener.AcceptChannel(timeout);
+                IDuplexSessionChannel channel = this.listener.AcceptChannel(timeout);
                 if (channel == null)
                     return null;
 
-                return new DuplexChannelBinder(channel, _correlator, _listener.Uri);
+                return new DuplexChannelBinder(channel, this.correlator, this.listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IDuplexSessionChannel channel = _listener.EndAcceptChannel(result);
+                IDuplexSessionChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new DuplexChannelBinder(channel, _correlator, _listener.Uri);
+                return new DuplexChannelBinder(channel, this.correlator, this.listener.Uri);
             }
         }
 
-        internal class InputListenerBinder : IListenerBinder
+        class InputListenerBinder : IListenerBinder
         {
-            private IChannelListener<IInputChannel> _listener;
-            private MessageVersion _messageVersion;
+            IChannelListener<IInputChannel> listener;
+            MessageVersion messageVersion;
 
             internal InputListenerBinder(IChannelListener<IInputChannel> listener, MessageVersion messageVersion)
             {
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IInputChannel channel = _listener.AcceptChannel(timeout);
+                IInputChannel channel = this.listener.AcceptChannel(timeout);
                 if (channel == null)
                     return null;
 
-                return new InputChannelBinder(channel, _listener.Uri);
+                return new InputChannelBinder(channel, this.listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IInputChannel channel = _listener.EndAcceptChannel(result);
+                IInputChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new InputChannelBinder(channel, _listener.Uri);
+                return new InputChannelBinder(channel, this.listener.Uri);
             }
         }
 
-        internal class InputSessionListenerBinder : IListenerBinder
+        class InputSessionListenerBinder : IListenerBinder
         {
-            private IChannelListener<IInputSessionChannel> _listener;
-            private MessageVersion _messageVersion;
+            IChannelListener<IInputSessionChannel> listener;
+            MessageVersion messageVersion;
 
             internal InputSessionListenerBinder(IChannelListener<IInputSessionChannel> listener, MessageVersion messageVersion)
             {
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IInputSessionChannel channel = _listener.AcceptChannel(timeout);
+                IInputSessionChannel channel = this.listener.AcceptChannel(timeout);
                 if (null == channel)
                     return null;
 
-                return new InputChannelBinder(channel, _listener.Uri);
+                return new InputChannelBinder(channel, this.listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IInputSessionChannel channel = _listener.EndAcceptChannel(result);
+                IInputSessionChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new InputChannelBinder(channel, _listener.Uri);
+                return new InputChannelBinder(channel, this.listener.Uri);
             }
         }
 
-        internal class ReplyListenerBinder : IListenerBinder
+        class ReplyListenerBinder : IListenerBinder
         {
-            private IChannelListener<IReplyChannel> _listener;
-            private MessageVersion _messageVersion;
+            IChannelListener<IReplyChannel> listener;
+            MessageVersion messageVersion;
 
             internal ReplyListenerBinder(IChannelListener<IReplyChannel> listener, MessageVersion messageVersion)
             {
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IReplyChannel channel = _listener.AcceptChannel(timeout);
+                IReplyChannel channel = this.listener.AcceptChannel(timeout);
                 if (channel == null)
                     return null;
 
-                return new ReplyChannelBinder(channel, _listener.Uri);
+                return new ReplyChannelBinder(channel, listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IReplyChannel channel = _listener.EndAcceptChannel(result);
+                IReplyChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new ReplyChannelBinder(channel, _listener.Uri);
+                return new ReplyChannelBinder(channel, listener.Uri);
             }
         }
 
-        internal class ReplySessionListenerBinder : IListenerBinder
+        class ReplySessionListenerBinder : IListenerBinder
         {
-            private IChannelListener<IReplySessionChannel> _listener;
-            private MessageVersion _messageVersion;
+            IChannelListener<IReplySessionChannel> listener;
+            MessageVersion messageVersion;
 
             internal ReplySessionListenerBinder(IChannelListener<IReplySessionChannel> listener, MessageVersion messageVersion)
             {
-                _listener = listener;
-                _messageVersion = messageVersion;
+                this.listener = listener;
+                this.messageVersion = messageVersion;
             }
 
             public IChannelListener Listener
             {
-                get { return _listener; }
+                get { return this.listener; }
             }
 
             public MessageVersion MessageVersion
             {
-                get { return _messageVersion; }
+                get { return this.messageVersion; }
             }
 
             public IChannelBinder Accept(TimeSpan timeout)
             {
-                IReplySessionChannel channel = _listener.AcceptChannel(timeout);
+                IReplySessionChannel channel = this.listener.AcceptChannel(timeout);
                 if (channel == null)
                     return null;
 
-                return new ReplyChannelBinder(channel, _listener.Uri);
+                return new ReplyChannelBinder(channel, listener.Uri);
             }
 
             public IAsyncResult BeginAccept(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                return _listener.BeginAcceptChannel(timeout, callback, state);
+                return this.listener.BeginAcceptChannel(timeout, callback, state);
             }
 
             public IChannelBinder EndAccept(IAsyncResult result)
             {
-                IReplySessionChannel channel = _listener.EndAcceptChannel(result);
+                IReplySessionChannel channel = this.listener.EndAcceptChannel(result);
                 if (channel == null)
                     return null;
 
-                return new ReplyChannelBinder(channel, _listener.Uri);
+                return new ReplyChannelBinder(channel, listener.Uri);
             }
         }
     }

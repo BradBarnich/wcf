@@ -1,33 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Globalization;
-using System.IdentityModel.Policy;
-using System.IdentityModel.Tokens;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security.Tokens
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Globalization;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Tokens;
+    using System.Xml;
+
     public class SecurityContextSecurityToken : SecurityToken, TimeBoundedCache.IExpirableItem, IDisposable
     {
-        private byte[] _cookieBlob;
-        private UniqueId _contextId = null;
-        private UniqueId _keyGeneration = null;
-        private DateTime _keyEffectiveTime;
-        private DateTime _keyExpirationTime;
-        private DateTime _tokenEffectiveTime;
-        private DateTime _tokenExpirationTime;
-        private bool _isCookieMode = false;
-        private byte[] _key;
-        private string _keyString;
-        private ReadOnlyCollection<IAuthorizationPolicy> _authorizationPolicies;
-        private ReadOnlyCollection<SecurityKey> _securityKeys;
-        private string _id;
-        private SecurityMessageProperty _bootstrapMessageProperty;
-        private bool _disposed = false;
+        byte[] cookieBlob;
+        UniqueId contextId = null;
+        UniqueId keyGeneration = null;
+        DateTime keyEffectiveTime;
+        DateTime keyExpirationTime;
+        DateTime tokenEffectiveTime;
+        DateTime tokenExpirationTime;
+        bool isCookieMode = false;
+        byte[] key;
+        string keyString;
+        ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies;
+        ReadOnlyCollection<SecurityKey> securityKeys;
+        string id;
+        SecurityMessageProperty bootstrapMessageProperty;
+        bool disposed = false;
 
         public SecurityContextSecurityToken(UniqueId contextId, byte[] key, DateTime validFrom, DateTime validTo)
             : this(contextId, SecurityUtils.GenerateId(), key, validFrom, validTo)
@@ -40,29 +41,29 @@ namespace System.ServiceModel.Security.Tokens
         public SecurityContextSecurityToken(UniqueId contextId, string id, byte[] key, DateTime validFrom, DateTime validTo, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies)
             : base()
         {
-            _id = id;
+            this.id = id;
             this.Initialize(contextId, key, validFrom, validTo, authorizationPolicies, false, null, validFrom, validTo);
         }
 
         public SecurityContextSecurityToken(UniqueId contextId, string id, byte[] key, DateTime validFrom, DateTime validTo, UniqueId keyGeneration, DateTime keyEffectiveTime, DateTime keyExpirationTime, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies)
             : base()
         {
-            _id = id;
+            this.id = id;
             this.Initialize(contextId, key, validFrom, validTo, authorizationPolicies, false, keyGeneration, keyEffectiveTime, keyExpirationTime);
         }
 
         internal SecurityContextSecurityToken(SecurityContextSecurityToken sourceToken, string id)
-            : this(sourceToken, id, sourceToken._key, sourceToken._keyGeneration, sourceToken._keyEffectiveTime, sourceToken._keyExpirationTime, sourceToken.AuthorizationPolicies)
+            : this(sourceToken, id, sourceToken.key, sourceToken.keyGeneration, sourceToken.keyEffectiveTime, sourceToken.keyExpirationTime, sourceToken.AuthorizationPolicies)
         {
         }
 
         internal SecurityContextSecurityToken(SecurityContextSecurityToken sourceToken, string id, byte[] key, UniqueId keyGeneration, DateTime keyEffectiveTime, DateTime keyExpirationTime, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies)
             : base()
         {
-            _id = id;
-            this.Initialize(sourceToken._contextId, key, sourceToken.ValidFrom, sourceToken.ValidTo, authorizationPolicies, sourceToken._isCookieMode, keyGeneration, keyEffectiveTime, keyExpirationTime);
-            _cookieBlob = sourceToken._cookieBlob;
-            _bootstrapMessageProperty = (sourceToken._bootstrapMessageProperty == null) ? null : (SecurityMessageProperty)sourceToken.BootstrapMessageProperty.CreateCopy();
+            this.id = id;
+            this.Initialize(sourceToken.contextId, key, sourceToken.ValidFrom, sourceToken.ValidTo, authorizationPolicies, sourceToken.isCookieMode, keyGeneration, keyEffectiveTime, keyExpirationTime);
+            this.cookieBlob = sourceToken.cookieBlob;
+            this.bootstrapMessageProperty = (sourceToken.bootstrapMessageProperty == null) ? null : (SecurityMessageProperty)sourceToken.BootstrapMessageProperty.CreateCopy();
         }
 
         internal SecurityContextSecurityToken(UniqueId contextId, string id, byte[] key, DateTime validFrom, DateTime validTo, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies, bool isCookieMode, byte[] cookieBlob)
@@ -74,18 +75,18 @@ namespace System.ServiceModel.Security.Tokens
             UniqueId keyGeneration, DateTime keyEffectiveTime, DateTime keyExpirationTime)
             : base()
         {
-            _id = id;
+            this.id = id;
             this.Initialize(contextId, key, validFrom, validTo, authorizationPolicies, isCookieMode, keyGeneration, keyEffectiveTime, keyExpirationTime);
-            _cookieBlob = cookieBlob;
+            this.cookieBlob = cookieBlob;
         }
 
-        private SecurityContextSecurityToken(SecurityContextSecurityToken from)
+        SecurityContextSecurityToken(SecurityContextSecurityToken from)
         {
-            ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies = System.IdentityModel.SecurityUtils.CloneAuthorizationPoliciesIfNecessary(from._authorizationPolicies);
-            _id = from._id;
-            this.Initialize(from._contextId, from._key, from._tokenEffectiveTime, from._tokenExpirationTime, authorizationPolicies, from._isCookieMode, from._keyGeneration, from._keyEffectiveTime, from._keyExpirationTime);
-            _cookieBlob = from._cookieBlob;
-            _bootstrapMessageProperty = (from._bootstrapMessageProperty == null) ? null : (SecurityMessageProperty)from.BootstrapMessageProperty.CreateCopy();
+            ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies = System.IdentityModel.SecurityUtils.CloneAuthorizationPoliciesIfNecessary(from.authorizationPolicies);
+            this.id = from.id;
+            this.Initialize(from.contextId, from.key, from.tokenEffectiveTime, from.tokenExpirationTime, authorizationPolicies, from.isCookieMode, from.keyGeneration, from.keyEffectiveTime, from.keyExpirationTime);
+            this.cookieBlob = from.cookieBlob;
+            this.bootstrapMessageProperty = (from.bootstrapMessageProperty == null) ? null : (SecurityMessageProperty)from.BootstrapMessageProperty.CreateCopy();
         }
 
         /// <summary>
@@ -106,24 +107,24 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _bootstrapMessageProperty;
+                return this.bootstrapMessageProperty;
             }
             set
             {
-                _bootstrapMessageProperty = value;
+                this.bootstrapMessageProperty = value;
             }
         }
 
         public override string Id
         {
-            get { return _id; }
+            get { return this.id; }
         }
 
         public UniqueId ContextId
         {
             get
             {
-                return _contextId;
+                return this.contextId;
             }
         }
 
@@ -131,23 +132,23 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _keyGeneration;
+                return this.keyGeneration;
             }
         }
 
         public DateTime KeyEffectiveTime
         {
-            get
-            {
-                return _keyEffectiveTime;
+            get 
+            { 
+                return this.keyEffectiveTime; 
             }
         }
 
         public DateTime KeyExpirationTime
         {
-            get
-            {
-                return _keyExpirationTime;
+            get 
+            { 
+                return this.keyExpirationTime; 
             }
         }
 
@@ -156,12 +157,12 @@ namespace System.ServiceModel.Security.Tokens
             get
             {
                 ThrowIfDisposed();
-                return _authorizationPolicies;
+                return this.authorizationPolicies;
             }
-
+            
             internal set
             {
-                _authorizationPolicies = value;
+                this.authorizationPolicies = value;
             }
         }
 
@@ -169,25 +170,25 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _securityKeys;
+                return this.securityKeys;
             }
         }
 
         public override DateTime ValidFrom
         {
-            get { return _tokenEffectiveTime; }
+            get { return this.tokenEffectiveTime; }
         }
 
         public override DateTime ValidTo
         {
-            get { return _tokenExpirationTime; }
+            get { return this.tokenExpirationTime; }
         }
 
         internal byte[] CookieBlob
         {
             get
             {
-                return _cookieBlob;
+                return this.cookieBlob;
             }
         }
 
@@ -201,7 +202,7 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _isCookieMode;
+                return this.isCookieMode;
             }
         }
 
@@ -215,26 +216,26 @@ namespace System.ServiceModel.Security.Tokens
 
         internal string GetBase64KeyString()
         {
-            if (_keyString == null)
+            if (this.keyString == null)
             {
-                _keyString = Convert.ToBase64String(_key);
+                this.keyString = Convert.ToBase64String(this.key);
             }
-            return _keyString;
+            return this.keyString;
         }
 
         internal byte[] GetKeyBytes()
         {
-            byte[] retval = new byte[_key.Length];
-            Buffer.BlockCopy(_key, 0, retval, 0, _key.Length);
+            byte[] retval = new byte[this.key.Length];
+            Buffer.BlockCopy(this.key, 0, retval, 0, this.key.Length);
             return retval;
         }
 
         public override string ToString()
         {
-            return String.Format(CultureInfo.CurrentCulture, "SecurityContextSecurityToken(Identifier='{0}', KeyGeneration='{1}')", _contextId, _keyGeneration);
+            return String.Format(CultureInfo.CurrentCulture, "SecurityContextSecurityToken(Identifier='{0}', KeyGeneration='{1}')", this.contextId, this.keyGeneration);
         }
 
-        private void Initialize(UniqueId contextId, byte[] key, DateTime validFrom, DateTime validTo, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies, bool isCookieMode,
+        void Initialize(UniqueId contextId, byte[] key, DateTime validFrom, DateTime validTo, ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies, bool isCookieMode,
             UniqueId keyGeneration, DateTime keyEffectiveTime, DateTime keyExpirationTime)
         {
             if (contextId == null)
@@ -251,31 +252,56 @@ namespace System.ServiceModel.Security.Tokens
             DateTime tokenExpirationTimeUtc = validTo.ToUniversalTime();
             if (tokenEffectiveTimeUtc > tokenExpirationTimeUtc)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("validFrom", SR.EffectiveGreaterThanExpiration);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("validFrom", SR.GetString(SR.EffectiveGreaterThanExpiration));
             }
-            _tokenEffectiveTime = tokenEffectiveTimeUtc;
-            _tokenExpirationTime = tokenExpirationTimeUtc;
+            this.tokenEffectiveTime = tokenEffectiveTimeUtc;
+            this.tokenExpirationTime = tokenExpirationTimeUtc;
 
-            _keyEffectiveTime = keyEffectiveTime.ToUniversalTime();
-            _keyExpirationTime = keyExpirationTime.ToUniversalTime();
-            if (_keyEffectiveTime > _keyExpirationTime)
+            this.keyEffectiveTime = keyEffectiveTime.ToUniversalTime();
+            this.keyExpirationTime = keyExpirationTime.ToUniversalTime();
+            if (this.keyEffectiveTime > this.keyExpirationTime)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("keyEffectiveTime", SR.EffectiveGreaterThanExpiration);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("keyEffectiveTime", SR.GetString(SR.EffectiveGreaterThanExpiration));
             }
-            if ((_keyEffectiveTime < tokenEffectiveTimeUtc) || (_keyExpirationTime > tokenExpirationTimeUtc))
+            if ((this.keyEffectiveTime < tokenEffectiveTimeUtc) || (this.keyExpirationTime > tokenExpirationTimeUtc))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.KeyLifetimeNotWithinTokenLifetime);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.KeyLifetimeNotWithinTokenLifetime));
             }
 
-            _key = new byte[key.Length];
-            Buffer.BlockCopy(key, 0, _key, 0, key.Length);
-            _contextId = contextId;
-            _keyGeneration = keyGeneration;
-            _authorizationPolicies = authorizationPolicies ?? EmptyReadOnlyCollection<IAuthorizationPolicy>.Instance;
+            this.key = new byte[key.Length];
+            Buffer.BlockCopy(key, 0, this.key, 0, key.Length);
+            this.contextId = contextId;
+            this.keyGeneration = keyGeneration;
+            this.authorizationPolicies = authorizationPolicies ?? EmptyReadOnlyCollection<IAuthorizationPolicy>.Instance;
             List<SecurityKey> temp = new List<SecurityKey>(1);
-            temp.Add(new InMemorySymmetricSecurityKey(_key, false));
-            _securityKeys = new ReadOnlyCollection<SecurityKey>(temp);
-            _isCookieMode = isCookieMode;
+            temp.Add(new InMemorySymmetricSecurityKey(this.key, false));
+            this.securityKeys = temp.AsReadOnly();
+            this.isCookieMode = isCookieMode;
+        }
+
+        public override bool CanCreateKeyIdentifierClause<T>()
+        {
+            if (typeof(T) == typeof(SecurityContextKeyIdentifierClause))
+                return true;
+
+            return base.CanCreateKeyIdentifierClause<T>();
+        }
+
+        public override T CreateKeyIdentifierClause<T>()
+        {
+            if (typeof(T) == typeof(SecurityContextKeyIdentifierClause))
+                return new SecurityContextKeyIdentifierClause(this.contextId, this.keyGeneration) as T;
+
+            return base.CreateKeyIdentifierClause<T>();
+        }
+
+        public override bool MatchesKeyIdentifierClause(SecurityKeyIdentifierClause keyIdentifierClause)
+        {
+            SecurityContextKeyIdentifierClause sctKeyIdentifierClause = keyIdentifierClause as SecurityContextKeyIdentifierClause;
+            if (sctKeyIdentifierClause != null)
+                return sctKeyIdentifierClause.Matches(this.contextId, this.keyGeneration);
+
+            return base.MatchesKeyIdentifierClause(keyIdentifierClause);
         }
 
         public static SecurityContextSecurityToken CreateCookieSecurityContextToken(UniqueId contextId, string id, byte[] key,
@@ -305,20 +331,20 @@ namespace System.ServiceModel.Security.Tokens
 
         public void Dispose()
         {
-            if (!_disposed)
+            if (!this.disposed)
             {
-                _disposed = true;
-                System.IdentityModel.SecurityUtils.DisposeAuthorizationPoliciesIfNecessary(_authorizationPolicies);
-                if (_bootstrapMessageProperty != null)
+                this.disposed = true;
+                System.IdentityModel.SecurityUtils.DisposeAuthorizationPoliciesIfNecessary(this.authorizationPolicies);
+                if (this.bootstrapMessageProperty != null)
                 {
-                    _bootstrapMessageProperty.Dispose();
+                    this.bootstrapMessageProperty.Dispose();
                 }
             }
         }
 
-        private void ThrowIfDisposed()
+        void ThrowIfDisposed()
         {
-            if (_disposed)
+            if (this.disposed)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().FullName));
             }

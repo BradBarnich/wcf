@@ -1,8 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+
     public enum SessionMode
     {
         Allowed,
@@ -10,7 +13,7 @@ namespace System.ServiceModel
         NotAllowed,
     }
 
-    internal static class SessionModeHelper
+    static class SessionModeHelper
     {
         public static bool IsDefined(SessionMode sessionMode)
         {

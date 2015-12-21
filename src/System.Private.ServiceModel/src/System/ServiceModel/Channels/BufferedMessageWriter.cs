@@ -1,22 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal abstract class BufferedMessageWriter
+    using System.IO;
+    using System.Xml;
+    using System.Diagnostics;
+
+    abstract class BufferedMessageWriter
     {
-        private int[] _sizeHistory;
-        private int _sizeHistoryIndex;
-        private const int sizeHistoryCount = 4;
-        private const int expectedSizeVariance = 256;
-        private BufferManagerOutputStream _stream;
+        int[] sizeHistory;
+        int sizeHistoryIndex;
+        const int sizeHistoryCount = 4;
+        const int expectedSizeVariance = 256;
+        BufferManagerOutputStream stream;
 
         public BufferedMessageWriter()
         {
-            _stream = new BufferManagerOutputStream(SR.MaxSentMessageSizeExceeded);
+            this.stream = new BufferManagerOutputStream(SR.MaxSentMessageSizeExceeded);
             InitMessagePredicter();
         }
 
@@ -42,23 +43,23 @@ namespace System.ServiceModel.Channels
 
             try
             {
-                _stream.Init(predictedMessageSize, maxSizeQuota, effectiveMaxSize, bufferManager);
-                _stream.Skip(initialOffset);
+                stream.Init(predictedMessageSize, maxSizeQuota, effectiveMaxSize, bufferManager);
+                stream.Skip(initialOffset);
 
-                XmlDictionaryWriter writer = TakeXmlWriter(_stream);
+                XmlDictionaryWriter writer = TakeXmlWriter(stream);
                 OnWriteStartMessage(writer);
                 message.WriteMessage(writer);
                 OnWriteEndMessage(writer);
                 writer.Flush();
                 ReturnXmlWriter(writer);
                 int size;
-                byte[] buffer = _stream.ToArray(out size);
+                byte[] buffer = stream.ToArray(out size);
                 RecordActualMessageSize(size);
                 return new ArraySegment<byte>(buffer, initialOffset, size - initialOffset);
             }
             finally
             {
-                _stream.Clear();
+                stream.Clear();
             }
         }
 
@@ -70,26 +71,26 @@ namespace System.ServiceModel.Channels
         {
         }
 
-        private void InitMessagePredicter()
+        void InitMessagePredicter()
         {
-            _sizeHistory = new int[4];
+            sizeHistory = new int[4];
             for (int i = 0; i < sizeHistoryCount; i++)
-                _sizeHistory[i] = 256;
+                sizeHistory[i] = 256;
         }
 
-        private int PredictMessageSize()
+        int PredictMessageSize()
         {
             int max = 0;
             for (int i = 0; i < sizeHistoryCount; i++)
-                if (_sizeHistory[i] > max)
-                    max = _sizeHistory[i];
+                if (sizeHistory[i] > max)
+                    max = sizeHistory[i];
             return max + expectedSizeVariance;
         }
 
-        private void RecordActualMessageSize(int size)
+        void RecordActualMessageSize(int size)
         {
-            _sizeHistory[_sizeHistoryIndex] = size;
-            _sizeHistoryIndex = (_sizeHistoryIndex + 1) % sizeHistoryCount;
+            sizeHistory[sizeHistoryIndex] = size;
+            sizeHistoryIndex = (sizeHistoryIndex + 1) % sizeHistoryCount;
         }
     }
 }

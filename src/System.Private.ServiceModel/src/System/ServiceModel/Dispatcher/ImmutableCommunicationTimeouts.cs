@@ -1,14 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ImmutableCommunicationTimeouts : IDefaultCommunicationTimeouts
+    using System;
+
+    class ImmutableCommunicationTimeouts : IDefaultCommunicationTimeouts
     {
-        private TimeSpan _close;
-        private TimeSpan _open;
-        private TimeSpan _receive;
-        private TimeSpan _send;
+        TimeSpan close;
+        TimeSpan open;
+        TimeSpan receive;
+        TimeSpan send;
 
         internal ImmutableCommunicationTimeouts()
             : this(null)
@@ -19,38 +22,38 @@ namespace System.ServiceModel.Dispatcher
         {
             if (timeouts == null)
             {
-                _close = ServiceDefaults.CloseTimeout;
-                _open = ServiceDefaults.OpenTimeout;
-                _receive = ServiceDefaults.ReceiveTimeout;
-                _send = ServiceDefaults.SendTimeout;
+                this.close = ServiceDefaults.CloseTimeout;
+                this.open = ServiceDefaults.OpenTimeout;
+                this.receive = ServiceDefaults.ReceiveTimeout;
+                this.send = ServiceDefaults.SendTimeout;
             }
             else
             {
-                _close = timeouts.CloseTimeout;
-                _open = timeouts.OpenTimeout;
-                _receive = timeouts.ReceiveTimeout;
-                _send = timeouts.SendTimeout;
+                this.close = timeouts.CloseTimeout;
+                this.open = timeouts.OpenTimeout;
+                this.receive = timeouts.ReceiveTimeout;
+                this.send = timeouts.SendTimeout;
             }
         }
 
         TimeSpan IDefaultCommunicationTimeouts.CloseTimeout
         {
-            get { return _close; }
+            get { return this.close; }
         }
 
         TimeSpan IDefaultCommunicationTimeouts.OpenTimeout
         {
-            get { return _open; }
+            get { return this.open; }
         }
 
         TimeSpan IDefaultCommunicationTimeouts.ReceiveTimeout
         {
-            get { return _receive; }
+            get { return this.receive; }
         }
 
         TimeSpan IDefaultCommunicationTimeouts.SendTimeout
         {
-            get { return _send; }
+            get { return this.send; }
         }
     }
 }

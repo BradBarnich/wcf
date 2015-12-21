@@ -1,12 +1,13 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime.Serialization;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
-    public class InvalidMessageContractException : Exception
+    using System;
+    using System.Runtime.Serialization;
+
+    [Serializable]
+    public class InvalidMessageContractException : SystemException
     {
         public InvalidMessageContractException()
             : base()
@@ -22,6 +23,12 @@ namespace System.ServiceModel
             : base(message, innerException)
         {
         }
+
+        protected InvalidMessageContractException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        {
+        }
+
     }
 }
 

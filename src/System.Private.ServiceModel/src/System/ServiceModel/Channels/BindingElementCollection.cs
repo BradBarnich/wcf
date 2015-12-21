@@ -1,12 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Reflection;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.ServiceModel;
+    using System.ComponentModel;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public class BindingElementCollection : Collection<BindingElement>
     {
         public BindingElementCollection()
@@ -30,6 +32,17 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("elements");
 
             for (int i = 0; i < elements.Length; i++)
+            {
+                base.Add(elements[i]);
+            }
+        }
+
+        internal BindingElementCollection(BindingElementCollection elements)
+        {
+            if (elements == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("elements");
+
+            for (int i = 0; i < elements.Count; i++)
             {
                 base.Add(elements[i]);
             }
@@ -64,7 +77,7 @@ namespace System.ServiceModel.Channels
 
             for (int i = 0; i < this.Count; i++)
             {
-                if (bindingElementType.GetTypeInfo().IsAssignableFrom(this[i].GetType().GetTypeInfo()))
+                if (bindingElementType.IsInstanceOfType(this[i]))
                     return true;
             }
             return false;
@@ -80,7 +93,7 @@ namespace System.ServiceModel.Channels
             return Find<T>(true);
         }
 
-        private T Find<T>(bool remove)
+        T Find<T>(bool remove)
         {
             for (int index = 0; index < this.Count; index++)
             {
@@ -107,7 +120,7 @@ namespace System.ServiceModel.Channels
             return FindAll<T>(true);
         }
 
-        private Collection<T> FindAll<T>(bool remove)
+        Collection<T> FindAll<T>(bool remove)
         {
             Collection<T> collection = new Collection<T>();
 
@@ -145,4 +158,5 @@ namespace System.ServiceModel.Channels
             base.SetItem(index, item);
         }
     }
+
 }

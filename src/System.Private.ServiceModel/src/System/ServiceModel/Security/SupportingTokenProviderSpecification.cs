@@ -1,17 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IdentityModel.Selectors;
-using System.ServiceModel;
-using System.ServiceModel.Security.Tokens;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal class SupportingTokenProviderSpecification
+    using System.IdentityModel.Selectors;
+    using System.ServiceModel;
+    using System.ServiceModel.Security.Tokens;
+
+    class SupportingTokenProviderSpecification
     {
-        private SecurityTokenAttachmentMode _tokenAttachmentMode;
-        private SecurityTokenProvider _tokenProvider;
-        private SecurityTokenParameters _tokenParameters;
+        SecurityTokenAttachmentMode tokenAttachmentMode;
+        SecurityTokenProvider tokenProvider;
+        SecurityTokenParameters tokenParameters;
 
         public SupportingTokenProviderSpecification(SecurityTokenProvider tokenProvider, SecurityTokenAttachmentMode attachmentMode, SecurityTokenParameters tokenParameters)
         {
@@ -24,24 +25,24 @@ namespace System.ServiceModel.Security
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("tokenParameters");
             }
-            _tokenProvider = tokenProvider;
-            _tokenAttachmentMode = attachmentMode;
-            _tokenParameters = tokenParameters;
+            this.tokenProvider = tokenProvider;
+            this.tokenAttachmentMode = attachmentMode;
+            this.tokenParameters = tokenParameters;
         }
 
         public SecurityTokenProvider TokenProvider
         {
-            get { return _tokenProvider; }
+            get { return this.tokenProvider; }
         }
 
         public SecurityTokenAttachmentMode SecurityTokenAttachmentMode
         {
-            get { return _tokenAttachmentMode; }
+            get { return this.tokenAttachmentMode; }
         }
 
         public SecurityTokenParameters TokenParameters
         {
-            get { return _tokenParameters; }
+            get { return this.tokenParameters; }
         }
     }
 }

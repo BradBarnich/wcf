@@ -1,18 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class InputChannelBinder : IChannelBinder
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+
+    class InputChannelBinder : IChannelBinder
     {
-        private IInputChannel _channel;
-        private Uri _listenUri;
+        IInputChannel channel;
+        Uri listenUri;
 
         internal InputChannelBinder(IInputChannel channel, Uri listenUri)
         {
@@ -21,57 +22,58 @@ namespace System.ServiceModel.Dispatcher
                 Fx.Assert("InputChannelBinder.InputChannelBinder: (channel != null)");
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("channel");
             }
-            _channel = channel;
-            _listenUri = listenUri;
+            this.channel = channel;
+            this.listenUri = listenUri;
         }
 
         public IChannel Channel
         {
-            get { return _channel; }
+            get { return this.channel; }
         }
 
         public bool HasSession
         {
-            get { return _channel is ISessionChannel<IInputSession>; }
+            get { return this.channel is ISessionChannel<IInputSession>; }
         }
 
         public Uri ListenUri
         {
-            get { return _listenUri; }
+            get { return this.listenUri; }
         }
 
         public EndpointAddress LocalAddress
         {
-            get { return _channel.LocalAddress; }
+            get { return this.channel.LocalAddress; }
         }
 
         public EndpointAddress RemoteAddress
         {
             get
             {
-                throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+#pragma warning suppress 56503 // [....], the property is really not implemented, cannot lie, API not public
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException()); 
             }
         }
 
         public void Abort()
         {
-            _channel.Abort();
+            this.channel.Abort();
         }
 
         public void CloseAfterFault(TimeSpan timeout)
         {
-            _channel.Close(timeout);
+            this.channel.Close(timeout);
         }
 
         public IAsyncResult BeginTryReceive(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginTryReceive(timeout, callback, state);
+            return this.channel.BeginTryReceive(timeout, callback, state);
         }
 
         public bool EndTryReceive(IAsyncResult result, out RequestContext requestContext)
         {
             Message message;
-            if (_channel.EndTryReceive(result, out message))
+            if (this.channel.EndTryReceive(result, out message))
             {
                 requestContext = this.WrapMessage(message);
                 return true;
@@ -90,23 +92,23 @@ namespace System.ServiceModel.Dispatcher
 
         public IAsyncResult BeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public void EndSend(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public void Send(Message message, TimeSpan timeout)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public bool TryReceive(TimeSpan timeout, out RequestContext requestContext)
         {
             Message message;
-            if (_channel.TryReceive(timeout, out message))
+            if (this.channel.TryReceive(timeout, out message))
             {
                 requestContext = this.WrapMessage(message);
                 return true;
@@ -120,35 +122,35 @@ namespace System.ServiceModel.Dispatcher
 
         public IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public Message EndRequest(IAsyncResult result)
         {
-            throw ExceptionHelper.AsError(NotImplemented.ByDesign);
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public Message Request(Message message, TimeSpan timeout)
         {
-            throw TraceUtility.ThrowHelperError(NotImplemented.ByDesign, message);
+            throw TraceUtility.ThrowHelperError(new NotImplementedException(), message);
         }
 
         public bool WaitForMessage(TimeSpan timeout)
         {
-            return _channel.WaitForMessage(timeout);
+            return this.channel.WaitForMessage(timeout);
         }
 
         public IAsyncResult BeginWaitForMessage(TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return _channel.BeginWaitForMessage(timeout, callback, state);
+            return this.channel.BeginWaitForMessage(timeout, callback, state);
         }
 
         public bool EndWaitForMessage(IAsyncResult result)
         {
-            return _channel.EndWaitForMessage(result);
+            return this.channel.EndWaitForMessage(result);
         }
 
-        private RequestContext WrapMessage(Message message)
+        RequestContext WrapMessage(Message message)
         {
             if (message == null)
             {
@@ -160,14 +162,14 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        internal class InputRequestContext : RequestContextBase
+        class InputRequestContext : RequestContextBase
         {
-            private InputChannelBinder _binder;
+            InputChannelBinder binder;
 
             internal InputRequestContext(Message request, InputChannelBinder binder)
                 : base(request, TimeSpan.Zero, TimeSpan.Zero)
             {
-                _binder = binder;
+                this.binder = binder;
             }
 
             protected override void OnAbort()

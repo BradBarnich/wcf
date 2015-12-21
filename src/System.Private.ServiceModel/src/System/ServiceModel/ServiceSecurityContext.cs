@@ -1,22 +1,28 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Security;
-using System.IdentityModel.Claims;
-using System.IdentityModel.Policy;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Security.Principal;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Security;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Tokens;
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Security.Principal;
+
     public class ServiceSecurityContext
     {
-        private static ServiceSecurityContext s_anonymous;
-        private ReadOnlyCollection<IAuthorizationPolicy> _authorizationPolicies;
-        private AuthorizationContext _authorizationContext;
-        private IIdentity _primaryIdentity;
-        private Claim _identityClaim;
+        static ServiceSecurityContext anonymous;
+        ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies;
+        AuthorizationContext authorizationContext;
+        IIdentity primaryIdentity;
+        Claim identityClaim;
+        WindowsIdentity windowsIdentity;
 
         // Perf: delay created authorizationContext using forward chain.
         public ServiceSecurityContext(ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies)
@@ -25,8 +31,8 @@ namespace System.ServiceModel
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("authorizationPolicies");
             }
-            _authorizationContext = null;
-            _authorizationPolicies = authorizationPolicies;
+            this.authorizationContext = null;
+            this.authorizationPolicies = authorizationPolicies;
         }
 
         public ServiceSecurityContext(AuthorizationContext authorizationContext)
@@ -44,22 +50,45 @@ namespace System.ServiceModel
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("authorizationPolicies");
             }
-            _authorizationContext = authorizationContext;
-            _authorizationPolicies = authorizationPolicies;
+            this.authorizationContext = authorizationContext;
+            this.authorizationPolicies = authorizationPolicies;
         }
 
         public static ServiceSecurityContext Anonymous
         {
             get
             {
-                if (s_anonymous == null)
+                if (anonymous == null)
                 {
-                    s_anonymous = new ServiceSecurityContext(EmptyReadOnlyCollection<IAuthorizationPolicy>.Instance);
+                    anonymous = new ServiceSecurityContext(EmptyReadOnlyCollection<IAuthorizationPolicy>.Instance);
                 }
-                return s_anonymous;
+                return anonymous;
             }
         }
 
+        public static ServiceSecurityContext Current
+        {
+            get
+            {
+                ServiceSecurityContext result = null;
+
+                OperationContext operationContext = OperationContext.Current;
+                if (operationContext != null)
+                {
+                    MessageProperties properties = operationContext.IncomingMessageProperties;
+                    if (properties != null)
+                    {
+                        SecurityMessageProperty security = properties.Security;
+                        if (security != null)
+                        {
+                            result = security.ServiceSecurityContext;
+                        }
+                    }
+                }
+
+                return result;
+            }
+        }
 
         public bool IsAnonymous
         {
@@ -73,11 +102,11 @@ namespace System.ServiceModel
         {
             get
             {
-                if (_identityClaim == null)
+                if (this.identityClaim == null)
                 {
-                    _identityClaim = SecurityUtils.GetPrimaryIdentityClaim(this.AuthorizationContext);
+                    this.identityClaim = SecurityUtils.GetPrimaryIdentityClaim(this.AuthorizationContext);
                 }
-                return _identityClaim;
+                return this.identityClaim;
             }
         }
 
@@ -85,7 +114,7 @@ namespace System.ServiceModel
         {
             get
             {
-                if (_primaryIdentity == null)
+                if (this.primaryIdentity == null)
                 {
                     IIdentity primaryIdentity = null;
                     IList<IIdentity> identities = GetIdentities();
@@ -95,9 +124,41 @@ namespace System.ServiceModel
                         primaryIdentity = identities[0];
                     }
 
-                    _primaryIdentity = primaryIdentity ?? SecurityUtils.AnonymousIdentity;
+                    this.primaryIdentity = primaryIdentity ?? SecurityUtils.AnonymousIdentity;
                 }
-                return _primaryIdentity;
+                return this.primaryIdentity;
+            }
+        }
+
+        public WindowsIdentity WindowsIdentity
+        {
+            get
+            {
+                if (this.windowsIdentity == null)
+                {
+                    WindowsIdentity windowsIdentity = null;
+                    IList<IIdentity> identities = GetIdentities();
+                    if (identities != null)
+                    {
+                        for (int i = 0; i < identities.Count; ++i)
+                        {
+                            WindowsIdentity identity = identities[i] as WindowsIdentity;
+                            if (identity != null)
+                            {
+                                // Multiple Identities is treated as anonymous
+                                if (windowsIdentity != null)
+                                {
+                                    windowsIdentity = WindowsIdentity.GetAnonymous();
+                                    break;
+                                }
+                                windowsIdentity = identity;
+                            }
+                        }
+                    }
+
+                    this.windowsIdentity = windowsIdentity ?? WindowsIdentity.GetAnonymous();
+                }
+                return this.windowsIdentity;
             }
         }
 
@@ -105,11 +166,11 @@ namespace System.ServiceModel
         {
             get
             {
-                return _authorizationPolicies;
+                return this.authorizationPolicies;
             }
             set
             {
-                _authorizationPolicies = value;
+                this.authorizationPolicies = value;
             }
         }
 
@@ -117,15 +178,15 @@ namespace System.ServiceModel
         {
             get
             {
-                if (_authorizationContext == null)
+                if (this.authorizationContext == null)
                 {
-                    _authorizationContext = AuthorizationContext.CreateDefaultAuthorizationContext(_authorizationPolicies);
+                    this.authorizationContext = AuthorizationContext.CreateDefaultAuthorizationContext(this.authorizationPolicies);
                 }
-                return _authorizationContext;
+                return this.authorizationContext;
             }
         }
 
-        private IList<IIdentity> GetIdentities()
+        IList<IIdentity> GetIdentities()
         {
             object identities;
             AuthorizationContext authContext = this.AuthorizationContext;

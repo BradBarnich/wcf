@@ -1,14 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.IdentityModel.Claims;
-using System.IdentityModel.Policy;
-using System.Xml;
-using System.Xml.Serialization;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.Xml;
+    using System.Xml.Serialization;
+
     public class DnsEndpointIdentity : EndpointIdentity
     {
         public DnsEndpointIdentity(string dnsName)
@@ -24,8 +25,10 @@ namespace System.ServiceModel
             if (identity == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("identity");
 
+            // PreSharp Bug: Parameter 'identity.ResourceType' to this public method must be validated: A null-dereference can occur here.
+#pragma warning suppress 56506 // Claim.ClaimType will never return null
             if (!identity.ClaimType.Equals(ClaimTypes.Dns))
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.Format(SR.UnrecognizedClaimTypeForIdentity, identity.ClaimType, ClaimTypes.Dns));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.UnrecognizedClaimTypeForIdentity, identity.ClaimType, ClaimTypes.Dns));
 
             base.Initialize(identity);
         }

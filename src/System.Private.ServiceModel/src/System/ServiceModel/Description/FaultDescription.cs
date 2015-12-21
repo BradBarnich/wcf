@@ -1,73 +1,83 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.CodeDom;
-using System.ServiceModel.Security;
-using System.Diagnostics;
-using System.Net.Security;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Name={_name}, Action={_action}, DetailType={_detailType}")]
+    using System.Collections.Generic;
+    using System.Xml;
+    using System.Runtime.Serialization;
+    using System.CodeDom;
+    using System.ServiceModel.Security;
+    using System.Diagnostics;
+    using System.Net.Security;
+
+    [DebuggerDisplay("Name={name}, Action={action}, DetailType={detailType}")]
     public class FaultDescription
     {
-        private string _action;
-        private Type _detailType;
-        private XmlName _elementName;
-        private XmlName _name;
-        private string _ns;
-        private ProtectionLevel _protectionLevel;
-        private bool _hasProtectionLevel;
+        string action;
+        Type detailType;
+        CodeTypeReference detailTypeReference;
+        XmlName elementName;
+        XmlName name;
+        string ns;
+        ProtectionLevel protectionLevel;
+        bool hasProtectionLevel;
 
         public FaultDescription(string action)
         {
             if (action == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("action"));
 
-            _action = action;
+            this.action = action;
         }
-
+        
         public string Action
         {
-            get { return _action; }
-            internal set { _action = value; }
+            get { return action; }
+            internal set { action = value; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
         // produce it, only available when binding to runtime
         public Type DetailType
         {
-            get { return _detailType; }
-            set { _detailType = value; }
+            get { return detailType; }
+            set { detailType = value; }
+        }
+
+        internal CodeTypeReference DetailTypeReference
+        {
+            get { return detailTypeReference; }
+            set { detailTypeReference = value; }
         }
 
         public string Name
         {
-            get { return _name.EncodedName; }
+            get { return name.EncodedName; }
             set { SetNameAndElement(new XmlName(value, true /*isEncoded*/)); }
         }
 
         public string Namespace
         {
-            get { return _ns; }
-            set { _ns = value; }
+            get { return ns; }
+            set { ns = value; }
         }
 
         internal XmlName ElementName
         {
-            get { return _elementName; }
-            set { _elementName = value; }
+            get { return elementName; }
+            set { elementName = value; }
         }
 
         public ProtectionLevel ProtectionLevel
         {
-            get { return _protectionLevel; }
+            get { return this.protectionLevel; }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
@@ -78,23 +88,23 @@ namespace System.ServiceModel.Description
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         internal void ResetProtectionLevel()
         {
-            _protectionLevel = ProtectionLevel.None;
-            _hasProtectionLevel = false;
+            this.protectionLevel = ProtectionLevel.None;
+            this.hasProtectionLevel = false;
         }
 
         internal void SetNameAndElement(XmlName name)
         {
-            _elementName = _name = name;
+            this.elementName = this.name = name;
         }
 
         internal void SetNameOnly(XmlName name)
         {
-            _name = name;
+            this.name = name;
         }
     }
 }

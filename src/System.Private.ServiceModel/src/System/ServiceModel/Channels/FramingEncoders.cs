@@ -1,13 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime;
-using System.Text;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal static class IntEncoder
+    using System;
+    using System.Text;
+
+    static class IntEncoder
     {
         public const int MaxEncodedSize = 5;
 
@@ -29,7 +28,7 @@ namespace System.ServiceModel.Channels
             if (value < 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                    SR.ValueMustBeNonNegative));
+                    SR.GetString(SR.ValueMustBeNonNegative)));
             }
 
             int count = 1;
@@ -41,43 +40,44 @@ namespace System.ServiceModel.Channels
             return count;
         }
     }
-    internal abstract class EncodedFramingRecord
+
+    abstract class EncodedFramingRecord
     {
-        private byte[] _encodedBytes;
+        byte[] encodedBytes;
 
         protected EncodedFramingRecord(byte[] encodedBytes)
         {
-            _encodedBytes = encodedBytes;
+            this.encodedBytes = encodedBytes;
         }
 
         internal EncodedFramingRecord(FramingRecordType recordType, string value)
         {
             int valueByteCount = Encoding.UTF8.GetByteCount(value);
             int sizeByteCount = IntEncoder.GetEncodedSize(valueByteCount);
-            _encodedBytes = Fx.AllocateByteArray(checked(1 + sizeByteCount + valueByteCount));
-            _encodedBytes[0] = (byte)recordType;
+            encodedBytes = DiagnosticUtility.Utility.AllocateByteArray(checked(1 + sizeByteCount + valueByteCount));
+            encodedBytes[0] = (byte)recordType;
             int offset = 1;
-            offset += IntEncoder.Encode(valueByteCount, _encodedBytes, offset);
-            Encoding.UTF8.GetBytes(value, 0, value.Length, _encodedBytes, offset);
-            SetEncodedBytes(_encodedBytes);
+            offset += IntEncoder.Encode(valueByteCount, encodedBytes, offset);
+            Encoding.UTF8.GetBytes(value, 0, value.Length, encodedBytes, offset);
+            SetEncodedBytes(encodedBytes);
         }
 
 
         public byte[] EncodedBytes
         {
-            get { return _encodedBytes; }
+            get { return encodedBytes; }
         }
 
         protected void SetEncodedBytes(byte[] encodedBytes)
         {
-            _encodedBytes = encodedBytes;
+            this.encodedBytes = encodedBytes;
         }
 
         public override int GetHashCode()
         {
-            return (_encodedBytes[0] << 16) |
-                (_encodedBytes[_encodedBytes.Length / 2] << 8) |
-                _encodedBytes[_encodedBytes.Length - 1];
+            return (encodedBytes[0] << 16) |
+                (encodedBytes[encodedBytes.Length / 2] << 8) |
+                encodedBytes[encodedBytes.Length - 1];
         }
 
         public override bool Equals(object o)
@@ -93,13 +93,13 @@ namespace System.ServiceModel.Channels
                 return false;
             if (other == this)
                 return true;
-            byte[] otherBytes = other._encodedBytes;
-            if (_encodedBytes.Length != otherBytes.Length)
+            byte[] otherBytes = other.encodedBytes;
+            if (this.encodedBytes.Length != otherBytes.Length)
                 return false;
 
-            for (int i = 0; i < _encodedBytes.Length; i++)
+            for (int i = 0; i < encodedBytes.Length; i++)
             {
-                if (_encodedBytes[i] != otherBytes[i])
+                if (encodedBytes[i] != otherBytes[i])
                     return false;
             }
 
@@ -107,14 +107,14 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class EncodedContentType : EncodedFramingRecord
+    class EncodedContentType : EncodedFramingRecord
     {
-        private EncodedContentType(FramingEncodingType encodingType) :
+        EncodedContentType(FramingEncodingType encodingType) :
             base(new byte[] { (byte)FramingRecordType.KnownEncoding, (byte)encodingType })
         {
         }
 
-        private EncodedContentType(string contentType)
+        EncodedContentType(string contentType)
             : base(FramingRecordType.ExtensibleEncoding, contentType)
         {
         }
@@ -164,7 +164,7 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class EncodedVia : EncodedFramingRecord
+    class EncodedVia : EncodedFramingRecord
     {
         public EncodedVia(string via)
             : base(FramingRecordType.Via, via)
@@ -172,7 +172,7 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class EncodedUpgrade : EncodedFramingRecord
+    class EncodedUpgrade : EncodedFramingRecord
     {
         public EncodedUpgrade(string contentType)
             : base(FramingRecordType.UpgradeRequest, contentType)
@@ -180,7 +180,7 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class EncodedFault : EncodedFramingRecord
+    class EncodedFault : EncodedFramingRecord
     {
         public EncodedFault(string fault)
             : base(FramingRecordType.Fault, fault)
@@ -189,7 +189,7 @@ namespace System.ServiceModel.Channels
     }
 
     // used by SimplexEncoder/DuplexEncoder
-    internal abstract class SessionEncoder
+    abstract class SessionEncoder
     {
         public const int MaxMessageFrameSize = 1 + IntEncoder.MaxEncodedSize;
 
@@ -221,7 +221,7 @@ namespace System.ServiceModel.Channels
             if (offset < 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("messageFrame.Offset",
-                    messageFrame.Offset, SR.Format(SR.SpaceNeededExceedsMessageFrameOffset, spaceNeeded)));
+                    messageFrame.Offset, SR.GetString(SR.SpaceNeededExceedsMessageFrameOffset, spaceNeeded)));
             }
 
             byte[] buffer = messageFrame.Array;
@@ -232,7 +232,7 @@ namespace System.ServiceModel.Channels
     }
 
     // used by ServerDuplexEncoder/ServerSimplexEncoder
-    internal abstract class ServerSessionEncoder : SessionEncoder
+    abstract class ServerSessionEncoder : SessionEncoder
     {
         protected ServerSessionEncoder() { }
 
@@ -250,15 +250,15 @@ namespace System.ServiceModel.Channels
     //   EncodeUpgrade*, 
     //   EncodeMessageFrame*, 
     //   EndBytes
-    internal class ClientDuplexEncoder : SessionEncoder
+    class ClientDuplexEncoder : SessionEncoder
     {
-        private ClientDuplexEncoder() { }
+        ClientDuplexEncoder() { }
 
-        public static byte[] ModeBytes = new byte[] {
-            (byte)FramingRecordType.Version,
-            (byte)FramingVersion.Major,
-            (byte)FramingVersion.Minor,
-            (byte)FramingRecordType.Mode,
+        public static byte[] ModeBytes = new byte[] { 
+            (byte)FramingRecordType.Version, 
+            (byte)FramingVersion.Major, 
+            (byte)FramingVersion.Minor, 
+            (byte)FramingRecordType.Mode, 
             (byte)FramingMode.Duplex };
     }
 
@@ -268,35 +268,35 @@ namespace System.ServiceModel.Channels
     //   EncodeUpgrade*, 
     //   EncodeMessageFrame*, 
     //   EndBytes
-    internal class ClientSimplexEncoder : SessionEncoder
+    class ClientSimplexEncoder : SessionEncoder
     {
-        private ClientSimplexEncoder() { }
+        ClientSimplexEncoder() { }
 
-        public static byte[] ModeBytes = new byte[] {
-            (byte)FramingRecordType.Version,
-            (byte)FramingVersion.Major,
-            (byte)FramingVersion.Minor,
-            (byte)FramingRecordType.Mode,
+        public static byte[] ModeBytes = new byte[] { 
+            (byte)FramingRecordType.Version, 
+            (byte)FramingVersion.Major, 
+            (byte)FramingVersion.Minor, 
+            (byte)FramingRecordType.Mode, 
             (byte)FramingMode.Simplex };
     }
 
     // shared code for client and server
-    internal abstract class SingletonEncoder
+    abstract class SingletonEncoder
     {
         protected SingletonEncoder()
         {
         }
 
-        public static byte[] EnvelopeStartBytes = new byte[] {
+        public static byte[] EnvelopeStartBytes = new byte[] { 
             (byte)FramingRecordType.UnsizedEnvelope };
 
-        public static byte[] EnvelopeEndBytes = new byte[] {
+        public static byte[] EnvelopeEndBytes = new byte[] { 
             (byte)0 };
 
-        public static byte[] EnvelopeEndFramingEndBytes = new byte[] {
+        public static byte[] EnvelopeEndFramingEndBytes = new byte[] { 
             (byte)0, (byte)FramingRecordType.End };
 
-        public static byte[] EndBytes = new byte[] {
+        public static byte[] EndBytes = new byte[] { 
             (byte)FramingRecordType.End };
 
         public static ArraySegment<byte> EncodeMessageFrame(ArraySegment<byte> messageFrame)
@@ -306,7 +306,7 @@ namespace System.ServiceModel.Channels
             if (offset < 0)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("messageFrame.Offset",
-                    messageFrame.Offset, SR.Format(SR.SpaceNeededExceedsMessageFrameOffset, spaceNeeded)));
+                    messageFrame.Offset, SR.GetString(SR.SpaceNeededExceedsMessageFrameOffset, spaceNeeded)));
             }
 
             byte[] buffer = messageFrame.Array;
@@ -321,20 +321,20 @@ namespace System.ServiceModel.Channels
     //   EncodeUpgrade*, 
     //   EnvelopeStartBytes,
     //   streamed-message-bytes*
-    internal class ClientSingletonEncoder : SingletonEncoder
+    class ClientSingletonEncoder : SingletonEncoder
     {
-        private ClientSingletonEncoder() { }
+        ClientSingletonEncoder() { }
 
 
         public static byte[] PreambleEndBytes = new byte[] {
             (byte)FramingRecordType.PreambleEnd
         };
 
-        public static byte[] ModeBytes = new byte[] {
-            (byte)FramingRecordType.Version,
-            (byte)FramingVersion.Major,
-            (byte)FramingVersion.Minor,
-            (byte)FramingRecordType.Mode,
+        public static byte[] ModeBytes = new byte[] { 
+            (byte)FramingRecordType.Version, 
+            (byte)FramingVersion.Major, 
+            (byte)FramingVersion.Minor, 
+            (byte)FramingRecordType.Mode, 
             (byte)FramingMode.Singleton };
 
         public static int CalcStartSize(EncodedVia via, EncodedContentType contentType)
@@ -351,9 +351,9 @@ namespace System.ServiceModel.Channels
 
     // Pattern:
     //   (UpgradeResponseBytes, upgrade-bytes)?, 
-    internal class ServerSingletonEncoder : SingletonEncoder
+    class ServerSingletonEncoder : SingletonEncoder
     {
-        private ServerSingletonEncoder() { }
+        ServerSingletonEncoder() { }
 
         public static byte[] AckResponseBytes = new byte[] {
             (byte)FramingRecordType.PreambleAck
@@ -363,4 +363,26 @@ namespace System.ServiceModel.Channels
             (byte)FramingRecordType.UpgradeResponse
         };
     }
+
+    static class ClientSingletonSizedEncoder
+    {
+        public static byte[] ModeBytes = new byte[] { 
+            (byte)FramingRecordType.Version, 
+            (byte)FramingVersion.Major, 
+            (byte)FramingVersion.Minor, 
+            (byte)FramingRecordType.Mode, 
+            (byte)FramingMode.SingletonSized };
+
+        public static int CalcStartSize(EncodedVia via, EncodedContentType contentType)
+        {
+            return via.EncodedBytes.Length + contentType.EncodedBytes.Length;
+        }
+
+        public static void EncodeStart(byte[] buffer, int offset, EncodedVia via, EncodedContentType contentType)
+        {
+            Buffer.BlockCopy(via.EncodedBytes, 0, buffer, offset, via.EncodedBytes.Length);
+            Buffer.BlockCopy(contentType.EncodedBytes, 0, buffer, offset + via.EncodedBytes.Length, contentType.EncodedBytes.Length);
+        }
+    }
+
 }

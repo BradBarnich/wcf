@@ -1,40 +1,53 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-// 
-
-using System.ServiceModel.Channels;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System;
+    using System.ComponentModel;
+    using System.Configuration;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Configuration;
+
     public class BasicHttpsBinding : HttpBindingBase
     {
-        WSMessageEncoding _messageEncoding = BasicHttpBindingDefaults.MessageEncoding;
-        private BasicHttpsSecurity _basicHttpsSecurity;
+        WSMessageEncoding messageEncoding = BasicHttpBindingDefaults.MessageEncoding;
+        BasicHttpsSecurity basicHttpsSecurity;
 
         public BasicHttpsBinding() : this(BasicHttpsSecurity.DefaultMode) { }
 
-        public BasicHttpsBinding(BasicHttpsSecurityMode securityMode)
-        {
-            if (securityMode == BasicHttpsSecurityMode.TransportWithMessageCredential)
-            {
-                throw ExceptionHelper.PlatformNotSupported(SR.Format(SR.UnsupportedSecuritySetting, "securityMode", securityMode));
-            }
-
-            _basicHttpsSecurity = new BasicHttpsSecurity();
-            _basicHttpsSecurity.Mode = securityMode;
+        public BasicHttpsBinding(string configurationName) : this() 
+        { 
+            this.ApplyConfiguration(configurationName); 
         }
 
-        internal WSMessageEncoding MessageEncoding
+        public BasicHttpsBinding(BasicHttpsSecurityMode securityMode)
+            : base()
         {
-            get { return _messageEncoding; }
-            set { _messageEncoding = value; }
+            this.basicHttpsSecurity = new BasicHttpsSecurity();
+            this.basicHttpsSecurity.Mode = securityMode;
+        }
+
+        [DefaultValue(WSMessageEncoding.Text)]
+        public WSMessageEncoding MessageEncoding
+        {
+            get 
+            {
+                return this.messageEncoding;
+            }
+
+            set 
+            {
+                this.messageEncoding = value;
+            }
         }
 
         public BasicHttpsSecurity Security
         {
             get
             {
-                return _basicHttpsSecurity;
+                return this.basicHttpsSecurity;
             }
 
             set
@@ -44,15 +57,15 @@ namespace System.ServiceModel
                     throw FxTrace.Exception.ArgumentNull("value");
                 }
 
-                _basicHttpsSecurity = value;
+                this.basicHttpsSecurity = value;
             }
         }
 
         internal override BasicHttpSecurity BasicHttpSecurity
         {
-            get
+            get 
             {
-                return _basicHttpsSecurity.BasicHttpSecurity;
+                return this.basicHttpsSecurity.BasicHttpSecurity;
             }
         }
 
@@ -63,11 +76,11 @@ namespace System.ServiceModel
 
         public override IChannelFactory<TChannel> BuildChannelFactory<TChannel>(BindingParameterCollection parameters)
         {
-            if ((BasicHttpSecurity.Mode == BasicHttpSecurityMode.Transport ||
-                BasicHttpSecurity.Mode == BasicHttpSecurityMode.TransportCredentialOnly) &&
-                BasicHttpSecurity.Transport.ClientCredentialType == HttpClientCredentialType.InheritedFromHost)
+            if ((this.BasicHttpSecurity.Mode == BasicHttpSecurityMode.Transport ||
+                this.BasicHttpSecurity.Mode == BasicHttpSecurityMode.TransportCredentialOnly) &&
+                this.BasicHttpSecurity.Transport.ClientCredentialType == HttpClientCredentialType.InheritedFromHost)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.HttpClientCredentialTypeInvalid, BasicHttpSecurity.Transport.ClientCredentialType)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.HttpClientCredentialTypeInvalid, this.BasicHttpSecurity.Transport.ClientCredentialType)));
             }
 
             return base.BuildChannelFactory<TChannel>(parameters);
@@ -75,24 +88,53 @@ namespace System.ServiceModel
 
         public override BindingElementCollection CreateBindingElements()
         {
-            CheckSettings();
+            this.CheckSettings();
 
             // return collection of BindingElements
             BindingElementCollection bindingElements = new BindingElementCollection();
             // order of BindingElements is important
             // add security (*optional)
-            SecurityBindingElement wsSecurity = BasicHttpSecurity.CreateMessageSecurity();
+            SecurityBindingElement wsSecurity = this.BasicHttpSecurity.CreateMessageSecurity();
             if (wsSecurity != null)
             {
                 bindingElements.Add(wsSecurity);
             }
-            // add encoding
-            if (MessageEncoding == WSMessageEncoding.Text)
-                bindingElements.Add(TextMessageEncodingBindingElement);
+            // add encoding (text or mtom)
+            WSMessageEncodingHelper.SyncUpEncodingBindingElementProperties(this.TextMessageEncodingBindingElement, this.MtomMessageEncodingBindingElement);
+            if (this.MessageEncoding == WSMessageEncoding.Text)
+                bindingElements.Add(this.TextMessageEncodingBindingElement);
+            else if (this.MessageEncoding == WSMessageEncoding.Mtom)
+                bindingElements.Add(this.MtomMessageEncodingBindingElement);
             // add transport (http or https)
-            bindingElements.Add(GetTransport());
+            bindingElements.Add(this.GetTransport());
 
             return bindingElements.Clone();
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeSecurity()
+        {
+            // Default Security mode here is different from that of BasicHttpBinding. Therefore, we call into the BasicHttpsSecurity.InternalShouldSerialize() here.
+            return this.Security.InternalShouldSerialize();
+        }
+
+        void ApplyConfiguration(string configurationName)
+        {
+            BasicHttpsBindingCollectionElement section = BasicHttpsBindingCollectionElement.GetBindingCollectionElement();
+            BasicHttpsBindingElement element = section.Bindings[configurationName];
+            if (element == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                    new ConfigurationErrorsException(
+                        SR.GetString(
+                                SR.ConfigInvalidBindingConfigurationName,
+                                 configurationName,
+                                 ConfigurationStrings.BasicHttpsBindingCollectionElementName)));
+            }
+            else
+            {
+                element.ApplyConfiguration(this);
+            }
         }
     }
 }

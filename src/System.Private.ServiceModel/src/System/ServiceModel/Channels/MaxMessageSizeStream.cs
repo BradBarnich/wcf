@@ -1,36 +1,40 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.ServiceModel.Diagnostics.Application;
-using System.Threading.Tasks;
-using System.Threading;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public class MaxMessageSizeStream : DelegatingStream
+    using System.IO;
+    using System.ServiceModel;
+    using System.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+
+    class MaxMessageSizeStream : DelegatingStream
     {
-        private long _maxMessageSize;
-        private long _totalBytesRead;
-        private long _bytesWritten;
+        long maxMessageSize;
+        long totalBytesRead;
+        long bytesWritten;
 
         public MaxMessageSizeStream(Stream stream, long maxMessageSize)
             : base(stream)
         {
-            _maxMessageSize = maxMessageSize;
+            this.maxMessageSize = maxMessageSize;
         }
 
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
             count = PrepareRead(count);
-            int bytesRead = await base.ReadAsync(buffer, offset, count, cancellationToken);
-            return FinishRead(bytesRead);
+            return base.BeginRead(buffer, offset, count, callback, state);
         }
 
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
             PrepareWrite(count);
-            return base.WriteAsync(buffer, offset, count, cancellationToken);
+            return base.BeginWrite(buffer, offset, count, callback, state);
+        }
+
+        public override int EndRead(IAsyncResult result)
+        {
+            return FinishRead(base.EndRead(result));
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -60,9 +64,9 @@ namespace System.ServiceModel.Channels
             base.WriteByte(value);
         }
 
-        public static Exception CreateMaxReceivedMessageSizeExceededException(long maxMessageSize)
+        internal static Exception CreateMaxReceivedMessageSizeExceededException(long maxMessageSize)
         {
-            string message = SR.Format(SR.MaxReceivedMessageSizeExceeded, maxMessageSize);
+            string message = SR.GetString(SR.MaxReceivedMessageSizeExceeded, maxMessageSize);
             Exception inner = new QuotaExceededException(message);
 
             if (TD.MaxReceivedMessageSizeExceededIsEnabled())
@@ -75,7 +79,7 @@ namespace System.ServiceModel.Channels
 
         internal static Exception CreateMaxSentMessageSizeExceededException(long maxMessageSize)
         {
-            string message = SR.Format(SR.MaxSentMessageSizeExceeded, maxMessageSize);
+            string message = SR.GetString(SR.MaxSentMessageSizeExceeded, maxMessageSize);
             Exception inner = new QuotaExceededException(message);
 
             if (TD.MaxSentMessageSizeExceededIsEnabled())
@@ -86,14 +90,14 @@ namespace System.ServiceModel.Channels
             return new CommunicationException(message, inner);
         }
 
-        private int PrepareRead(int bytesToRead)
+        int PrepareRead(int bytesToRead)
         {
-            if (_totalBytesRead >= _maxMessageSize)
+            if (totalBytesRead >= maxMessageSize)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateMaxReceivedMessageSizeExceededException(_maxMessageSize));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateMaxReceivedMessageSizeExceededException(maxMessageSize));
             }
 
-            long bytesRemaining = _maxMessageSize - _totalBytesRead;
+            long bytesRemaining = maxMessageSize - totalBytesRead;
 
             if (bytesRemaining > int.MaxValue)
             {
@@ -101,24 +105,24 @@ namespace System.ServiceModel.Channels
             }
             else
             {
-                return Math.Min(bytesToRead, (int)(_maxMessageSize - _totalBytesRead));
+                return Math.Min(bytesToRead, (int)(maxMessageSize - totalBytesRead));
             }
         }
 
-        private int FinishRead(int bytesRead)
+        int FinishRead(int bytesRead)
         {
-            _totalBytesRead += bytesRead;
+            totalBytesRead += bytesRead;
             return bytesRead;
         }
 
-        private void PrepareWrite(int bytesToWrite)
+        void PrepareWrite(int bytesToWrite)
         {
-            if (_bytesWritten + bytesToWrite > _maxMessageSize)
+            if (bytesWritten + bytesToWrite > maxMessageSize)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateMaxSentMessageSizeExceededException(_maxMessageSize));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateMaxSentMessageSizeExceededException(maxMessageSize));
             }
 
-            _bytesWritten += bytesToWrite;
+            bytesWritten += bytesToWrite;
         }
     }
 }

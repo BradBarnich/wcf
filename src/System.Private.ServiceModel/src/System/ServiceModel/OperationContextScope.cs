@@ -1,21 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.ServiceModel.Channels;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.ServiceModel.Channels;
+    using System.Threading;
+
     public sealed class OperationContextScope : IDisposable
     {
         [ThreadStatic]
-        private static OperationContextScope s_currentScope;
+        static OperationContextScope currentScope;
 
-        private OperationContext _currentContext;
-        private bool _disposed;
-        private readonly OperationContext _originalContext = OperationContext.Current;
-        private readonly OperationContextScope _originalScope = OperationContextScope.s_currentScope;
+        OperationContext currentContext;
+        bool disposed;
+        readonly OperationContext originalContext = OperationContext.Current;
+        readonly OperationContextScope originalScope = OperationContextScope.currentScope;
+        readonly Thread thread = Thread.CurrentThread;
 
         public OperationContextScope(IContextChannel channel)
         {
@@ -29,33 +31,36 @@ namespace System.ServiceModel
 
         public void Dispose()
         {
-            if (!_disposed)
+            if (!this.disposed)
             {
-                _disposed = true;
+                this.disposed = true;
                 this.PopContext();
             }
         }
 
-        private void PushContext(OperationContext context)
+        void PushContext(OperationContext context)
         {
-            _currentContext = context;
-            OperationContextScope.s_currentScope = this;
-            OperationContext.Current = _currentContext;
+            this.currentContext = context;
+            OperationContextScope.currentScope = this;
+            OperationContext.Current = this.currentContext;
         }
 
-        private void PopContext()
+        void PopContext()
         {
-            if (OperationContextScope.s_currentScope != this)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInterleavedContextScopes0));
+            if (this.thread != Thread.CurrentThread)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidContextScopeThread0)));
 
-            if (OperationContext.Current != _currentContext)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxContextModifiedInsideScope0));
+            if (OperationContextScope.currentScope != this)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInterleavedContextScopes0)));
 
-            OperationContextScope.s_currentScope = _originalScope;
-            OperationContext.Current = _originalContext;
+            if (OperationContext.Current != this.currentContext)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxContextModifiedInsideScope0)));
 
-            if (_currentContext != null)
-                _currentContext.SetClientReply(null, false);
+            OperationContextScope.currentScope = this.originalScope;
+            OperationContext.Current = this.originalContext;
+
+            if (this.currentContext != null)
+                this.currentContext.SetClientReply(null, false);
         }
     }
 }

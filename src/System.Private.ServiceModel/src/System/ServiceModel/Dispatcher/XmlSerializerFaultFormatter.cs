@@ -1,6 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 using System;
 using System.Xml;
 using System.Text;
@@ -12,11 +12,12 @@ using System.Collections.Generic;
 using System.ServiceModel.Channels;
 using System.ServiceModel.Description;
 
+
 namespace System.ServiceModel.Dispatcher
 {
-    internal class XmlSerializerFaultFormatter : FaultFormatter
+    class XmlSerializerFaultFormatter : FaultFormatter
     {
-        private SynchronizedCollection<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo> _xmlSerializerFaultContractInfos;
+        SynchronizedCollection<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo> xmlSerializerFaultContractInfos;
 
         internal XmlSerializerFaultFormatter(Type[] detailTypes,
             SynchronizedCollection<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo> xmlSerializerFaultContractInfos)
@@ -32,25 +33,25 @@ namespace System.ServiceModel.Dispatcher
             Initialize(xmlSerializerFaultContractInfos);
         }
 
-        private void Initialize(SynchronizedCollection<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo> xmlSerializerFaultContractInfos)
+        void Initialize(SynchronizedCollection<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo> xmlSerializerFaultContractInfos)
         {
             if (xmlSerializerFaultContractInfos == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("xmlSerializerFaultContractInfos");
             }
-            _xmlSerializerFaultContractInfos = xmlSerializerFaultContractInfos;
+            this.xmlSerializerFaultContractInfos = xmlSerializerFaultContractInfos;
         }
 
         protected override XmlObjectSerializer GetSerializer(Type detailType, string faultExceptionAction, out string action)
         {
             action = faultExceptionAction;
-
+            
             XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo faultInfo = null;
-            for (int i = 0; i < _xmlSerializerFaultContractInfos.Count; i++)
+            for (int i = 0; i < this.xmlSerializerFaultContractInfos.Count; i++)
             {
-                if (_xmlSerializerFaultContractInfos[i].FaultContractInfo.Detail == detailType)
+                if (this.xmlSerializerFaultContractInfos[i].FaultContractInfo.Detail == detailType)
                 {
-                    faultInfo = _xmlSerializerFaultContractInfos[i];
+                    faultInfo = this.xmlSerializerFaultContractInfos[i];
                     break;
                 }
             }
@@ -71,18 +72,18 @@ namespace System.ServiceModel.Dispatcher
             if (action != null)
             {
                 faultInfos = new List<XmlSerializerOperationBehavior.Reflector.XmlSerializerFaultContractInfo>();
-                for (int i = 0; i < _xmlSerializerFaultContractInfos.Count; i++)
+                for (int i = 0; i < this.xmlSerializerFaultContractInfos.Count; i++)
                 {
-                    if (_xmlSerializerFaultContractInfos[i].FaultContractInfo.Action == action
-                        || _xmlSerializerFaultContractInfos[i].FaultContractInfo.Action == MessageHeaders.WildcardAction)
+                    if (this.xmlSerializerFaultContractInfos[i].FaultContractInfo.Action == action
+                        || this.xmlSerializerFaultContractInfos[i].FaultContractInfo.Action == MessageHeaders.WildcardAction)
                     {
-                        faultInfos.Add(_xmlSerializerFaultContractInfos[i]);
+                        faultInfos.Add(this.xmlSerializerFaultContractInfos[i]);
                     }
                 }
             }
             else
             {
-                faultInfos = _xmlSerializerFaultContractInfos;
+                faultInfos = this.xmlSerializerFaultContractInfos;
             }
 
             Type detailType = null;
@@ -99,7 +100,7 @@ namespace System.ServiceModel.Dispatcher
                     try
                     {
                         detailObj = serializer.ReadObject(detailReader);
-                        FaultException faultException = CreateFaultException(messageFault, action,
+                        FaultException faultException = CreateFaultException(messageFault, action, 
                             detailObj, detailType, detailReader);
                         if (faultException != null)
                             return faultException;

@@ -1,32 +1,31 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel;
-using System.Threading;
-using System.Threading.Tasks;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal class BufferedConnection : DelegatingConnection
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Threading;
+
+    class BufferedConnection : DelegatingConnection
     {
-        private byte[] _writeBuffer;
-        private int _writeBufferSize;
-        private int _pendingWriteSize;
-        private Exception _pendingWriteException;
-        private Timer _flushTimer;
-        private TimeSpan _flushTimeout;
-        private TimeSpan _pendingTimeout;
-        private const int maxFlushSkew = 100;
+        byte[] writeBuffer;
+        int writeBufferSize;
+        int pendingWriteSize;
+        Exception pendingWriteException;
+        IOThreadTimer flushTimer;
+        long flushTimeout;
+        TimeSpan pendingTimeout;
+        const int maxFlushSkew = 100;
 
         public BufferedConnection(IConnection connection, TimeSpan flushTimeout, int writeBufferSize)
             : base(connection)
         {
-            _flushTimeout = flushTimeout;
-            _writeBufferSize = writeBufferSize;
+            this.flushTimeout = Ticks.FromTimeSpan(flushTimeout);
+            this.writeBufferSize = writeBufferSize;
         }
 
-        private object ThisLock
+        object ThisLock
         {
             get { return this; }
         }
@@ -38,16 +37,16 @@ namespace System.ServiceModel.Channels
             base.Close(timeoutHelper.RemainingTime(), asyncAndLinger);
         }
 
-        private void CancelFlushTimer()
+        void CancelFlushTimer()
         {
-            if (_flushTimer != null)
+            if (flushTimer != null)
             {
-                _flushTimer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
-                _pendingTimeout = TimeSpan.Zero;
+                flushTimer.Cancel();
+                pendingTimeout = TimeSpan.Zero;
             }
         }
 
-        private void Flush(TimeSpan timeout)
+        void Flush(TimeSpan timeout)
         {
             ThrowPendingWriteException();
 
@@ -57,23 +56,25 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void FlushCore(TimeSpan timeout)
+        void FlushCore(TimeSpan timeout)
         {
-            if (_pendingWriteSize > 0)
+            if (pendingWriteSize > 0)
             {
-                Connection.Write(_writeBuffer, 0, _pendingWriteSize, false, timeout);
-                _pendingWriteSize = 0;
+                ThreadTrace.Trace("BC:Flush");
+                Connection.Write(writeBuffer, 0, pendingWriteSize, false, timeout);
+                pendingWriteSize = 0;
             }
         }
 
-        private void OnFlushTimer(object state)
+        void OnFlushTimer(object state)
         {
+            ThreadTrace.Trace("BC:Flush timer");
             lock (ThisLock)
             {
                 try
                 {
-                    FlushCore(_pendingTimeout);
-                    _pendingTimeout = TimeSpan.Zero;
+                    FlushCore(pendingTimeout);
+                    pendingTimeout = TimeSpan.Zero;
                 }
                 catch (Exception e)
                 {
@@ -82,82 +83,92 @@ namespace System.ServiceModel.Channels
                         throw;
                     }
 
-                    _pendingWriteException = e;
+                    pendingWriteException = e;
                     CancelFlushTimer();
                 }
             }
         }
 
-        private void SetFlushTimer()
+        void SetFlushTimer()
         {
-            if (_flushTimer == null)
+            if (this.flushTimer == null)
             {
-                _flushTimer = new Timer(new TimerCallback(new Action<object>(OnFlushTimer)), null, TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
+                int flushSkew = Ticks.ToMilliseconds(Math.Min(this.flushTimeout / 10, Ticks.FromMilliseconds(maxFlushSkew)));
+                this.flushTimer = new IOThreadTimer(new Action<object>(OnFlushTimer), null, true, flushSkew);
             }
-
-            _flushTimer.Change(_flushTimeout, TimeSpan.FromMilliseconds(-1));
+            this.flushTimer.Set(Ticks.ToTimeSpan(this.flushTimeout));
         }
 
         public override void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout, BufferManager bufferManager)
         {
             if (size <= 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.ValueMustBePositive));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.GetString(
+                    SR.ValueMustBePositive)));
             }
 
             ThrowPendingWriteException();
 
-            if (immediate || _flushTimeout == TimeSpan.Zero)
+            if (immediate || flushTimeout == 0)
             {
+                ThreadTrace.Trace("BC:Write now");
                 WriteNow(buffer, offset, size, timeout, bufferManager);
             }
             else
             {
+                ThreadTrace.Trace("BC:Write later");
                 WriteLater(buffer, offset, size, timeout);
                 bufferManager.ReturnBuffer(buffer);
             }
+
+            ThreadTrace.Trace("BC:Write done");
         }
 
         public override void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout)
         {
             if (size <= 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.ValueMustBePositive));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.GetString(
+                    SR.ValueMustBePositive)));
             }
 
             ThrowPendingWriteException();
 
-            if (immediate || _flushTimeout == TimeSpan.Zero)
+            if (immediate || flushTimeout == 0)
             {
+                ThreadTrace.Trace("BC:Write now");
                 WriteNow(buffer, offset, size, timeout);
             }
             else
             {
+                ThreadTrace.Trace("BC:Write later");
                 WriteLater(buffer, offset, size, timeout);
             }
+
+            ThreadTrace.Trace("BC:Write done");
         }
 
-        private void WriteNow(byte[] buffer, int offset, int size, TimeSpan timeout)
+        void WriteNow(byte[] buffer, int offset, int size, TimeSpan timeout)
         {
             WriteNow(buffer, offset, size, timeout, null);
         }
 
-        private void WriteNow(byte[] buffer, int offset, int size, TimeSpan timeout, BufferManager bufferManager)
+        void WriteNow(byte[] buffer, int offset, int size, TimeSpan timeout, BufferManager bufferManager)
         {
             lock (ThisLock)
             {
-                if (_pendingWriteSize > 0)
+                if (pendingWriteSize > 0)
                 {
-                    int remainingSize = _writeBufferSize - _pendingWriteSize;
+                    int remainingSize = writeBufferSize - pendingWriteSize;
                     CancelFlushTimer();
                     if (size <= remainingSize)
                     {
-                        Buffer.BlockCopy(buffer, offset, _writeBuffer, _pendingWriteSize, size);
+                        Buffer.BlockCopy(buffer, offset, writeBuffer, pendingWriteSize, size);
                         if (bufferManager != null)
                         {
                             bufferManager.ReturnBuffer(buffer);
                         }
-                        _pendingWriteSize += size;
+                        pendingWriteSize += size;
                         FlushCore(timeout);
                         return;
                     }
@@ -180,37 +191,37 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void WriteLater(byte[] buffer, int offset, int size, TimeSpan timeout)
+        void WriteLater(byte[] buffer, int offset, int size, TimeSpan timeout)
         {
             lock (ThisLock)
             {
-                bool setTimer = (_pendingWriteSize == 0);
+                bool setTimer = (pendingWriteSize == 0);
                 TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
 
                 while (size > 0)
                 {
-                    if (size >= _writeBufferSize && _pendingWriteSize == 0)
+                    if (size >= writeBufferSize && pendingWriteSize == 0)
                     {
                         Connection.Write(buffer, offset, size, false, timeoutHelper.RemainingTime());
                         size = 0;
                     }
                     else
                     {
-                        if (_writeBuffer == null)
+                        if (writeBuffer == null)
                         {
-                            _writeBuffer = Fx.AllocateByteArray(_writeBufferSize);
+                            writeBuffer = DiagnosticUtility.Utility.AllocateByteArray(writeBufferSize);
                         }
 
-                        int remainingSize = _writeBufferSize - _pendingWriteSize;
+                        int remainingSize = writeBufferSize - pendingWriteSize;
                         int copySize = size;
                         if (copySize > remainingSize)
                         {
                             copySize = remainingSize;
                         }
 
-                        Buffer.BlockCopy(buffer, offset, _writeBuffer, _pendingWriteSize, copySize);
-                        _pendingWriteSize += copySize;
-                        if (_pendingWriteSize == _writeBufferSize)
+                        Buffer.BlockCopy(buffer, offset, writeBuffer, pendingWriteSize, copySize);
+                        pendingWriteSize += copySize;
+                        if (pendingWriteSize == writeBufferSize)
                         {
                             FlushCore(timeoutHelper.RemainingTime());
                             setTimer = true;
@@ -219,12 +230,12 @@ namespace System.ServiceModel.Channels
                         offset += copySize;
                     }
                 }
-                if (_pendingWriteSize > 0)
+                if (pendingWriteSize > 0)
                 {
                     if (setTimer)
                     {
                         SetFlushTimer();
-                        _pendingTimeout = TimeoutHelper.Add(_pendingTimeout, timeoutHelper.RemainingTime());
+                        pendingTimeout = TimeoutHelper.Add(pendingTimeout, timeoutHelper.RemainingTime());
                     }
                 }
                 else
@@ -234,8 +245,10 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        public override AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout, Action<object> callback, object state)
+        public override AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout,
+            WaitCallback callback, object state)
         {
+            ThreadTrace.Trace("BC:BeginWrite");
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
             Flush(timeoutHelper.RemainingTime());
             return base.BeginWrite(buffer, offset, size, immediate, timeoutHelper.RemainingTime(), callback, state);
@@ -243,19 +256,27 @@ namespace System.ServiceModel.Channels
 
         public override void EndWrite()
         {
+            ThreadTrace.Trace("BC:EndWrite");
             base.EndWrite();
         }
 
-        private void ThrowPendingWriteException()
+        public override void Shutdown(TimeSpan timeout)
         {
-            if (_pendingWriteException != null)
+            TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
+            Flush(timeoutHelper.RemainingTime());
+            base.Shutdown(timeoutHelper.RemainingTime());
+        }
+
+        void ThrowPendingWriteException()
+        {
+            if (pendingWriteException != null)
             {
                 lock (ThisLock)
                 {
-                    if (_pendingWriteException != null)
+                    if (pendingWriteException != null)
                     {
-                        Exception exceptionTothrow = _pendingWriteException;
-                        _pendingWriteException = null;
+                        Exception exceptionTothrow = pendingWriteException;
+                        pendingWriteException = null;
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(exceptionTothrow);
                     }
                 }
@@ -263,24 +284,24 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class BufferedConnectionInitiator : IConnectionInitiator
+    class BufferedConnectionInitiator : IConnectionInitiator
     {
-        private int _writeBufferSize;
-        private TimeSpan _flushTimeout;
-        private IConnectionInitiator _connectionInitiator;
+        int writeBufferSize;
+        TimeSpan flushTimeout;
+        IConnectionInitiator connectionInitiator;
 
         public BufferedConnectionInitiator(IConnectionInitiator connectionInitiator, TimeSpan flushTimeout, int writeBufferSize)
         {
-            _connectionInitiator = connectionInitiator;
-            _flushTimeout = flushTimeout;
-            _writeBufferSize = writeBufferSize;
+            this.connectionInitiator = connectionInitiator;
+            this.flushTimeout = flushTimeout;
+            this.writeBufferSize = writeBufferSize;
         }
 
         protected TimeSpan FlushTimeout
         {
             get
             {
-                return _flushTimeout;
+                return this.flushTimeout;
             }
         }
 
@@ -288,18 +309,64 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _writeBufferSize;
+                return this.writeBufferSize;
             }
         }
 
         public IConnection Connect(Uri uri, TimeSpan timeout)
         {
-            return new BufferedConnection(_connectionInitiator.Connect(uri, timeout), _flushTimeout, _writeBufferSize);
+            return new BufferedConnection(connectionInitiator.Connect(uri, timeout), flushTimeout, writeBufferSize);
         }
 
-        public async Task<IConnection> ConnectAsync(Uri uri, TimeSpan timeout)
+        public IAsyncResult BeginConnect(Uri uri, TimeSpan timeout, AsyncCallback callback, object state)
         {
-            return new BufferedConnection(await _connectionInitiator.ConnectAsync(uri, timeout), _flushTimeout, _writeBufferSize);
+            return connectionInitiator.BeginConnect(uri, timeout, callback, state);
+        }
+
+        public IConnection EndConnect(IAsyncResult result)
+        {
+            return new BufferedConnection(connectionInitiator.EndConnect(result), flushTimeout, writeBufferSize);
+        }
+    }
+
+    class BufferedConnectionListener : IConnectionListener
+    {
+        int writeBufferSize;
+        TimeSpan flushTimeout;
+        IConnectionListener connectionListener;
+
+        public BufferedConnectionListener(IConnectionListener connectionListener, TimeSpan flushTimeout, int writeBufferSize)
+        {
+            this.connectionListener = connectionListener;
+            this.flushTimeout = flushTimeout;
+            this.writeBufferSize = writeBufferSize;
+        }
+
+        public void Dispose()
+        {
+            connectionListener.Dispose();
+        }
+
+        public void Listen()
+        {
+            connectionListener.Listen();
+        }
+
+        public IAsyncResult BeginAccept(AsyncCallback callback, object state)
+        {
+            return connectionListener.BeginAccept(callback, state);
+
+        }
+
+        public IConnection EndAccept(IAsyncResult result)
+        {
+            IConnection connection = connectionListener.EndAccept(result);
+            if (connection == null)
+            {
+                return connection;
+            }
+
+            return new BufferedConnection(connection, flushTimeout, writeBufferSize);
         }
     }
 }

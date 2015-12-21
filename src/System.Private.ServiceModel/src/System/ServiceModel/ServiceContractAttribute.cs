@@ -1,26 +1,31 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Description;
-using System.Net.Security;
-using System.ServiceModel.Security;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System;
+    using System.ServiceModel.Description;
+    using System.Transactions;
+    using System.ServiceModel.Channels;
+    using System.Runtime.CompilerServices;
+    using System.Net.Security;
+    using System.ServiceModel.Security;
+
     [AttributeUsage(ServiceModelAttributeTargets.ServiceContract, Inherited = false, AllowMultiple = false)]
     public sealed class ServiceContractAttribute : Attribute
     {
-        private Type _callbackContract = null;
-        private string _configurationName;
-        private string _name;
-        private string _ns;
-        private SessionMode _sessionMode;
-        private ProtectionLevel _protectionLevel = ProtectionLevel.None;
-        private bool _hasProtectionLevel = false;
+        Type callbackContract = null;
+        string configurationName;
+        string name;
+        string ns;
+        SessionMode sessionMode;
+        ProtectionLevel protectionLevel = ProtectionLevel.None;
+        bool hasProtectionLevel = false;
 
         public string ConfigurationName
         {
-            get { return _configurationName; }
+            get { return this.configurationName; }
             set
             {
                 if (value == null)
@@ -30,15 +35,15 @@ namespace System.ServiceModel
                 if (value == string.Empty)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxConfigurationNameCannotBeEmpty));
+                        SR.GetString(SR.SFxConfigurationNameCannotBeEmpty)));
                 }
-                _configurationName = value;
+                this.configurationName = value;
             }
         }
 
         public string Name
         {
-            get { return _name; }
+            get { return name; }
             set
             {
                 if (value == null)
@@ -48,20 +53,20 @@ namespace System.ServiceModel
                 if (value == string.Empty)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxNameCannotBeEmpty));
+                        SR.GetString(SR.SFxNameCannotBeEmpty)));
                 }
-                _name = value;
+                name = value;
             }
         }
 
         public string Namespace
         {
-            get { return _ns; }
+            get { return ns; }
             set
             {
                 if (!string.IsNullOrEmpty(value))
                     NamingHelper.CheckUriProperty(value, "Namespace");
-                _ns = value;
+                ns = value;
             }
         }
 
@@ -69,25 +74,25 @@ namespace System.ServiceModel
         {
             get
             {
-                return _protectionLevel;
+                return this.protectionLevel;
             }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         public SessionMode SessionMode
         {
-            get { return _sessionMode; }
+            get { return this.sessionMode; }
             set
             {
                 if (!SessionModeHelper.IsDefined(value))
@@ -95,14 +100,14 @@ namespace System.ServiceModel
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
                 }
 
-                _sessionMode = value;
+                this.sessionMode = value;
             }
         }
 
         public Type CallbackContract
         {
-            get { return _callbackContract; }
-            set { _callbackContract = value; }
+            get { return this.callbackContract; }
+            set { this.callbackContract = value; }
         }
     }
 }

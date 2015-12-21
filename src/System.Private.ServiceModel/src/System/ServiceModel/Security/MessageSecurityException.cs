@@ -1,14 +1,26 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.IO;
+    using System.Runtime.Serialization;
+    using System.Security.Cryptography;
+    using System.Security.Permissions;
+    using System.Text;
+    using System.Xml;
+    using System.Security;
+    using System.Runtime;
+
+    [Serializable]
     public class MessageSecurityException : CommunicationException
     {
-        private MessageFault _fault;
-        private bool _isReplay = false;
+        MessageFault fault;
+        bool isReplay = false;
 
         public MessageSecurityException()
             : base()
@@ -25,29 +37,34 @@ namespace System.ServiceModel.Security
         {
         }
 
+        protected MessageSecurityException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
+            : base(info, context)
+        {
+        }
+
         internal MessageSecurityException(string message, Exception innerException, MessageFault fault)
             : base(message, innerException)
         {
-            _fault = fault;
+            this.fault = fault;
         }
 
         internal MessageSecurityException(String message, bool isReplay)
             : base(message)
         {
-            _isReplay = isReplay;
+            this.isReplay = isReplay;
         }
 
         internal bool ReplayDetected
         {
             get
             {
-                return _isReplay;
+                return this.isReplay;
             }
         }
 
         internal MessageFault Fault
         {
-            get { return _fault; }
+            get { return this.fault; }
         }
     }
 }

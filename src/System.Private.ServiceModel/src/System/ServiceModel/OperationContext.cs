@@ -1,32 +1,38 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Security.Claims;
-using System.Security.Principal;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Dispatcher;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Runtime;
+    using System.Security.Claims;
+    using System.Security.Principal;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Dispatcher;
+    using System.ServiceModel.Security;
+
     public sealed class OperationContext : IExtensibleObject<OperationContext>
     {
         [ThreadStatic]
-        private static Holder s_currentContext;
+        static Holder currentContext;
 
-        private ServiceChannel _channel;
-        private Message _clientReply;
-        private bool _closeClientReply;
-        private ExtensionCollection<OperationContext> _extensions;
-        private RequestContext _requestContext;
-        private Message _request;
-        private InstanceContext _instanceContext;
-        private bool _isServiceReentrant = false;
+        ServiceChannel channel;
+        Message clientReply;
+        bool closeClientReply;
+        ExtensionCollection<OperationContext> extensions;
+        ServiceHostBase host;
+        RequestContext requestContext;
+        Message request;
+        InstanceContext instanceContext;
+        bool isServiceReentrant = false;
         internal IPrincipal threadPrincipal;
-        private MessageProperties _outgoingMessageProperties;
-        private MessageHeaders _outgoingMessageHeaders;
-        private MessageVersion _outgoingMessageVersion;
-        private EndpointDispatcher _endpointDispatcher;
+        TransactionRpcFacet txFacet;
+        MessageProperties outgoingMessageProperties;
+        MessageHeaders outgoingMessageHeaders;
+        MessageVersion outgoingMessageVersion;
+        EndpointDispatcher endpointDispatcher;
 
         public event EventHandler OperationCompleted;
 
@@ -45,34 +51,36 @@ namespace System.ServiceModel
 
             if (serviceChannel != null)
             {
-                _outgoingMessageVersion = serviceChannel.MessageVersion;
-                _channel = serviceChannel;
+                this.outgoingMessageVersion = serviceChannel.MessageVersion;
+                this.channel = serviceChannel;
             }
             else
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidChannelToOperationContext));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidChannelToOperationContext)));
             }
         }
 
-        internal OperationContext()
-            : this(MessageVersion.Soap12WSAddressing10)
+        internal OperationContext(ServiceHostBase host)
+            : this(host, MessageVersion.Soap12WSAddressing10)
         {
         }
 
-        internal OperationContext(MessageVersion outgoingMessageVersion)
+        internal OperationContext(ServiceHostBase host, MessageVersion outgoingMessageVersion)
         {
             if (outgoingMessageVersion == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("outgoingMessageVersion"));
 
-            _outgoingMessageVersion = outgoingMessageVersion;
+            this.host = host;
+            this.outgoingMessageVersion = outgoingMessageVersion;
         }
 
-        internal OperationContext(RequestContext requestContext, Message request, ServiceChannel channel)
+        internal OperationContext(RequestContext requestContext, Message request, ServiceChannel channel, ServiceHostBase host)
         {
-            _channel = channel;
-            _requestContext = requestContext;
-            _request = request;
-            _outgoingMessageVersion = channel.MessageVersion;
+            this.channel = channel;
+            this.host = host;
+            this.requestContext = requestContext;
+            this.request = request;
+            this.outgoingMessageVersion = channel.MessageVersion;
         }
 
         public IContextChannel Channel
@@ -97,11 +105,11 @@ namespace System.ServiceModel
         {
             get
             {
-                Holder holder = OperationContext.s_currentContext;
+                Holder holder = OperationContext.currentContext;
                 if (holder == null)
                 {
                     holder = new Holder();
-                    OperationContext.s_currentContext = holder;
+                    OperationContext.currentContext = holder;
                 }
                 return holder;
             }
@@ -111,11 +119,11 @@ namespace System.ServiceModel
         {
             get
             {
-                return _endpointDispatcher;
+                return this.endpointDispatcher;
             }
             set
             {
-                _endpointDispatcher = value;
+                this.endpointDispatcher = value;
             }
         }
 
@@ -123,7 +131,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return (_request == null);
+                return (this.request == null);
             }
         }
 
@@ -131,74 +139,88 @@ namespace System.ServiceModel
         {
             get
             {
-                if (_extensions == null)
+                if (this.extensions == null)
                 {
-                    _extensions = new ExtensionCollection<OperationContext>(this);
+                    this.extensions = new ExtensionCollection<OperationContext>(this);
                 }
-                return _extensions;
+                return this.extensions;
             }
         }
 
         internal bool IsServiceReentrant
         {
-            get { return _isServiceReentrant; }
-            set { _isServiceReentrant = value; }
+            get { return this.isServiceReentrant; }
+            set { this.isServiceReentrant = value; }
         }
 
+        public bool HasSupportingTokens
+        {
+            get
+            {
+                MessageProperties properties = this.IncomingMessageProperties;
+                return properties != null && properties.Security != null &&
+                    properties.Security.HasIncomingSupportingTokens;
+            }
+        }
+
+        public ServiceHostBase Host
+        {
+            get { return this.host; }
+        }
 
         internal Message IncomingMessage
         {
-            get { return _clientReply ?? _request; }
+            get { return this.clientReply ?? this.request; }
         }
 
         internal ServiceChannel InternalServiceChannel
         {
-            get { return _channel; }
-            set { _channel = value; }
+            get { return this.channel; }
+            set { this.channel = value; }
         }
 
         internal bool HasOutgoingMessageHeaders
         {
-            get { return (_outgoingMessageHeaders != null); }
+            get { return (this.outgoingMessageHeaders != null); }
         }
 
         public MessageHeaders OutgoingMessageHeaders
         {
             get
             {
-                if (_outgoingMessageHeaders == null)
-                    _outgoingMessageHeaders = new MessageHeaders(this.OutgoingMessageVersion);
+                if (this.outgoingMessageHeaders == null)
+                    this.outgoingMessageHeaders = new MessageHeaders(this.OutgoingMessageVersion);
 
-                return _outgoingMessageHeaders;
+                return this.outgoingMessageHeaders;
             }
         }
 
         internal bool HasOutgoingMessageProperties
         {
-            get { return (_outgoingMessageProperties != null); }
+            get { return (this.outgoingMessageProperties != null); }
         }
 
         public MessageProperties OutgoingMessageProperties
         {
             get
             {
-                if (_outgoingMessageProperties == null)
-                    _outgoingMessageProperties = new MessageProperties();
+                if (this.outgoingMessageProperties == null)
+                    this.outgoingMessageProperties = new MessageProperties();
 
-                return _outgoingMessageProperties;
+                return this.outgoingMessageProperties;
             }
         }
 
         internal MessageVersion OutgoingMessageVersion
         {
-            get { return _outgoingMessageVersion; }
+            get { return this.outgoingMessageVersion; }
         }
 
         public MessageHeaders IncomingMessageHeaders
         {
             get
             {
-                Message message = _clientReply ?? _request;
+                Message message = this.clientReply ?? this.request;
                 if (message != null)
                     return message.Headers;
                 else
@@ -210,7 +232,7 @@ namespace System.ServiceModel
         {
             get
             {
-                Message message = _clientReply ?? _request;
+                Message message = this.clientReply ?? this.request;
                 if (message != null)
                     return message.Properties;
                 else
@@ -222,7 +244,7 @@ namespace System.ServiceModel
         {
             get
             {
-                Message message = _clientReply ?? _request;
+                Message message = this.clientReply ?? this.request;
                 if (message != null)
                     return message.Version;
                 else
@@ -232,23 +254,35 @@ namespace System.ServiceModel
 
         public InstanceContext InstanceContext
         {
-            get { return _instanceContext; }
+            get { return this.instanceContext; }
         }
 
         public RequestContext RequestContext
         {
-            get { return _requestContext; }
-            set { _requestContext = value; }
+            get { return this.requestContext; }
+            set { this.requestContext = value; }
         }
 
+        public ServiceSecurityContext ServiceSecurityContext
+        {
+            get
+            {
+                MessageProperties properties = this.IncomingMessageProperties;
+                if (properties != null && properties.Security != null)
+                {
+                    return properties.Security.ServiceSecurityContext;
+                }
+                return null;
+            }
+        }
 
         public string SessionId
         {
             get
             {
-                if (_channel != null)
+                if (this.channel != null)
                 {
-                    IChannel inner = _channel.InnerChannel;
+                    IChannel inner = this.channel.InnerChannel;
                     if (inner != null)
                     {
                         ISessionChannel<IDuplexSession> duplex = inner as ISessionChannel<IDuplexSession>;
@@ -268,6 +302,19 @@ namespace System.ServiceModel
             }
         }
 
+        public ICollection<SupportingTokenSpecification> SupportingTokens
+        {
+            get
+            {
+                MessageProperties properties = this.IncomingMessageProperties;
+                if (properties != null && properties.Security != null)
+                {
+                    return new System.Collections.ObjectModel.ReadOnlyCollection<SupportingTokenSpecification>(
+                        properties.Security.IncomingSupportingTokens);
+                }
+                return null;
+            }
+        }
 
         internal IPrincipal ThreadPrincipal
         {
@@ -281,9 +328,15 @@ namespace System.ServiceModel
             internal set;
         }
 
+        internal TransactionRpcFacet TransactionFacet
+        {
+            get { return this.txFacet; }
+            set { this.txFacet = value; }
+        }
+
         internal void ClearClientReplyNoThrow()
         {
-            _clientReply = null;
+            this.clientReply = null;
         }
 
         internal void FireOperationCompleted()
@@ -308,28 +361,29 @@ namespace System.ServiceModel
 
         public T GetCallbackChannel<T>()
         {
-            if (_channel == null || this.IsUserContext)
+            if (this.channel == null || this.IsUserContext)
                 return default(T);
 
             // yes, we might throw InvalidCastException here.  Is it really
             // better to check and throw something else instead?
-            return (T)_channel.Proxy;
+            return (T)this.channel.Proxy;
         }
 
         internal void ReInit(RequestContext requestContext, Message request, ServiceChannel channel)
         {
-            _requestContext = requestContext;
-            _request = request;
-            _channel = channel;
+            this.requestContext = requestContext;
+            this.request = request;
+            this.channel = channel;
         }
 
         internal void Recycle()
         {
-            _requestContext = null;
-            _request = null;
-            _extensions = null;
-            _instanceContext = null;
+            this.requestContext = null;
+            this.request = null;
+            this.extensions = null;
+            this.instanceContext = null;
             this.threadPrincipal = null;
+            this.txFacet = null;
             this.SetClientReply(null, false);
         }
 
@@ -337,17 +391,17 @@ namespace System.ServiceModel
         {
             Message oldClientReply = null;
 
-            if (!object.Equals(message, _clientReply))
+            if (!object.Equals(message, this.clientReply))
             {
-                if (_closeClientReply && (_clientReply != null))
+                if (this.closeClientReply && (this.clientReply != null))
                 {
-                    oldClientReply = _clientReply;
+                    oldClientReply = this.clientReply;
                 }
 
-                _clientReply = message;
+                this.clientReply = message;
             }
 
-            _closeClientReply = closeMessage;
+            this.closeClientReply = closeMessage;
 
             if (oldClientReply != null)
             {
@@ -355,25 +409,35 @@ namespace System.ServiceModel
             }
         }
 
+        public void SetTransactionComplete()
+        {
+            if (this.txFacet == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.NoTransactionInContext)));
+            }
+
+            this.txFacet.Completed();
+        }
+
         internal void SetInstanceContext(InstanceContext instanceContext)
         {
-            _instanceContext = instanceContext;
+            this.instanceContext = instanceContext;
         }
 
         internal class Holder
         {
-            private OperationContext _context;
+            OperationContext context;
 
             public OperationContext Context
             {
                 get
                 {
-                    return _context;
+                    return this.context;
                 }
 
                 set
                 {
-                    _context = value;
+                    this.context = value;
                 }
             }
         }

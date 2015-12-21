@@ -1,79 +1,80 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Diagnostics;
-using System.Runtime;
-using System.ServiceModel;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal abstract class RequestContextBase : RequestContext
+    using System;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+
+    abstract class RequestContextBase : RequestContext
     {
-        private TimeSpan _defaultSendTimeout;
-        private TimeSpan _defaultCloseTimeout;
-        private CommunicationState _state = CommunicationState.Opened;
-        private Message _requestMessage;
-        private Exception _requestMessageException;
-        private bool _replySent;
-        private bool _replyInitiated;
-        private bool _aborted;
-        private object _thisLock = new object();
+        TimeSpan defaultSendTimeout;
+        TimeSpan defaultCloseTimeout;
+        CommunicationState state = CommunicationState.Opened;
+        Message requestMessage;
+        Exception requestMessageException;
+        bool replySent;
+        bool replyInitiated;
+        bool aborted;
+        object thisLock = new object();
 
         protected RequestContextBase(Message requestMessage, TimeSpan defaultCloseTimeout, TimeSpan defaultSendTimeout)
         {
-            _defaultSendTimeout = defaultSendTimeout;
-            _defaultCloseTimeout = defaultCloseTimeout;
-            _requestMessage = requestMessage;
+            this.defaultSendTimeout = defaultSendTimeout;
+            this.defaultCloseTimeout = defaultCloseTimeout;
+            this.requestMessage = requestMessage;
         }
 
         public void ReInitialize(Message requestMessage)
         {
-            _state = CommunicationState.Opened;
-            _requestMessageException = null;
-            _replySent = false;
-            _replyInitiated = false;
-            _aborted = false;
-            _requestMessage = requestMessage;
+            this.state = CommunicationState.Opened;
+            this.requestMessageException = null;
+            this.replySent = false;
+            this.replyInitiated = false;
+            this.aborted = false;
+            this.requestMessage = requestMessage;
         }
 
         public override Message RequestMessage
         {
             get
             {
-                if (_requestMessageException != null)
+                if (this.requestMessageException != null)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(_requestMessageException);
+#pragma warning suppress 56503 // [....], see outcome of DCR 50092
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(this.requestMessageException);
                 }
 
-                return _requestMessage;
+                return requestMessage;
             }
         }
 
         protected void SetRequestMessage(Message requestMessage)
         {
-            Fx.Assert(_requestMessageException == null, "Cannot have both a requestMessage and a requestException.");
-            _requestMessage = requestMessage;
+            Fx.Assert(this.requestMessageException == null, "Cannot have both a requestMessage and a requestException.");
+            this.requestMessage = requestMessage;
         }
 
         protected void SetRequestMessage(Exception requestMessageException)
         {
-            Fx.Assert(_requestMessage == null, "Cannot have both a requestMessage and a requestException.");
-            _requestMessageException = requestMessageException;
+            Fx.Assert(this.requestMessage == null, "Cannot have both a requestMessage and a requestException.");
+            this.requestMessageException = requestMessageException;
         }
 
         protected bool ReplyInitiated
         {
-            get { return _replyInitiated; }
+            get { return this.replyInitiated; }
         }
 
         protected object ThisLock
         {
             get
             {
-                return _thisLock;
+                return thisLock;
             }
         }
 
@@ -81,30 +82,36 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _aborted;
+                return this.aborted;
             }
         }
 
         public TimeSpan DefaultCloseTimeout
         {
-            get { return _defaultCloseTimeout; }
+            get { return this.defaultCloseTimeout; }
         }
 
         public TimeSpan DefaultSendTimeout
         {
-            get { return _defaultSendTimeout; }
+            get { return this.defaultSendTimeout; }
         }
 
         public override void Abort()
         {
             lock (ThisLock)
             {
-                if (_state == CommunicationState.Closed)
+                if (state == CommunicationState.Closed)
                     return;
 
-                _state = CommunicationState.Closing;
+                state = CommunicationState.Closing;
 
-                _aborted = true;
+                this.aborted = true;
+            }
+
+            if (DiagnosticUtility.ShouldTraceWarning)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Warning, TraceCode.RequestContextAbort,
+                    SR.GetString(SR.TraceCodeRequestContextAbort), this);
             }
 
             try
@@ -113,26 +120,27 @@ namespace System.ServiceModel.Channels
             }
             finally
             {
-                _state = CommunicationState.Closed;
+                state = CommunicationState.Closed;
             }
         }
 
         public override void Close()
         {
-            this.Close(_defaultCloseTimeout);
+            this.Close(this.defaultCloseTimeout);
         }
 
         public override void Close(TimeSpan timeout)
         {
             if (timeout < TimeSpan.Zero)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("timeout", timeout, SR.ValueMustBeNonNegative));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("timeout", timeout,
+                    SR.GetString(SR.ValueMustBeNonNegative)));
             }
 
             bool sendAck = false;
             lock (ThisLock)
             {
-                if (_state != CommunicationState.Opened)
+                if (state != CommunicationState.Opened)
                     return;
 
                 if (TryInitiateReply())
@@ -140,7 +148,7 @@ namespace System.ServiceModel.Channels
                     sendAck = true;
                 }
 
-                _state = CommunicationState.Closing;
+                state = CommunicationState.Closing;
             }
 
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
@@ -154,7 +162,7 @@ namespace System.ServiceModel.Channels
                 }
 
                 OnClose(timeoutHelper.RemainingTime());
-                _state = CommunicationState.Closed;
+                state = CommunicationState.Closed;
                 throwing = false;
             }
             finally
@@ -171,7 +179,7 @@ namespace System.ServiceModel.Channels
             if (!disposing)
                 return;
 
-            if (_replySent)
+            if (this.replySent)
             {
                 this.Close();
             }
@@ -189,16 +197,16 @@ namespace System.ServiceModel.Channels
 
         protected void ThrowIfInvalidReply()
         {
-            if (_state == CommunicationState.Closed || _state == CommunicationState.Closing)
+            if (state == CommunicationState.Closed || state == CommunicationState.Closing)
             {
-                if (_aborted)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationObjectAbortedException(SR.RequestContextAborted));
+                if (aborted)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationObjectAbortedException(SR.GetString(SR.RequestContextAborted)));
                 else
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().FullName));
             }
 
-            if (_replyInitiated)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ReplyAlreadySent));
+            if (this.replyInitiated)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ReplyAlreadySent)));
         }
 
         /// <summary>
@@ -207,15 +215,15 @@ namespace System.ServiceModel.Channels
         /// </summary>
         protected bool TryInitiateReply()
         {
-            lock (_thisLock)
+            lock (this.thisLock)
             {
-                if ((_state != CommunicationState.Opened) || _replyInitiated)
+                if ((this.state != CommunicationState.Opened) || this.replyInitiated)
                 {
                     return false;
                 }
                 else
                 {
-                    _replyInitiated = true;
+                    this.replyInitiated = true;
                     return true;
                 }
             }
@@ -223,16 +231,16 @@ namespace System.ServiceModel.Channels
 
         public override IAsyncResult BeginReply(Message message, AsyncCallback callback, object state)
         {
-            return this.BeginReply(message, _defaultSendTimeout, callback, state);
+            return this.BeginReply(message, this.defaultSendTimeout, callback, state);
         }
 
         public override IAsyncResult BeginReply(Message message, TimeSpan timeout, AsyncCallback callback, object state)
         {
             // "null" is a valid reply (signals a 202-style "ack"), so we don't have a null-check here
-            lock (_thisLock)
+            lock (this.thisLock)
             {
                 this.ThrowIfInvalidReply();
-                _replyInitiated = true;
+                this.replyInitiated = true;
             }
 
             return OnBeginReply(message, timeout, callback, state);
@@ -241,25 +249,25 @@ namespace System.ServiceModel.Channels
         public override void EndReply(IAsyncResult result)
         {
             OnEndReply(result);
-            _replySent = true;
+            this.replySent = true;
         }
 
         public override void Reply(Message message)
         {
-            this.Reply(message, _defaultSendTimeout);
+            this.Reply(message, this.defaultSendTimeout);
         }
 
         public override void Reply(Message message, TimeSpan timeout)
         {
             // "null" is a valid reply (signals a 202-style "ack"), so we don't have a null-check here
-            lock (_thisLock)
+            lock (this.thisLock)
             {
                 this.ThrowIfInvalidReply();
-                _replyInitiated = true;
+                this.replyInitiated = true;
             }
 
             this.OnReply(message, timeout);
-            _replySent = true;
+            this.replySent = true;
         }
 
         // This method is designed for WebSocket only, and will only be used once the WebSocket response was sent.
@@ -269,24 +277,24 @@ namespace System.ServiceModel.Channels
         // are disposing the HttpRequestContext, we will see a bunch of warnings in trace log.
         protected void SetReplySent()
         {
-            lock (_thisLock)
+            lock (this.thisLock)
             {
                 this.ThrowIfInvalidReply();
-                _replyInitiated = true;
+                this.replyInitiated = true;
             }
 
-            _replySent = true;
+            this.replySent = true;
         }
     }
 
-    internal class RequestContextMessageProperty : IDisposable
+    class RequestContextMessageProperty : IDisposable
     {
-        private RequestContext _context;
-        private object _thisLock = new object();
+        RequestContext context;
+        object thisLock = new object();
 
         public RequestContextMessageProperty(RequestContext context)
         {
-            _context = context;
+            this.context = context;
         }
 
         public static string Name
@@ -299,12 +307,12 @@ namespace System.ServiceModel.Channels
             bool success = false;
             RequestContext thisContext;
 
-            lock (_thisLock)
+            lock (this.thisLock)
             {
-                if (_context == null)
+                if (this.context == null)
                     return;
-                thisContext = _context;
-                _context = null;
+                thisContext = this.context;
+                this.context = null;
             }
 
             try
@@ -312,8 +320,9 @@ namespace System.ServiceModel.Channels
                 thisContext.Close();
                 success = true;
             }
-            catch (CommunicationException)
+            catch (CommunicationException e)
             {
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Information);
             }
             catch (TimeoutException e)
             {
@@ -321,6 +330,7 @@ namespace System.ServiceModel.Channels
                 {
                     TD.CloseTimeout(e.Message);
                 }
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Information);
             }
             finally
             {

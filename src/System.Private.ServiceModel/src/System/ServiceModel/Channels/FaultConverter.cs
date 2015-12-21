@@ -1,10 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.Globalization;
+
     public abstract class FaultConverter
     {
         public static FaultConverter GetDefaultFaultConverter(MessageVersion version)
@@ -32,7 +34,7 @@ namespace System.ServiceModel.Channels
             {
                 if (exception == null)
                 {
-                    string text = SR.Format(SR.FaultConverterDidNotCreateException, this.GetType().Name);
+                    string text = SR.GetString(SR.FaultConverterDidNotCreateException, this.GetType().Name);
                     Exception error = new InvalidOperationException(text);
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
                 }
@@ -41,7 +43,7 @@ namespace System.ServiceModel.Channels
             {
                 if (exception != null)
                 {
-                    string text = SR.Format(SR.FaultConverterCreatedException, this.GetType().Name);
+                    string text = SR.GetString(SR.FaultConverterCreatedException, this.GetType().Name);
                     Exception error = new InvalidOperationException(text, exception);
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
                 }
@@ -58,7 +60,7 @@ namespace System.ServiceModel.Channels
             {
                 if (message == null)
                 {
-                    string text = SR.Format(SR.FaultConverterDidNotCreateFaultMessage, this.GetType().Name);
+                    string text = SR.GetString(SR.FaultConverterDidNotCreateFaultMessage, this.GetType().Name);
                     Exception error = new InvalidOperationException(text);
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
                 }
@@ -67,7 +69,7 @@ namespace System.ServiceModel.Channels
             {
                 if (message != null)
                 {
-                    string text = SR.Format(SR.FaultConverterCreatedFaultMessage, this.GetType().Name);
+                    string text = SR.GetString(SR.FaultConverterCreatedFaultMessage, this.GetType().Name);
                     Exception error = new InvalidOperationException(text);
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
                 }
@@ -76,13 +78,13 @@ namespace System.ServiceModel.Channels
             return created;
         }
 
-        internal class DefaultFaultConverter : FaultConverter
+        class DefaultFaultConverter : FaultConverter
         {
-            private MessageVersion _version;
+            MessageVersion version;
 
             internal DefaultFaultConverter(MessageVersion version)
             {
-                _version = version;
+                this.version = version;
             }
 
             protected override bool OnTryCreateException(Message message, MessageFault fault, out Exception exception)
@@ -90,7 +92,7 @@ namespace System.ServiceModel.Channels
                 exception = null;
 
                 // SOAP MustUnderstand
-                if (string.Compare(fault.Code.Namespace, _version.Envelope.Namespace, StringComparison.Ordinal) == 0
+                if (string.Compare(fault.Code.Namespace, version.Envelope.Namespace, StringComparison.Ordinal) == 0
                     && string.Compare(fault.Code.Name, MessageStrings.MustUnderstandFault, StringComparison.Ordinal) == 0)
                 {
                     exception = new ProtocolException(fault.Reason.GetMatchingTranslation(CultureInfo.CurrentCulture).Text);
@@ -101,7 +103,7 @@ namespace System.ServiceModel.Channels
                 bool checkReceiver;
                 FaultCode code;
 
-                if (_version.Envelope == EnvelopeVersion.Soap11)
+                if (version.Envelope == EnvelopeVersion.Soap11)
                 {
                     checkSender = true;
                     checkReceiver = true;
@@ -127,7 +129,7 @@ namespace System.ServiceModel.Channels
                 if (checkSender)
                 {
                     // WS-Addressing
-                    if (string.Compare(code.Namespace, _version.Addressing.Namespace, StringComparison.Ordinal) == 0)
+                    if (string.Compare(code.Namespace, version.Addressing.Namespace, StringComparison.Ordinal) == 0)
                     {
                         if (string.Compare(code.Name, AddressingStrings.ActionNotSupported, StringComparison.Ordinal) == 0)
                         {
@@ -141,14 +143,14 @@ namespace System.ServiceModel.Channels
                         }
                         else if (string.Compare(code.Name, Addressing10Strings.InvalidAddressingHeader, StringComparison.Ordinal) == 0)
                         {
-                            if (code.SubCode != null && string.Compare(code.SubCode.Namespace, _version.Addressing.Namespace, StringComparison.Ordinal) == 0 &&
+                            if (code.SubCode != null && string.Compare(code.SubCode.Namespace, version.Addressing.Namespace, StringComparison.Ordinal) == 0 &&
                                 string.Compare(code.SubCode.Name, Addressing10Strings.InvalidCardinality, StringComparison.Ordinal) == 0)
                             {
                                 exception = new MessageHeaderException(fault.Reason.GetMatchingTranslation(CultureInfo.CurrentCulture).Text, true);
                                 return true;
                             }
                         }
-                        else if (_version.Addressing == AddressingVersion.WSAddressing10)
+                        else if (version.Addressing == AddressingVersion.WSAddressing10)
                         {
                             if (string.Compare(code.Name, Addressing10Strings.MessageAddressingHeaderRequired, StringComparison.Ordinal) == 0)
                             {
@@ -180,7 +182,7 @@ namespace System.ServiceModel.Channels
                 if (checkReceiver)
                 {
                     // WS-Addressing
-                    if (string.Compare(code.Namespace, _version.Addressing.Namespace, StringComparison.Ordinal) == 0)
+                    if (string.Compare(code.Namespace, version.Addressing.Namespace, StringComparison.Ordinal) == 0)
                     {
                         if (string.Compare(code.Name, AddressingStrings.EndpointUnavailable, StringComparison.Ordinal) == 0)
                         {
@@ -196,30 +198,30 @@ namespace System.ServiceModel.Channels
             protected override bool OnTryCreateFaultMessage(Exception exception, out Message message)
             {
                 // WSA
-                if (_version.Addressing == AddressingVersion.WSAddressing10)
+                if (this.version.Addressing == AddressingVersion.WSAddressing10)
                 {
                     if (exception is MessageHeaderException)
                     {
                         MessageHeaderException mhe = exception as MessageHeaderException;
                         if (mhe.HeaderNamespace == AddressingVersion.WSAddressing10.Namespace)
                         {
-                            message = mhe.ProvideFault(_version);
+                            message = mhe.ProvideFault(this.version);
                             return true;
                         }
                     }
                     else if (exception is ActionMismatchAddressingException)
                     {
                         ActionMismatchAddressingException amae = exception as ActionMismatchAddressingException;
-                        message = amae.ProvideFault(_version);
+                        message = amae.ProvideFault(this.version);
                         return true;
                     }
                 }
-                if (_version.Addressing != AddressingVersion.None)
+                if (this.version.Addressing != AddressingVersion.None)
                 {
                     if (exception is ActionNotSupportedException)
                     {
                         ActionNotSupportedException anse = exception as ActionNotSupportedException;
-                        message = anse.ProvideFault(_version);
+                        message = anse.ProvideFault(this.version);
                         return true;
                     }
                 }
@@ -228,7 +230,7 @@ namespace System.ServiceModel.Channels
                 if (exception is MustUnderstandSoapException)
                 {
                     MustUnderstandSoapException muse = exception as MustUnderstandSoapException;
-                    message = muse.ProvideFault(_version);
+                    message = muse.ProvideFault(this.version);
                     return true;
                 }
 

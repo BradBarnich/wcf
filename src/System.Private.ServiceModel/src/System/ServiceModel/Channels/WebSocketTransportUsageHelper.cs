@@ -1,11 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
+﻿// <copyright>
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Channels
 {
-    internal static class WebSocketTransportUsageHelper
+    using System.ComponentModel;
+    
+    static class WebSocketTransportUsageHelper
     {
         internal static bool IsDefined(WebSocketTransportUsage value)
         {

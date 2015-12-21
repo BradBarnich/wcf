@@ -1,27 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
-using System.Xml;
-using System.Diagnostics;
-using System.Net.Security;
-using System.ServiceModel.Security;
-using System.ComponentModel;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
-    [DebuggerDisplay("Action={_action}, Direction={_direction}, MessageType={_messageType}")]
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.Xml;
+    using System.Runtime.Serialization;
+    using System.Diagnostics;
+    using System.Net.Security;
+    using System.ServiceModel.Security;
+    using System.ComponentModel;
+
+    [DebuggerDisplay("Action={action}, Direction={direction}, MessageType={messageType}")]
     public class MessageDescription
     {
-        private static Type s_typeOfUntypedMessage;
-        private string _action;
-        private MessageDirection _direction;
-        private MessageDescriptionItems _items;
-        private XmlName _messageName;
-        private Type _messageType;
-        private XmlQualifiedName _xsdType;
-        private ProtectionLevel _protectionLevel;
-        private bool _hasProtectionLevel;
+        static Type typeOfUntypedMessage;
+        string action;
+        MessageDirection direction;
+        MessageDescriptionItems items;
+        XmlName messageName;
+        Type messageType;
+        XmlQualifiedName xsdType;
+        ProtectionLevel protectionLevel;
+        bool hasProtectionLevel;
 
         public MessageDescription(string action, MessageDirection direction) : this(action, direction, null) { }
         internal MessageDescription(string action, MessageDirection direction, MessageDescriptionItems items)
@@ -29,15 +32,15 @@ namespace System.ServiceModel.Description
             if (!MessageDirectionHelper.IsDefined(direction))
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("direction"));
 
-            _action = action;
-            _direction = direction;
-            _items = items;
+            this.action = action;
+            this.direction = direction;
+            this.items = items;
         }
 
         internal MessageDescription(MessageDescription other)
         {
-            _action = other._action;
-            _direction = other._direction;
+            this.action = other.action;
+            this.direction = other.direction;
             this.Items.Body = other.Items.Body.Clone();
             foreach (MessageHeaderDescription mhd in other.Items.Headers)
             {
@@ -50,7 +53,7 @@ namespace System.ServiceModel.Description
             this.MessageName = other.MessageName;
             this.MessageType = other.MessageType;
             this.XsdTypeName = other.XsdTypeName;
-            _hasProtectionLevel = other._hasProtectionLevel;
+            this.hasProtectionLevel = other.hasProtectionLevel;
             this.ProtectionLevel = other.ProtectionLevel;
         }
 
@@ -61,10 +64,10 @@ namespace System.ServiceModel.Description
 
         public string Action
         {
-            get { return _action; }
-            internal set { _action = value; }
+            get { return action; }
+            internal set { action = value; }
         }
-
+        
         public MessageBodyDescription Body
         {
             get { return Items.Body; }
@@ -72,7 +75,7 @@ namespace System.ServiceModel.Description
 
         public MessageDirection Direction
         {
-            get { return _direction; }
+            get { return direction; }
         }
 
         public MessageHeaderDescriptionCollection Headers
@@ -89,21 +92,21 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_items == null)
-                    _items = new MessageDescriptionItems();
-                return _items;
+                if (items == null)
+                    items = new MessageDescriptionItems();
+                return items;
             }
         }
 
         public ProtectionLevel ProtectionLevel
         {
-            get { return _protectionLevel; }
+            get { return this.protectionLevel; }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
@@ -114,25 +117,25 @@ namespace System.ServiceModel.Description
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         internal static Type TypeOfUntypedMessage
         {
             get
             {
-                if (s_typeOfUntypedMessage == null)
+                if (typeOfUntypedMessage == null)
                 {
-                    s_typeOfUntypedMessage = typeof(Message);
+                    typeOfUntypedMessage = typeof(Message);
                 }
-                return s_typeOfUntypedMessage;
+                return typeOfUntypedMessage;
             }
         }
-
+        
         internal XmlName MessageName
         {
-            get { return _messageName; }
-            set { _messageName = value; }
+            get { return messageName; }
+            set { messageName = value; }
         }
 
         // Not serializable on purpose, metadata import/export cannot
@@ -140,15 +143,15 @@ namespace System.ServiceModel.Description
         [DefaultValue(null)]
         public Type MessageType
         {
-            get { return _messageType; }
-            set { _messageType = value; }
+            get { return messageType; }
+            set { messageType = value; }
         }
 
         internal bool IsTypedMessage
         {
             get
             {
-                return _messageType != null;
+                return messageType != null;
             }
         }
 
@@ -171,34 +174,34 @@ namespace System.ServiceModel.Description
 
         internal XmlQualifiedName XsdTypeName
         {
-            get { return _xsdType; }
-            set { _xsdType = value; }
+            get { return xsdType; }
+            set { xsdType = value; }
         }
 
         internal void ResetProtectionLevel()
         {
-            _protectionLevel = ProtectionLevel.None;
-            _hasProtectionLevel = false;
+            this.protectionLevel = ProtectionLevel.None;
+            this.hasProtectionLevel = false;
         }
     }
 
     internal class MessageDescriptionItems
     {
-        private MessageHeaderDescriptionCollection _headers;
-        private MessageBodyDescription _body;
-        private MessagePropertyDescriptionCollection _properties;
+        MessageHeaderDescriptionCollection headers;
+        MessageBodyDescription body;
+        MessagePropertyDescriptionCollection properties;
 
         internal MessageBodyDescription Body
         {
             get
             {
-                if (_body == null)
-                    _body = new MessageBodyDescription();
-                return _body;
+                if (body == null)
+                    body = new MessageBodyDescription();
+                return body;
             }
             set
             {
-                _body = value;
+                this.body = value;
             }
         }
 
@@ -206,9 +209,9 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_headers == null)
-                    _headers = new MessageHeaderDescriptionCollection();
-                return _headers;
+                if (headers == null)
+                    headers = new MessageHeaderDescriptionCollection();
+                return headers;
             }
         }
 
@@ -216,9 +219,9 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_properties == null)
-                    _properties = new MessagePropertyDescriptionCollection();
-                return _properties;
+                if (properties == null)
+                    properties = new MessagePropertyDescriptionCollection();
+                return properties;
             }
         }
     }

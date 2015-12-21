@@ -1,31 +1,32 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.ServiceModel.Channels;
-using System.ServiceModel;
-using System.ServiceModel.Description;
-using System.Xml;
-
-using DictionaryManager = System.IdentityModel.DictionaryManager;
-using ISecurityElement = System.IdentityModel.ISecurityElement;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal abstract class SecurityHeader : MessageHeader
+    using System.Globalization;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Xml;
+
+    using DictionaryManager = System.IdentityModel.DictionaryManager;
+    using ISecurityElement = System.IdentityModel.ISecurityElement;
+
+    abstract class SecurityHeader : MessageHeader
     {
-        private readonly string _actor;
-        private readonly SecurityAlgorithmSuite _algorithmSuite;
-        private bool _encryptedKeyContainsReferenceList = true;
-        private Message _message;
-        private readonly bool _mustUnderstand;
-        private readonly bool _relay;
-        private bool _requireMessageProtection = true;
-        private bool _processingStarted;
-        private bool _maintainSignatureConfirmationState;
-        private readonly SecurityStandardsManager _standardsManager;
-        private MessageDirection _transferDirection;
-        private SecurityHeaderLayout _layout = SecurityHeaderLayout.Strict;
+        readonly string actor;
+        readonly SecurityAlgorithmSuite algorithmSuite;
+        bool encryptedKeyContainsReferenceList = true;
+        Message message;
+        readonly bool mustUnderstand;
+        readonly bool relay;
+        bool requireMessageProtection = true;
+        bool processingStarted;
+        bool maintainSignatureConfirmationState;
+        readonly SecurityStandardsManager standardsManager;
+        MessageDirection transferDirection;
+        SecurityHeaderLayout layout = SecurityHeaderLayout.Strict;
 
         public SecurityHeader(Message message,
             string actor, bool mustUnderstand, bool relay,
@@ -49,109 +50,109 @@ namespace System.ServiceModel.Security
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("algorithmSuite");
             }
 
-            _message = message;
-            _actor = actor;
-            _mustUnderstand = mustUnderstand;
-            _relay = relay;
-            _standardsManager = standardsManager;
-            _algorithmSuite = algorithmSuite;
-            _transferDirection = transferDirection;
+            this.message = message;
+            this.actor = actor;
+            this.mustUnderstand = mustUnderstand;
+            this.relay = relay;
+            this.standardsManager = standardsManager;
+            this.algorithmSuite = algorithmSuite;
+            this.transferDirection = transferDirection;
         }
 
         public override string Actor
         {
-            get { return _actor; }
+            get { return this.actor; }
         }
 
         public SecurityAlgorithmSuite AlgorithmSuite
         {
-            get { return _algorithmSuite; }
+            get { return this.algorithmSuite; }
         }
 
         public bool EncryptedKeyContainsReferenceList
         {
-            get { return _encryptedKeyContainsReferenceList; }
+            get { return this.encryptedKeyContainsReferenceList; }
             set
             {
                 ThrowIfProcessingStarted();
-                _encryptedKeyContainsReferenceList = value;
+                this.encryptedKeyContainsReferenceList = value;
             }
         }
 
         public bool RequireMessageProtection
         {
-            get { return _requireMessageProtection; }
+            get { return this.requireMessageProtection; }
             set
             {
                 ThrowIfProcessingStarted();
-                _requireMessageProtection = value;
+                this.requireMessageProtection = value;
             }
         }
 
         public bool MaintainSignatureConfirmationState
         {
-            get { return _maintainSignatureConfirmationState; }
+            get { return this.maintainSignatureConfirmationState; }
             set
             {
                 ThrowIfProcessingStarted();
-                _maintainSignatureConfirmationState = value;
+                this.maintainSignatureConfirmationState = value;
             }
         }
 
         protected Message Message
         {
-            get { return _message; }
-            set { _message = value; }
+            get { return this.message; }
+            set { this.message = value; }
         }
 
         public override bool MustUnderstand
         {
-            get { return _mustUnderstand; }
+            get { return this.mustUnderstand; }
         }
 
         public override bool Relay
         {
-            get { return _relay; }
+            get { return this.relay; }
         }
 
         public SecurityHeaderLayout Layout
         {
             get
             {
-                return _layout;
+                return this.layout;
             }
             set
             {
                 ThrowIfProcessingStarted();
-                _layout = value;
+                this.layout = value;
             }
         }
 
         public SecurityStandardsManager StandardsManager
         {
-            get { return _standardsManager; }
+            get { return this.standardsManager; }
         }
 
         public MessageDirection MessageDirection
         {
-            get { return _transferDirection; }
+            get { return this.transferDirection; }
         }
 
         protected MessageVersion Version
         {
-            get { return _message.Version; }
+            get { return this.message.Version; }
         }
 
         protected void SetProcessingStarted()
         {
-            _processingStarted = true;
+            this.processingStarted = true;
         }
 
         protected void ThrowIfProcessingStarted()
         {
-            if (_processingStarted)
+            if (this.processingStarted)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.OperationCannotBeDoneAfterProcessingIsStarted));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.OperationCannotBeDoneAfterProcessingIsStarted)));
             }
         }
 

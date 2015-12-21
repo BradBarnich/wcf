@@ -1,10 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Threading.Tasks;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.ServiceModel;
+
     public interface IRequestChannel : IChannel
     {
         EndpointAddress RemoteAddress { get; }
@@ -15,13 +16,5 @@ namespace System.ServiceModel.Channels
         IAsyncResult BeginRequest(Message message, AsyncCallback callback, object state);
         IAsyncResult BeginRequest(Message message, TimeSpan timeout, AsyncCallback callback, object state);
         Message EndRequest(IAsyncResult result);
-    }
-
-    // Internal interface to allow async implementation using async/await. We should consider adding these to the
-    // public contract for IRequestChannel in the future.
-    internal interface IAsyncRequestChannel : IRequestChannel, IAsyncCommunicationObject
-    {
-        Task<Message> RequestAsync(Message message);
-        Task<Message> RequestAsync(Message message, TimeSpan timeout);
     }
 }

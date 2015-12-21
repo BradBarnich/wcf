@@ -1,22 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public abstract class ConnectionPoolRegistry
+    using System.Diagnostics;
+    using System.ServiceModel;
+    using System.Collections.Generic;
+    using System.ServiceModel.Diagnostics;
+
+    abstract class ConnectionPoolRegistry
     {
-        private Dictionary<string, List<ConnectionPool>> _registry;
+        Dictionary<string, List<ConnectionPool>> registry;
 
         protected ConnectionPoolRegistry()
         {
-            _registry = new Dictionary<string, List<ConnectionPool>>();
+            registry = new Dictionary<string, List<ConnectionPool>>();
         }
 
-        private object ThisLock
+        object ThisLock
         {
-            get { return _registry; }
+            get { return this.registry; }
         }
 
         // NOTE: performs the open on the pool for you
@@ -29,7 +32,7 @@ namespace System.ServiceModel.Channels
             {
                 List<ConnectionPool> registryEntry = null;
 
-                if (_registry.TryGetValue(key, out registryEntry))
+                if (registry.TryGetValue(key, out registryEntry))
                 {
                     for (int i = 0; i < registryEntry.Count; i++)
                     {
@@ -43,7 +46,7 @@ namespace System.ServiceModel.Channels
                 else
                 {
                     registryEntry = new List<ConnectionPool>();
-                    _registry.Add(key, registryEntry);
+                    registry.Add(key, registryEntry);
                 }
 
                 if (result == null)
@@ -64,7 +67,7 @@ namespace System.ServiceModel.Channels
             {
                 if (pool.Close(timeout))
                 {
-                    List<ConnectionPool> registryEntry = _registry[pool.Name];
+                    List<ConnectionPool> registryEntry = registry[pool.Name];
                     for (int i = 0; i < registryEntry.Count; i++)
                     {
                         if (object.ReferenceEquals(registryEntry[i], pool))
@@ -76,7 +79,7 @@ namespace System.ServiceModel.Channels
 
                     if (registryEntry.Count == 0)
                     {
-                        _registry.Remove(pool.Name);
+                        registry.Remove(pool.Name);
                     }
                 }
             }

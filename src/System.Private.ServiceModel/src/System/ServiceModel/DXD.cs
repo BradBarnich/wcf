@@ -1,22 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-using System.Collections.Generic;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Xml;
+    using System.Collections.Generic;
+
     // NOTE: This is a dynamic dictionary of XmlDictionaryStrings for the Binary Encoder to dynamically encode should
     // the string not exist in the static cache.
     // When adding or removing memebers please keep the capacity of the XmlDictionary field current.
-    internal static class DXD
+    static class DXD
     {
-        private static AtomicTransactionExternal11Dictionary s_atomicTransactionExternal11Dictionary;
-        private static CoordinationExternal11Dictionary s_coordinationExternal11Dictionary;
-        private static SecureConversationDec2005Dictionary s_secureConversationDec2005Dictionary;
-        private static SecurityAlgorithmDec2005Dictionary s_securityAlgorithmDec2005Dictionary;
-        private static TrustDec2005Dictionary s_trustDec2005Dictionary;
-        private static Wsrm11Dictionary s_wsrm11Dictionary;
+        static AtomicTransactionExternal11Dictionary atomicTransactionExternal11Dictionary;
+        static CoordinationExternal11Dictionary coordinationExternal11Dictionary;
+        static SecureConversationDec2005Dictionary secureConversationDec2005Dictionary;
+        static SecurityAlgorithmDec2005Dictionary securityAlgorithmDec2005Dictionary;
+        static TrustDec2005Dictionary trustDec2005Dictionary;
+        static Wsrm11Dictionary wsrm11Dictionary;
 
         static DXD()
         {
@@ -25,50 +26,50 @@ namespace System.ServiceModel
             XmlDictionary dictionary = new XmlDictionary(137);
 
             // Each dictionaries' constructor should add strings to the XmlDictionary.
-            s_atomicTransactionExternal11Dictionary = new AtomicTransactionExternal11Dictionary(dictionary);
-            s_coordinationExternal11Dictionary = new CoordinationExternal11Dictionary(dictionary);
-            s_secureConversationDec2005Dictionary = new SecureConversationDec2005Dictionary(dictionary);
-            s_secureConversationDec2005Dictionary.PopulateSecureConversationDec2005();
-            s_securityAlgorithmDec2005Dictionary = new SecurityAlgorithmDec2005Dictionary(dictionary);
-            s_securityAlgorithmDec2005Dictionary.PopulateSecurityAlgorithmDictionaryString();
-            s_trustDec2005Dictionary = new TrustDec2005Dictionary(dictionary);
-            s_trustDec2005Dictionary.PopulateDec2005DictionaryStrings();
-            s_trustDec2005Dictionary.PopulateFeb2005DictionaryString();
-            s_wsrm11Dictionary = new Wsrm11Dictionary(dictionary);
+            atomicTransactionExternal11Dictionary = new AtomicTransactionExternal11Dictionary(dictionary);
+            coordinationExternal11Dictionary = new CoordinationExternal11Dictionary(dictionary);
+            secureConversationDec2005Dictionary = new SecureConversationDec2005Dictionary(dictionary);
+            secureConversationDec2005Dictionary.PopulateSecureConversationDec2005();
+            securityAlgorithmDec2005Dictionary = new SecurityAlgorithmDec2005Dictionary(dictionary);
+            securityAlgorithmDec2005Dictionary.PopulateSecurityAlgorithmDictionaryString();
+            trustDec2005Dictionary = new TrustDec2005Dictionary(dictionary);
+            trustDec2005Dictionary.PopulateDec2005DictionaryStrings();
+            trustDec2005Dictionary.PopulateFeb2005DictionaryString();
+            wsrm11Dictionary = new Wsrm11Dictionary(dictionary);
         }
 
         static public AtomicTransactionExternal11Dictionary AtomicTransactionExternal11Dictionary
         {
-            get { return s_atomicTransactionExternal11Dictionary; }
+            get { return atomicTransactionExternal11Dictionary; }
         }
 
         static public CoordinationExternal11Dictionary CoordinationExternal11Dictionary
         {
-            get { return s_coordinationExternal11Dictionary; }
+            get { return coordinationExternal11Dictionary; }
         }
 
         static public SecureConversationDec2005Dictionary SecureConversationDec2005Dictionary
         {
-            get { return s_secureConversationDec2005Dictionary; }
+            get { return secureConversationDec2005Dictionary; }
         }
 
         static public SecurityAlgorithmDec2005Dictionary SecurityAlgorithmDec2005Dictionary
         {
-            get { return s_securityAlgorithmDec2005Dictionary; }
+            get { return securityAlgorithmDec2005Dictionary; }
         }
 
         static public TrustDec2005Dictionary TrustDec2005Dictionary
         {
-            get { return s_trustDec2005Dictionary; }
+            get { return trustDec2005Dictionary; }
         }
 
         static public Wsrm11Dictionary Wsrm11Dictionary
         {
-            get { return s_wsrm11Dictionary; }
+            get { return wsrm11Dictionary; }
         }
     }
 
-    internal class AtomicTransactionExternal11Dictionary
+    class AtomicTransactionExternal11Dictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString CompletionUri;
@@ -104,7 +105,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class CoordinationExternal11Dictionary
+    class CoordinationExternal11Dictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString CreateCoordinationContextAction;
@@ -128,7 +129,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecureConversationDec2005Dictionary : SecureConversationDictionary
+    class SecureConversationDec2005Dictionary : SecureConversationDictionary
     {
         public XmlDictionaryString RequestSecurityContextRenew;
         public XmlDictionaryString RequestSecurityContextRenewResponse;
@@ -136,7 +137,7 @@ namespace System.ServiceModel
         public XmlDictionaryString RequestSecurityContextCloseResponse;
         public XmlDictionaryString Instance;
 
-        public List<XmlDictionaryString> SecureConversationDictionaryStrings = new List<XmlDictionaryString>();
+        public List<XmlDictionaryString> SecureConversationDictionaryStrings = new List<XmlDictionaryString>();  
 
         public SecureConversationDec2005Dictionary(XmlDictionary dictionary)
         {
@@ -195,9 +196,10 @@ namespace System.ServiceModel
             SecureConversationDictionaryStrings.Add(DXD.SecureConversationDec2005Dictionary.Length);
             SecureConversationDictionaryStrings.Add(DXD.SecureConversationDec2005Dictionary.Instance);
         }
+
     }
 
-    internal class SecurityAlgorithmDec2005Dictionary
+    class SecurityAlgorithmDec2005Dictionary
     {
         public XmlDictionaryString Psha1KeyDerivationDec2005;
 
@@ -214,7 +216,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class TrustDec2005Dictionary : TrustDictionary
+    class TrustDec2005Dictionary : TrustDictionary
     {
         public XmlDictionaryString AsymmetricKeyBinarySecret;
         public XmlDictionaryString RequestSecurityTokenCollectionIssuanceFinalResponse;
@@ -425,7 +427,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class Wsrm11Dictionary
+    class Wsrm11Dictionary
     {
         public XmlDictionaryString AckRequestedAction;
         public XmlDictionaryString CloseSequence;
@@ -483,7 +485,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal static class AtomicTransactionExternal11Strings
+    static class AtomicTransactionExternal11Strings
     {
         // dictionary strings
         public const string Namespace = "http://docs.oasis-open.org/ws-tx/wsat/2006/06";
@@ -502,7 +504,7 @@ namespace System.ServiceModel
         public const string UnknownTransaction = "UnknownTransaction";
     }
 
-    internal static class CoordinationExternal11Strings
+    static class CoordinationExternal11Strings
     {
         // dictionary strings
         public const string Namespace = "http://docs.oasis-open.org/ws-tx/wscoor/2006/06";
@@ -515,7 +517,7 @@ namespace System.ServiceModel
         public const string CannotRegisterParticipant = "CannotRegisterParticipant";
     }
 
-    internal static class SecureConversationDec2005Strings
+    static class SecureConversationDec2005Strings
     {
         // dictionary strings
         public const string SecurityContextToken = "SecurityContextToken";
@@ -545,13 +547,13 @@ namespace System.ServiceModel
         public const string Instance = "Instance";
     }
 
-    internal static class SecurityAlgorithmDec2005Strings
+    static class SecurityAlgorithmDec2005Strings
     {
         // dictionary strings
         public const string Psha1KeyDerivationDec2005 = "http://docs.oasis-open.org/ws-sx/ws-secureconversation/200512/dk/p_sha1";
     }
 
-    internal static class TrustDec2005Strings
+    static class TrustDec2005Strings
     {
         // dictionary strings
         public const string CombinedHashLabel = "AUTH-HASH";
@@ -620,7 +622,7 @@ namespace System.ServiceModel
         public const string DialectType = "http://schemas.xmlsoap.org/ws/2005/05/identity";
     }
 
-    internal static class Wsrm11Strings
+    static class Wsrm11Strings
     {
         // dictionary strings
         public const string AckRequestedAction = "http://docs.oasis-open.org/ws-rx/wsrm/200702/AckRequested";

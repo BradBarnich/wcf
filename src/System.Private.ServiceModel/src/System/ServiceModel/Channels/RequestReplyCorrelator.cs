@@ -1,21 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime;
-using System.ServiceModel.Diagnostics;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal class RequestReplyCorrelator : IRequestReplyCorrelator
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+    using System.Xml;
+
+    class RequestReplyCorrelator : IRequestReplyCorrelator
     {
-        private Dictionary<Key, object> _states;
+        Hashtable states;
 
         internal RequestReplyCorrelator()
         {
-            _states = new Dictionary<Key, object>();
+            this.states = new Hashtable();
         }
 
         void IRequestReplyCorrelator.Add<T>(Message request, T state)
@@ -32,9 +34,9 @@ namespace System.ServiceModel.Channels
                 value.RequestCorrelatorKey = key;
             }
 
-            lock (_states)
+            lock (states)
             {
-                _states.Add(key, state);
+                states.Add(key, state);
             }
         }
 
@@ -45,12 +47,12 @@ namespace System.ServiceModel.Channels
             Key key = new Key(relatesTo, stateType);
             T value;
 
-            lock (_states)
+            lock (states)
             {
-                value = (T)_states[key];
+                value = (T)states[key];
 
                 if (remove)
-                    _states.Remove(key);
+                    states.Remove(key);
             }
 
             return value;
@@ -64,18 +66,18 @@ namespace System.ServiceModel.Channels
             Fx.Assert(request != null, "request cannot be null");
             if (request.RequestCorrelatorKey != null)
             {
-                lock (_states)
+                lock (states)
                 {
-                    _states.Remove(request.RequestCorrelatorKey);
+                    states.Remove(request.RequestCorrelatorKey);
                 }
             }
         }
 
-        private UniqueId GetRelatesTo(Message reply)
+        UniqueId GetRelatesTo(Message reply)
         {
             UniqueId relatesTo = reply.Headers.RelatesTo;
             if (relatesTo == null)
-                throw TraceUtility.ThrowHelperError(new ArgumentException(SR.SuppliedMessageIsNotAReplyItHasNoRelatesTo0), reply);
+                throw TraceUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.SuppliedMessageIsNotAReplyItHasNoRelatesTo0)), reply);
             return relatesTo;
         }
 
@@ -96,6 +98,17 @@ namespace System.ServiceModel.Channels
             else if (info.HasReplyTo)
             {
                 destination = info.ReplyTo;
+            }
+            else if (reply.Version.Addressing == AddressingVersion.WSAddressingAugust2004)
+            {
+                if (info.HasFrom)
+                {
+                    destination = info.From;
+                }
+                else
+                {
+                    destination = EndpointAddress.AnonymousAddress;
+                }
             }
 
             if (destination != null)
@@ -133,7 +146,7 @@ namespace System.ServiceModel.Channels
         internal static void PrepareReply(Message reply, UniqueId messageId)
         {
             if (object.ReferenceEquals(messageId, null))
-                throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.MissingMessageID), reply);
+                throw TraceUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.MissingMessageID)), reply);
 
             MessageHeaders replyHeaders = reply.Headers;
 
@@ -170,25 +183,32 @@ namespace System.ServiceModel.Channels
 
         internal struct ReplyToInfo
         {
-            private readonly EndpointAddress _faultTo;
-            private readonly EndpointAddress _from;
-            private readonly EndpointAddress _replyTo;
+            readonly EndpointAddress faultTo;
+            readonly EndpointAddress from;
+            readonly EndpointAddress replyTo;
 
             internal ReplyToInfo(Message message)
             {
-                _faultTo = message.Headers.FaultTo;
-                _replyTo = message.Headers.ReplyTo;
-                _from = null;
+                this.faultTo = message.Headers.FaultTo;
+                this.replyTo = message.Headers.ReplyTo;
+                if (message.Version.Addressing == AddressingVersion.WSAddressingAugust2004)
+                {
+                    this.from = message.Headers.From;
+                }
+                else
+                {
+                    this.from = null;
+                }
             }
 
             internal EndpointAddress FaultTo
             {
-                get { return _faultTo; }
+                get { return this.faultTo; }
             }
 
             internal EndpointAddress From
             {
-                get { return _from; }
+                get { return this.from; }
             }
 
             internal bool HasFaultTo
@@ -208,10 +228,10 @@ namespace System.ServiceModel.Channels
 
             internal EndpointAddress ReplyTo
             {
-                get { return _replyTo; }
+                get { return this.replyTo; }
             }
 
-            private bool IsTrivial(EndpointAddress address)
+            bool IsTrivial(EndpointAddress address)
             {
                 // Note: even if address.IsAnonymous, it may have identity, reference parameters, etc.
                 return (address == null) || (address == EndpointAddress.AnonymousAddress);
@@ -247,6 +267,9 @@ namespace System.ServiceModel.Channels
             {
                 return typeof(Key).ToString() + ": {" + MessageId + ", " + StateType.ToString() + "}";
             }
+
         }
+
     }
+
 }

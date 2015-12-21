@@ -1,35 +1,38 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-using System.IdentityModel.Policy;
-using System.IdentityModel.Tokens;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections.ObjectModel;
+    using System.ServiceModel;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Tokens;
+    using System.ServiceModel.Security.Tokens;
+
     public class SecurityTokenSpecification
     {
-        private SecurityToken _token;
-        private ReadOnlyCollection<IAuthorizationPolicy> _tokenPolicies;
+        SecurityToken token;
+        ReadOnlyCollection<IAuthorizationPolicy> tokenPolicies;
 
         public SecurityTokenSpecification(SecurityToken token, ReadOnlyCollection<IAuthorizationPolicy> tokenPolicies)
         {
-            _token = token;
+            this.token = token;
             if (tokenPolicies == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("tokenPolicies");
             }
-            _tokenPolicies = tokenPolicies;
+            this.tokenPolicies = tokenPolicies;
         }
 
-        public SecurityToken SecurityToken
+        public SecurityToken SecurityToken 
         {
-            get { return _token; }
+            get { return this.token; }
         }
 
         public ReadOnlyCollection<IAuthorizationPolicy> SecurityTokenPolicies
         {
-            get { return _tokenPolicies; }
+            get { return this.tokenPolicies; }
         }
     }
 }

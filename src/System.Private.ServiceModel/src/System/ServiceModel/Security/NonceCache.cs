@@ -1,14 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.IO;
+using System.Globalization;
 using System.Runtime;
 
 namespace System.ServiceModel.Security
 {
     public abstract class NonceCache
     {
-        private TimeSpan _cachingTime;
-        private int _maxCachedNonces;
+        TimeSpan cachingTime;
+        int maxCachedNonces;
 
         /// <summary>
         /// TThe max timespan after which a Nonce is deleted from the NonceCache. This value should be atleast twice the maxclock Skew added to the replayWindow size.
@@ -17,23 +20,23 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _cachingTime;
+                return this.cachingTime;
             }
             set
             {
                 if (value < TimeSpan.Zero)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRange0));
+                        SR.GetString(SR.SFxTimeoutOutOfRange0)));
                 }
 
                 if (TimeoutHelper.IsTooLarge(value))
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.SFxTimeoutOutOfRangeTooBig));
+                        SR.GetString(SR.SFxTimeoutOutOfRangeTooBig)));
                 }
 
-                _cachingTime = value;
+                this.cachingTime = value;
             }
         }
 
@@ -44,16 +47,17 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _maxCachedNonces;
+                return this.maxCachedNonces;
             }
             set
             {
                 if (value < 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                                                    SR.ValueMustBeNonNegative));
+                                                    SR.GetString(SR.ValueMustBeNonNegative)));
                 }
-                _maxCachedNonces = value;
+                this.maxCachedNonces = value;
+
             }
         }
 

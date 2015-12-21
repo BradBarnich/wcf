@@ -1,17 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
+using System;
 using System.Collections.Generic;
+using System.Text;
 using System.ServiceModel.Channels;
+using System.ServiceModel.Description;
 using System.Runtime.Serialization;
 using System.Xml;
+using System.Reflection;
+using System.Diagnostics;
 using System.Runtime;
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class FaultFormatter : IClientFaultFormatter, IDispatchFaultFormatter
+    class FaultFormatter : IClientFaultFormatter, IDispatchFaultFormatter
     {
-        private FaultContractInfo[] _faultContractInfos;
+        FaultContractInfo[] faultContractInfos;
 
         internal FaultFormatter(Type[] detailTypes)
         {
@@ -19,7 +24,7 @@ namespace System.ServiceModel.Dispatcher
             for (int i = 0; i < detailTypes.Length; i++)
                 faultContractInfoList.Add(new FaultContractInfo(MessageHeaders.WildcardAction, detailTypes[i]));
             AddInfrastructureFaults(faultContractInfoList);
-            _faultContractInfos = GetSortedArray(faultContractInfoList);
+            faultContractInfos = GetSortedArray(faultContractInfoList);
         }
 
         internal FaultFormatter(SynchronizedCollection<FaultContractInfo> faultContractInfoCollection)
@@ -30,7 +35,7 @@ namespace System.ServiceModel.Dispatcher
                 faultContractInfoList = new List<FaultContractInfo>(faultContractInfoCollection);
             }
             AddInfrastructureFaults(faultContractInfoList);
-            _faultContractInfos = GetSortedArray(faultContractInfoList);
+            this.faultContractInfos = GetSortedArray(faultContractInfoList);
         }
 
         public MessageFault Serialize(FaultException faultException, out string action)
@@ -40,9 +45,9 @@ namespace System.ServiceModel.Dispatcher
             string faultExceptionAction = action = faultException.Action;
 
             Type faultExceptionOfT = null;
-            for (Type faultType = faultException.GetType(); faultType != typeof(FaultException); faultType = faultType.BaseType())
+            for (Type faultType = faultException.GetType(); faultType != typeof(FaultException); faultType = faultType.BaseType)
             {
-                if (faultType.IsGenericType() && (faultType.GetGenericTypeDefinition() == typeof(FaultException<>)))
+                if (faultType.IsGenericType && (faultType.GetGenericTypeDefinition() == typeof(FaultException<>)))
                 {
                     faultExceptionOfT = faultType;
                     break;
@@ -68,11 +73,11 @@ namespace System.ServiceModel.Dispatcher
         {
             action = faultExceptionAction;
             FaultContractInfo faultInfo = null;
-            for (int i = 0; i < _faultContractInfos.Length; i++)
+            for (int i = 0; i < faultContractInfos.Length; i++)
             {
-                if (_faultContractInfos[i].Detail == detailType)
+                if (faultContractInfos[i].Detail == detailType)
                 {
-                    faultInfo = _faultContractInfos[i];
+                    faultInfo = faultContractInfos[i];
                     break;
                 }
             }
@@ -93,17 +98,17 @@ namespace System.ServiceModel.Dispatcher
             if (action != null)
             {
                 faultInfos = new List<FaultContractInfo>();
-                for (int i = 0; i < _faultContractInfos.Length; i++)
+                for (int i = 0; i < faultContractInfos.Length; i++)
                 {
-                    if (_faultContractInfos[i].Action == action || _faultContractInfos[i].Action == MessageHeaders.WildcardAction)
+                    if (faultContractInfos[i].Action == action || faultContractInfos[i].Action == MessageHeaders.WildcardAction)
                     {
-                        faultInfos.Add(_faultContractInfos[i]);
+                        faultInfos.Add(faultContractInfos[i]);
                     }
                 }
             }
             else
             {
-                faultInfos = _faultContractInfos;
+                faultInfos = faultContractInfos;
             }
 
             Type detailType = null;
@@ -139,12 +144,12 @@ namespace System.ServiceModel.Dispatcher
             {
                 detailReader.MoveToContent();
                 if (detailReader.NodeType != XmlNodeType.EndElement && !detailReader.EOF)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.ExtraContentIsPresentInFaultDetail));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new FormatException(SR.GetString(SR.ExtraContentIsPresentInFaultDetail)));
             }
             bool isDetailObjectValid = true;
             if (detailObj == null)
             {
-                isDetailObjectValid = !detailType.IsValueType();
+                isDetailObjectValid = !detailType.IsValueType;
             }
             else
             {
@@ -162,22 +167,22 @@ namespace System.ServiceModel.Dispatcher
             return null;
         }
 
-        private static FaultContractInfo[] GetSortedArray(List<FaultContractInfo> faultContractInfoList)
+        static FaultContractInfo[] GetSortedArray(List<FaultContractInfo> faultContractInfoList)
         {
             FaultContractInfo[] temp = faultContractInfoList.ToArray();
             Array.Sort<FaultContractInfo>(temp,
-                delegate (FaultContractInfo x, FaultContractInfo y)
+                delegate(FaultContractInfo x, FaultContractInfo y)
                 { return string.CompareOrdinal(x.Action, y.Action); }
                 );
             return temp;
         }
 
-        private static void AddInfrastructureFaults(List<FaultContractInfo> faultContractInfos)
+        static void AddInfrastructureFaults(List<FaultContractInfo> faultContractInfos)
         {
             faultContractInfos.Add(new FaultContractInfo(FaultCodeConstants.Actions.NetDispatcher, typeof(ExceptionDetail)));
         }
 
-        private static MessageFault CreateMessageFault(XmlObjectSerializer serializer, FaultException faultException, Type detailType)
+        static MessageFault CreateMessageFault(XmlObjectSerializer serializer, FaultException faultException, Type detailType)
         {
             if (detailType == null)
             {

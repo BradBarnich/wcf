@@ -1,19 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Globalization;
-using System.Runtime;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
-    internal static class XmlUtil
+    using System.Runtime;
+    using System.Xml;
+
+    static class XmlUtil
     {
         public const string XmlNs = "http://www.w3.org/XML/1998/namespace";
         public const string XmlNsNs = "http://www.w3.org/2000/xmlns/";
-        public const string XmlSerializerSchemaInstanceNamespace = "http://www.w3.org/2001/XMLSchema-instance";
-        public const string XmlSerializerSchemaNamespace = "http://www.w3.org/2001/XMLSchema";
 
         public static string GetXmlLangAttribute(XmlReader reader)
         {
@@ -25,7 +21,7 @@ namespace System.ServiceModel
             }
 
             if (xmlLang == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.XmlLangAttributeMissing));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.GetString(SR.XmlLangAttributeMissing)));
 
             return xmlLang;
         }
@@ -54,7 +50,7 @@ namespace System.ServiceModel
         public static string TrimEnd(string s)
         {
             int i;
-            for (i = s.Length; i > 0 && IsWhitespace(s[i - 1]); i--) ;
+            for (i = s.Length; i > 0 && IsWhitespace(s[i - 1]); i--);
 
             if (i != s.Length)
             {
@@ -67,7 +63,7 @@ namespace System.ServiceModel
         public static string TrimStart(string s)
         {
             int i;
-            for (i = 0; i < s.Length && IsWhitespace(s[i]); i++) ;
+            for (i = 0; i < s.Length && IsWhitespace(s[i]); i++);
 
             if (i != 0)
             {
@@ -80,7 +76,7 @@ namespace System.ServiceModel
         public static string Trim(string s)
         {
             int i;
-            for (i = 0; i < s.Length && IsWhitespace(s[i]); i++) ;
+            for (i = 0; i < s.Length && IsWhitespace(s[i]); i++);
 
             if (i >= s.Length)
             {
@@ -88,7 +84,7 @@ namespace System.ServiceModel
             }
 
             int j;
-            for (j = s.Length; j > 0 && IsWhitespace(s[j - 1]); j--) ;
+            for (j = s.Length; j > 0 && IsWhitespace(s[j - 1]); j--);
 
             Fx.Assert(j > i, "Logic error in XmlUtil.Trim().");
 
@@ -111,45 +107,13 @@ namespace System.ServiceModel
             else
             {
                 if (index == qname.Length - 1)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.Format(SR.InvalidXmlQualifiedName, qname)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.GetString(SR.InvalidXmlQualifiedName, qname)));
                 prefix = TrimStart(qname.Substring(0, index));
                 localName = TrimEnd(qname.Substring(index + 1));
             }
             ns = reader.LookupNamespace(prefix);
             if (ns == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.Format(SR.UnboundPrefixInQName, qname)));
-        }
-
-        // This code was copied from XmlDictionaryReader.ReadElementContentAsDateTime which is an internal method
-        public static DateTime ReadElementContentAsDateTime(this XmlDictionaryReader reader)
-        {
-            bool isEmptyElement = reader.IsStartElement() && reader.IsEmptyElement;
-            DateTime value;
-
-            if (isEmptyElement)
-            {
-                reader.Read();
-                try
-                {
-                    value = DateTime.Parse(string.Empty, NumberFormatInfo.InvariantInfo);
-                }
-                catch (ArgumentException exception)
-                {
-                    throw new XmlException(SR.Format(SR.XmlInvalidConversion, string.Empty, "DateTime"), exception);
-                }
-                catch (FormatException exception)
-                {
-                    throw new XmlException(SR.Format(SR.XmlInvalidConversion, string.Empty, "DateTime"), exception);
-                }
-            }
-            else
-            {
-                reader.ReadStartElement();
-                value = reader.ReadContentAsDateTimeOffset().DateTime;
-                reader.ReadEndElement();
-            }
-
-            return value;
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new XmlException(SR.GetString(SR.UnboundPrefixInQName, qname)));
         }
     }
 }

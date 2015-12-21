@@ -1,10 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Net;
+
     public enum TcpClientCredentialType
     {
         None,
@@ -12,7 +12,7 @@ namespace System.ServiceModel
         Certificate
     }
 
-    internal static class TcpClientCredentialTypeHelper
+    static class TcpClientCredentialTypeHelper
     {
         internal static bool IsDefined(TcpClientCredentialType value)
         {

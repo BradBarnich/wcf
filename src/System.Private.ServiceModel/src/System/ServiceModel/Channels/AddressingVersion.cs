@@ -1,81 +1,89 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-using System.ServiceModel.Security;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Runtime.Serialization;
+    using System.Xml;
+    using System.ServiceModel.Security;
+
     public sealed class AddressingVersion
     {
-        private string _ns;
-        private XmlDictionaryString _dictionaryNs;
-        private MessagePartSpecification _signedMessageParts;
-        private string _toStringFormat;
-        private string _anonymous;
-        private XmlDictionaryString _dictionaryAnonymous;
-        private Uri _anonymousUri;
-        private Uri _noneUri;
-        private string _faultAction;
-        private string _defaultFaultAction;
-        private const string AddressingNoneToStringFormat = "AddressingNone ({0})";
-        private const string Addressing10ToStringFormat = "Addressing10 ({0})";
+        string ns;
+        XmlDictionaryString dictionaryNs;
+        MessagePartSpecification signedMessageParts;
+        string toStringFormat;
+        string anonymous;
+        XmlDictionaryString dictionaryAnonymous;
+        Uri anonymousUri;
+        Uri noneUri;
+        string faultAction;
+        string defaultFaultAction;
 
-        private static AddressingVersion s_none = new AddressingVersion(AddressingNoneStrings.Namespace, XD.AddressingNoneDictionary.Namespace,
-            AddressingNoneToStringFormat, new MessagePartSpecification(), null, null, null, null, null);
+        static AddressingVersion none = new AddressingVersion(AddressingNoneStrings.Namespace, XD.AddressingNoneDictionary.Namespace,
+            SR.AddressingNoneToStringFormat, new MessagePartSpecification(), null, null, null, null, null);
 
-        private static AddressingVersion s_addressing10 = new AddressingVersion(Addressing10Strings.Namespace,
-            XD.Addressing10Dictionary.Namespace, Addressing10ToStringFormat, Addressing10SignedMessageParts,
+        static AddressingVersion addressing10 = new AddressingVersion(Addressing10Strings.Namespace,
+            XD.Addressing10Dictionary.Namespace, SR.Addressing10ToStringFormat, Addressing10SignedMessageParts,
             Addressing10Strings.Anonymous, XD.Addressing10Dictionary.Anonymous, Addressing10Strings.NoneAddress,
             Addressing10Strings.FaultAction, Addressing10Strings.DefaultFaultAction);
-        private static MessagePartSpecification s_addressing10SignedMessageParts;
+        static MessagePartSpecification addressing10SignedMessageParts;
 
+        static AddressingVersion addressing200408 = new AddressingVersion(Addressing200408Strings.Namespace,
+            XD.Addressing200408Dictionary.Namespace, SR.Addressing200408ToStringFormat, Addressing200408SignedMessageParts,
+            Addressing200408Strings.Anonymous, XD.Addressing200408Dictionary.Anonymous, null,
+            Addressing200408Strings.FaultAction, Addressing200408Strings.DefaultFaultAction);
+        static MessagePartSpecification addressing200408SignedMessageParts;
 
-        private AddressingVersion(string ns, XmlDictionaryString dictionaryNs, string toStringFormat,
+        AddressingVersion(string ns, XmlDictionaryString dictionaryNs, string toStringFormat,
             MessagePartSpecification signedMessageParts, string anonymous, XmlDictionaryString dictionaryAnonymous, string none, string faultAction, string defaultFaultAction)
         {
-            _ns = ns;
-            _dictionaryNs = dictionaryNs;
-            _toStringFormat = toStringFormat;
-            _signedMessageParts = signedMessageParts;
-            _anonymous = anonymous;
-            _dictionaryAnonymous = dictionaryAnonymous;
+            this.ns = ns;
+            this.dictionaryNs = dictionaryNs;
+            this.toStringFormat = toStringFormat;
+            this.signedMessageParts = signedMessageParts;
+            this.anonymous = anonymous;
+            this.dictionaryAnonymous = dictionaryAnonymous;
 
             if (anonymous != null)
             {
-                _anonymousUri = new Uri(anonymous);
+                this.anonymousUri = new Uri(anonymous);
             }
 
             if (none != null)
             {
-                _noneUri = new Uri(none);
+                this.noneUri = new Uri(none);
             }
 
-            _faultAction = faultAction;
-            _defaultFaultAction = defaultFaultAction;
+            this.faultAction = faultAction;
+            this.defaultFaultAction = defaultFaultAction;
         }
 
+        public static AddressingVersion WSAddressingAugust2004
+        {
+            get { return addressing200408; }
+        }
 
         public static AddressingVersion WSAddressing10
         {
-            get { return s_addressing10; }
+            get { return addressing10; }
         }
 
         public static AddressingVersion None
         {
-            get { return s_none; }
+            get { return none; }
         }
 
         internal string Namespace
         {
-            get { return _ns; }
+            get { return ns; }
         }
 
-        private static MessagePartSpecification Addressing10SignedMessageParts
+        static MessagePartSpecification Addressing10SignedMessageParts
         {
             get
             {
-                if (s_addressing10SignedMessageParts == null)
+                if (addressing10SignedMessageParts == null)
                 {
                     MessagePartSpecification s = new MessagePartSpecification(
                         new XmlQualifiedName(AddressingStrings.To, Addressing10Strings.Namespace),
@@ -87,60 +95,82 @@ namespace System.ServiceModel.Channels
                         new XmlQualifiedName(AddressingStrings.Action, Addressing10Strings.Namespace)
                         );
                     s.MakeReadOnly();
-                    s_addressing10SignedMessageParts = s;
+                    addressing10SignedMessageParts = s;
                 }
 
-                return s_addressing10SignedMessageParts;
+                return addressing10SignedMessageParts;
             }
         }
 
+        static MessagePartSpecification Addressing200408SignedMessageParts
+        {
+            get
+            {
+                if (addressing200408SignedMessageParts == null)
+                {
+                    MessagePartSpecification s = new MessagePartSpecification(
+                        new XmlQualifiedName(AddressingStrings.To, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.From, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.FaultTo, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.ReplyTo, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.MessageId, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.RelatesTo, Addressing200408Strings.Namespace),
+                        new XmlQualifiedName(AddressingStrings.Action, Addressing200408Strings.Namespace)
+                        );
+                    s.MakeReadOnly();
+                    addressing200408SignedMessageParts = s;
+                }
+
+                return addressing200408SignedMessageParts;
+            }
+        }
 
         internal XmlDictionaryString DictionaryNamespace
         {
-            get { return _dictionaryNs; }
+            get { return dictionaryNs; }
         }
 
         internal string Anonymous
         {
-            get { return _anonymous; }
+            get { return anonymous; }
         }
 
         internal XmlDictionaryString DictionaryAnonymous
         {
-            get { return _dictionaryAnonymous; }
+            get { return dictionaryAnonymous; }
         }
 
         internal Uri AnonymousUri
         {
-            get { return _anonymousUri; }
+            get { return anonymousUri; }
         }
 
         internal Uri NoneUri
         {
-            get { return _noneUri; }
+            get { return noneUri; }
         }
 
         internal string FaultAction   // the action for addressing faults
         {
-            get { return _faultAction; }
+            get { return faultAction; }
         }
 
         internal string DefaultFaultAction  // a default string that can be used for non-addressing faults
         {
-            get { return _defaultFaultAction; }
+            get { return defaultFaultAction; }
         }
 
         internal MessagePartSpecification SignedMessageParts
         {
             get
             {
-                return _signedMessageParts;
+                return this.signedMessageParts;
             }
         }
 
         public override string ToString()
         {
-            return string.Format(_toStringFormat, Namespace);
+            return SR.GetString(toStringFormat, Namespace);
         }
     }
 }

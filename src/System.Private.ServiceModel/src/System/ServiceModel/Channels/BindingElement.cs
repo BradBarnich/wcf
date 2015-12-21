@@ -1,10 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Runtime;
+    using System.ServiceModel;
+
     public abstract class BindingElement
     {
         protected BindingElement()
@@ -25,12 +26,28 @@ namespace System.ServiceModel.Channels
             return context.BuildInnerChannelFactory<TChannel>();
         }
 
+        public virtual IChannelListener<TChannel> BuildChannelListener<TChannel>(BindingContext context) where TChannel : class, IChannel
+        {
+            if (context == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+
+            return context.BuildInnerChannelListener<TChannel>();
+        }
+
         public virtual bool CanBuildChannelFactory<TChannel>(BindingContext context)
         {
             if (context == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
 
             return context.CanBuildInnerChannelFactory<TChannel>();
+        }
+
+        public virtual bool CanBuildChannelListener<TChannel>(BindingContext context) where TChannel : class, IChannel
+        {
+            if (context == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+
+            return context.CanBuildInnerChannelListener<TChannel>();
         }
 
         public abstract T GetProperty<T>(BindingContext context) where T : class;

@@ -1,18 +1,20 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IdentityModel.Selectors;
-using System.ServiceModel.Security.Tokens;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
-    internal class SupportingTokenAuthenticatorSpecification
+    using System.IdentityModel.Selectors;
+    using System.ServiceModel;
+    using System.ServiceModel.Security.Tokens;
+
+    class SupportingTokenAuthenticatorSpecification
     {
-        private SecurityTokenAttachmentMode _tokenAttachmentMode;
-        private SecurityTokenAuthenticator _tokenAuthenticator;
-        private SecurityTokenResolver _tokenResolver;
-        private SecurityTokenParameters _tokenParameters;
-        private bool _isTokenOptional;
+        SecurityTokenAttachmentMode tokenAttachmentMode;
+        SecurityTokenAuthenticator tokenAuthenticator;
+        SecurityTokenResolver tokenResolver;
+        SecurityTokenParameters tokenParameters;
+        bool isTokenOptional;
 
         public SupportingTokenAuthenticatorSpecification(SecurityTokenAuthenticator tokenAuthenticator, SecurityTokenResolver securityTokenResolver, SecurityTokenAttachmentMode attachmentMode, SecurityTokenParameters tokenParameters)
             : this(tokenAuthenticator, securityTokenResolver, attachmentMode, tokenParameters, false)
@@ -25,44 +27,44 @@ namespace System.ServiceModel.Security
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("tokenAuthenticator");
             }
-
+            
             SecurityTokenAttachmentModeHelper.Validate(attachmentMode);
 
             if (tokenParameters == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("tokenParameters");
             }
-            _tokenAuthenticator = tokenAuthenticator;
-            _tokenResolver = securityTokenResolver;
-            _tokenAttachmentMode = attachmentMode;
-            _tokenParameters = tokenParameters;
-            _isTokenOptional = isTokenOptional;
+            this.tokenAuthenticator = tokenAuthenticator;
+            this.tokenResolver = securityTokenResolver;
+            this.tokenAttachmentMode = attachmentMode;
+            this.tokenParameters = tokenParameters;
+            this.isTokenOptional = isTokenOptional;
         }
 
         public SecurityTokenAuthenticator TokenAuthenticator
         {
-            get { return _tokenAuthenticator; }
+            get { return this.tokenAuthenticator; }
         }
 
         public SecurityTokenResolver TokenResolver
         {
-            get { return _tokenResolver; }
+            get { return this.tokenResolver; }
         }
 
         public SecurityTokenAttachmentMode SecurityTokenAttachmentMode
         {
-            get { return _tokenAttachmentMode; }
+            get { return this.tokenAttachmentMode; }
         }
 
         public SecurityTokenParameters TokenParameters
         {
-            get { return _tokenParameters; }
+            get { return this.tokenParameters; }
         }
 
         internal bool IsTokenOptional
         {
-            get { return _isTokenOptional; }
-            set { _isTokenOptional = value; }
+            get { return this.isTokenOptional; }
+            set { this.isTokenOptional = value; }
         }
     }
 }

@@ -1,18 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Xml;
+
     using ISignatureValueSecurityElement = System.IdentityModel.ISignatureValueSecurityElement;
     using DictionaryManager = System.IdentityModel.DictionaryManager;
 
-    internal class SignatureConfirmationElement : ISignatureValueSecurityElement
+    class SignatureConfirmationElement : ISignatureValueSecurityElement
     {
-        private SecurityVersion _version;
-        private string _id;
-        private byte[] _signatureValue;
+        SecurityVersion version;
+        string id;
+        byte[] signatureValue;
 
         public SignatureConfirmationElement(string id, byte[] signatureValue, SecurityVersion version)
         {
@@ -24,9 +25,9 @@ namespace System.ServiceModel.Security
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("signatureValue");
             }
-            _id = id;
-            _signatureValue = signatureValue;
-            _version = version;
+            this.id = id;
+            this.signatureValue = signatureValue;
+            this.version = version;
         }
 
         public bool HasId
@@ -36,17 +37,17 @@ namespace System.ServiceModel.Security
 
         public string Id
         {
-            get { return _id; }
+            get { return this.id; }
         }
 
         public byte[] GetSignatureValue()
         {
-            return _signatureValue;
+            return this.signatureValue;
         }
 
         public void WriteTo(XmlDictionaryWriter writer, DictionaryManager dictionaryManager)
         {
-            _version.WriteSignatureConfirmation(writer, _id, _signatureValue);
+            this.version.WriteSignatureConfirmation(writer, this.id, this.signatureValue);
         }
     }
 }

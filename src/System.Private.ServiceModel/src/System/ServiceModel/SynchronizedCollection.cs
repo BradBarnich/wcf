@@ -1,21 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel;
-using System.Reflection;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.Collections.Generic
 {
+    using System;
+    using System.Collections;
+    using System.Diagnostics;
+    using System.ServiceModel;
+
     [System.Runtime.InteropServices.ComVisible(false)]
     public class SynchronizedCollection<T> : IList<T>, IList
     {
-        private List<T> _items;
-        private object _sync;
+        List<T> items;
+        object sync;
 
         public SynchronizedCollection()
         {
-            _items = new List<T>();
-            _sync = new Object();
+            this.items = new List<T>();
+            this.sync = new Object();
         }
 
         public SynchronizedCollection(object syncRoot)
@@ -23,8 +25,8 @@ namespace System.Collections.Generic
             if (syncRoot == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("syncRoot"));
 
-            _items = new List<T>();
-            _sync = syncRoot;
+            this.items = new List<T>();
+            this.sync = syncRoot;
         }
 
         public SynchronizedCollection(object syncRoot, IEnumerable<T> list)
@@ -34,8 +36,8 @@ namespace System.Collections.Generic
             if (list == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("list"));
 
-            _items = new List<T>(list);
-            _sync = syncRoot;
+            this.items = new List<T>(list);
+            this.sync = syncRoot;
         }
 
         public SynchronizedCollection(object syncRoot, params T[] list)
@@ -45,44 +47,44 @@ namespace System.Collections.Generic
             if (list == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("list"));
 
-            _items = new List<T>(list.Length);
+            this.items = new List<T>(list.Length);
             for (int i = 0; i < list.Length; i++)
-                _items.Add(list[i]);
+                this.items.Add(list[i]);
 
-            _sync = syncRoot;
+            this.sync = syncRoot;
         }
 
         public int Count
         {
-            get { lock (_sync) { return _items.Count; } }
+            get { lock (this.sync) { return this.items.Count; } }
         }
 
         protected List<T> Items
         {
-            get { return _items; }
+            get { return this.items; }
         }
 
         public object SyncRoot
         {
-            get { return _sync; }
+            get { return this.sync; }
         }
 
         public T this[int index]
         {
             get
             {
-                lock (_sync)
+                lock (this.sync)
                 {
-                    return _items[index];
+                    return this.items[index];
                 }
             }
             set
             {
-                lock (_sync)
+                lock (this.sync)
                 {
-                    if (index < 0 || index >= _items.Count)
+                    if (index < 0 || index >= this.items.Count)
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("index", index,
-                                                    SR.Format(SR.ValueMustBeInRange, 0, _items.Count - 1)));
+                                                    SR.GetString(SR.ValueMustBeInRange, 0, this.items.Count - 1)));
 
                     this.SetItem(index, value);
                 }
@@ -91,16 +93,16 @@ namespace System.Collections.Generic
 
         public void Add(T item)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                int index = _items.Count;
+                int index = this.items.Count;
                 this.InsertItem(index, item);
             }
         }
 
         public void Clear()
         {
-            lock (_sync)
+            lock (this.sync)
             {
                 this.ClearItems();
             }
@@ -108,31 +110,31 @@ namespace System.Collections.Generic
 
         public void CopyTo(T[] array, int index)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                _items.CopyTo(array, index);
+                this.items.CopyTo(array, index);
             }
         }
 
         public bool Contains(T item)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                return _items.Contains(item);
+                return this.items.Contains(item);
             }
         }
 
         public IEnumerator<T> GetEnumerator()
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                return _items.GetEnumerator();
+                return this.items.GetEnumerator();
             }
         }
 
         public int IndexOf(T item)
         {
-            lock (_sync)
+            lock (this.sync)
             {
                 return this.InternalIndexOf(item);
             }
@@ -140,23 +142,23 @@ namespace System.Collections.Generic
 
         public void Insert(int index, T item)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                if (index < 0 || index > _items.Count)
+                if (index < 0 || index > this.items.Count)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("index", index,
-                                                    SR.Format(SR.ValueMustBeInRange, 0, _items.Count)));
+                                                    SR.GetString(SR.ValueMustBeInRange, 0, this.items.Count)));
 
                 this.InsertItem(index, item);
             }
         }
 
-        private int InternalIndexOf(T item)
+        int InternalIndexOf(T item)
         {
-            int count = _items.Count;
+            int count = items.Count;
 
             for (int i = 0; i < count; i++)
             {
-                if (object.Equals(_items[i], item))
+                if (object.Equals(items[i], item))
                 {
                     return i;
                 }
@@ -166,7 +168,7 @@ namespace System.Collections.Generic
 
         public bool Remove(T item)
         {
-            lock (_sync)
+            lock (this.sync)
             {
                 int index = this.InternalIndexOf(item);
                 if (index < 0)
@@ -179,11 +181,11 @@ namespace System.Collections.Generic
 
         public void RemoveAt(int index)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                if (index < 0 || index >= _items.Count)
+                if (index < 0 || index >= this.items.Count)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("index", index,
-                                                    SR.Format(SR.ValueMustBeInRange, 0, _items.Count - 1)));
+                                                    SR.GetString(SR.ValueMustBeInRange, 0, this.items.Count - 1)));
 
 
                 this.RemoveItem(index);
@@ -192,22 +194,22 @@ namespace System.Collections.Generic
 
         protected virtual void ClearItems()
         {
-            _items.Clear();
+            this.items.Clear();
         }
 
         protected virtual void InsertItem(int index, T item)
         {
-            _items.Insert(index, item);
+            this.items.Insert(index, item);
         }
 
         protected virtual void RemoveItem(int index)
         {
-            _items.RemoveAt(index);
+            this.items.RemoveAt(index);
         }
 
         protected virtual void SetItem(int index, T item)
         {
-            _items[index] = item;
+            this.items[index] = item;
         }
 
         bool ICollection<T>.IsReadOnly
@@ -217,7 +219,7 @@ namespace System.Collections.Generic
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IList)_items).GetEnumerator();
+            return ((IList)this.items).GetEnumerator();
         }
 
         bool ICollection.IsSynchronized
@@ -227,14 +229,14 @@ namespace System.Collections.Generic
 
         object ICollection.SyncRoot
         {
-            get { return _sync; }
+            get { return this.sync; }
         }
 
         void ICollection.CopyTo(Array array, int index)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                ((IList)_items).CopyTo(array, index);
+                ((IList)this.items).CopyTo(array, index);
             }
         }
 
@@ -265,7 +267,7 @@ namespace System.Collections.Generic
         {
             VerifyValueType(value);
 
-            lock (_sync)
+            lock (this.sync)
             {
                 this.Add((T)value);
                 return this.Count - 1;
@@ -296,18 +298,18 @@ namespace System.Collections.Generic
             this.Remove((T)value);
         }
 
-        private static void VerifyValueType(object value)
+        static void VerifyValueType(object value)
         {
             if (value == null)
             {
-                if (typeof(T).GetTypeInfo().IsValueType)
+                if (typeof(T).IsValueType)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.SynchronizedCollectionWrongTypeNull));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.SynchronizedCollectionWrongTypeNull)));
                 }
             }
             else if (!(value is T))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.SynchronizedCollectionWrongType1, value.GetType().FullName)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.SynchronizedCollectionWrongType1, value.GetType().FullName)));
             }
         }
     }

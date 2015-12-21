@@ -1,32 +1,41 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net;
-using System.Net.Security;
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Description;
+    using System.Net;
+    using System.Net.Security;
+    using System.Runtime.Serialization;
+    using System.Security.Cryptography.X509Certificates;
+    using System.ServiceModel;
+    using System.ServiceModel.Activation;
+    using System.ServiceModel.Security;
+    using System.Xml;
+    using System.ComponentModel;
+
     public class HttpsTransportBindingElement
-        : HttpTransportBindingElement
+        : HttpTransportBindingElement, ITransportTokenAssertionProvider
     {
-        private bool _requireClientCertificate;
-        private MessageSecurityVersion _messageSecurityVersion;
+        bool requireClientCertificate;
+        MessageSecurityVersion messageSecurityVersion;
 
         public HttpsTransportBindingElement()
             : base()
         {
-            _requireClientCertificate = TransportDefaults.RequireClientCertificate;
+            this.requireClientCertificate = TransportDefaults.RequireClientCertificate;
         }
 
         protected HttpsTransportBindingElement(HttpsTransportBindingElement elementToBeCloned)
             : base(elementToBeCloned)
         {
-            _requireClientCertificate = elementToBeCloned._requireClientCertificate;
-            _messageSecurityVersion = elementToBeCloned._messageSecurityVersion;
+            this.requireClientCertificate = elementToBeCloned.requireClientCertificate;
+            this.messageSecurityVersion = elementToBeCloned.messageSecurityVersion;
         }
 
-        private HttpsTransportBindingElement(HttpTransportBindingElement elementToBeCloned)
+        HttpsTransportBindingElement(HttpTransportBindingElement elementToBeCloned)
             : base(elementToBeCloned)
         {
         }
@@ -36,17 +45,17 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _requireClientCertificate;
+                return this.requireClientCertificate;
             }
             set
             {
-                _requireClientCertificate = value;
+                this.requireClientCertificate = value;
             }
         }
 
         public override string Scheme
         {
-            get { return UriEx.UriSchemeHttps; }
+            get { return "https"; }
         }
 
         public override BindingElement Clone()
@@ -56,12 +65,12 @@ namespace System.ServiceModel.Channels
 
         internal override bool GetSupportsClientAuthenticationImpl(AuthenticationSchemes effectiveAuthenticationSchemes)
         {
-            return _requireClientCertificate || base.GetSupportsClientAuthenticationImpl(effectiveAuthenticationSchemes);
+            return this.requireClientCertificate || base.GetSupportsClientAuthenticationImpl(effectiveAuthenticationSchemes);
         }
 
         internal override bool GetSupportsClientWindowsIdentityImpl(AuthenticationSchemes effectiveAuthenticationSchemes)
         {
-            return _requireClientCertificate || base.GetSupportsClientWindowsIdentityImpl(effectiveAuthenticationSchemes);
+            return this.requireClientCertificate || base.GetSupportsClientWindowsIdentityImpl(effectiveAuthenticationSchemes);
         }
 
         // In order to generate sp:HttpsToken with the right policy.
@@ -70,7 +79,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _messageSecurityVersion;
+                return this.messageSecurityVersion;
             }
             set
             {
@@ -78,7 +87,7 @@ namespace System.ServiceModel.Channels
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
                 }
-                _messageSecurityVersion = value;
+                this.messageSecurityVersion = value;
             }
         }
 
@@ -91,15 +100,36 @@ namespace System.ServiceModel.Channels
 
             if (this.MessageHandlerFactory != null)
             {
-                throw FxTrace.Exception.AsError(new InvalidOperationException(SR.Format(SR.HttpPipelineNotSupportedOnClientSide, "MessageHandlerFactory")));
+                throw FxTrace.Exception.AsError(new InvalidOperationException(SR.GetString(SR.HttpPipelineNotSupportedOnClientSide, "MessageHandlerFactory")));
             }
 
             if (!this.CanBuildChannelFactory<TChannel>(context))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("TChannel", SR.Format(SR.ChannelTypeNotSupported, typeof(TChannel)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("TChannel", SR.GetString(SR.ChannelTypeNotSupported, typeof(TChannel)));
             }
 
             return (IChannelFactory<TChannel>)(object)new HttpsChannelFactory<TChannel>(this, context);
+        }
+
+        public override IChannelListener<TChannel> BuildChannelListener<TChannel>(BindingContext context)
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+            HttpChannelListener listener;
+
+            if (!this.CanBuildChannelListener<TChannel>(context))
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("TChannel", SR.GetString(SR.ChannelTypeNotSupported, typeof(TChannel)));
+            }
+
+            this.UpdateAuthenticationSchemes(context);
+
+            listener = new HttpsChannelListener<TChannel>(this, context);
+            AspNetEnvironment.Current.ApplyHostedContext(listener, context);
+            return (IChannelListener<TChannel>)(object)listener;
         }
 
         internal static HttpsTransportBindingElement CreateFromHttpBindingElement(HttpTransportBindingElement elementToBeCloned)
@@ -115,8 +145,8 @@ namespace System.ServiceModel.Channels
             }
             if (typeof(T) == typeof(ISecurityCapabilities))
             {
-                AuthenticationSchemes effectiveAuthenticationSchemes = this.AuthenticationScheme;
-                // Desktop: HttpTransportBindingElement.GetEffectiveAuthenticationSchemes(this.AuthenticationScheme, context.BindingParameters);
+                AuthenticationSchemes effectiveAuthenticationSchemes = HttpTransportBindingElement.GetEffectiveAuthenticationSchemes(this.AuthenticationScheme,
+                    context.BindingParameters);
 
                 return (T)(object)new SecurityCapabilities(this.GetSupportsClientAuthenticationImpl(effectiveAuthenticationSchemes),
                     true,
@@ -129,5 +159,30 @@ namespace System.ServiceModel.Channels
                 return base.GetProperty<T>(context);
             }
         }
+
+        internal override void OnExportPolicy(MetadataExporter exporter, PolicyConversionContext context)
+        {
+            base.OnExportPolicy(exporter, context);
+            SecurityBindingElement.ExportPolicyForTransportTokenAssertionProviders(exporter, context);
+        }
+
+
+        internal override void OnImportPolicy(MetadataImporter importer, PolicyConversionContext policyContext)
+        {
+            base.OnImportPolicy(importer, policyContext);
+
+            WSSecurityPolicy sp = null;
+            if (WSSecurityPolicy.TryGetSecurityPolicyDriver(policyContext.GetBindingAssertions(), out sp))
+                sp.TryImportWsspHttpsTokenAssertion(importer, policyContext.GetBindingAssertions(), this);
+        }
+
+        #region ITransportTokenAssertionProvider Members
+
+        public XmlElement GetTransportTokenAssertion()
+        {
+            return null;
+        }
+
+        #endregion
     }
 }

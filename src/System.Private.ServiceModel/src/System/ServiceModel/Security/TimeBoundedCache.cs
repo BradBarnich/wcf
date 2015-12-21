@@ -1,57 +1,61 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime;
-using System.Threading;
-
-namespace System.ServiceModel.Security
+namespace System.ServiceModel.Security 
 {
+    using System;
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.Threading;
+
     // NOTE: this class does minimum argument checking as it is all internal 
-    internal class TimeBoundedCache
+    class TimeBoundedCache 
     {
-        private static Action<object> s_purgeCallback;
-        private ReaderWriterLockSlim _cacheLock;
-        private Hashtable _entries;
+        static Action<object> purgeCallback;
+        ReaderWriterLock cacheLock;
+        Hashtable entries;
         // if there are less than lowWaterMark entries, no purging is done
-        private int _lowWaterMark;
-        private int _maxCacheItems;
-        private DateTime _nextPurgeTimeUtc;
-        private TimeSpan _purgeInterval;
-        private PurgingMode _purgingMode;
-        private Timer _purgingTimer;
-        private bool _doRemoveNotification;
+        int lowWaterMark;
+        int maxCacheItems;
+        DateTime nextPurgeTimeUtc;
+        TimeSpan purgeInterval;
+        PurgingMode purgingMode;
+        IOThreadTimer purgingTimer;
+        bool doRemoveNotification;
 
         protected TimeBoundedCache(int lowWaterMark, int maxCacheItems, IEqualityComparer keyComparer, PurgingMode purgingMode, TimeSpan purgeInterval, bool doRemoveNotification)
         {
-            _entries = new Hashtable(keyComparer);
-            _cacheLock = new ReaderWriterLockSlim();
-            _lowWaterMark = lowWaterMark;
-            _maxCacheItems = maxCacheItems;
-            _purgingMode = purgingMode;
-            _purgeInterval = purgeInterval;
-            _doRemoveNotification = doRemoveNotification;
-            _nextPurgeTimeUtc = DateTime.UtcNow.Add(_purgeInterval);
+            this.entries = new Hashtable(keyComparer);
+            this.cacheLock = new ReaderWriterLock();
+            this.lowWaterMark = lowWaterMark;
+            this.maxCacheItems = maxCacheItems;
+            this.purgingMode = purgingMode;
+            this.purgeInterval = purgeInterval;
+            this.doRemoveNotification = doRemoveNotification;
+            this.nextPurgeTimeUtc = DateTime.UtcNow.Add(this.purgeInterval);
         }
-
+        
         public int Count
         {
             get
             {
-                return _entries.Count;
+                return this.entries.Count;
             }
         }
 
-        private static Action<object> PurgeCallback
+        static Action<object> PurgeCallback
         {
             get
             {
-                if (s_purgeCallback == null)
+                if (purgeCallback == null)
                 {
-                    s_purgeCallback = new Action<object>(PurgeCallbackStatic);
+                    purgeCallback = new Action<object>(PurgeCallbackStatic);
                 }
-                return s_purgeCallback;
+                return purgeCallback;
             }
         }
 
@@ -59,7 +63,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _maxCacheItems;
+                return this.maxCacheItems;
             }
         }
 
@@ -67,15 +71,15 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _entries;
+                return this.entries;
             }
         }
 
-        protected ReaderWriterLockSlim CacheLock
+        protected ReaderWriterLock CacheLock
         {
             get
             {
-                return _cacheLock;
+                return this.cacheLock;
             }
         }
 
@@ -84,25 +88,25 @@ namespace System.ServiceModel.Security
             return this.TryAddItem(key, new ExpirableItem(item, expirationTime), replaceExistingEntry);
         }
 
-        private void CancelTimerIfNeeded()
+        void CancelTimerIfNeeded()
         {
-            if (this.Count == 0 && _purgingTimer != null)
+            if (this.Count == 0 && this.purgingTimer != null)
             {
-                _purgingTimer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
-                _purgingTimer.Dispose();
-                _purgingTimer = null;
+                this.purgingTimer.Cancel();
+                this.purgingTimer = null;
             }
         }
 
-        private void StartTimerIfNeeded()
+        void StartTimerIfNeeded()
         {
-            if (_purgingMode != PurgingMode.TimerBasedPurge)
+            if (this.purgingMode != PurgingMode.TimerBasedPurge)
             {
                 return;
             }
-            if (_purgingTimer == null)
+            if (this.purgingTimer == null)
             {
-                _purgingTimer = new Timer(new TimerCallback(PurgeCallback), this, _purgeInterval, TimeSpan.FromMilliseconds(-1));
+                this.purgingTimer = new IOThreadTimer(PurgeCallback, this, false);
+                this.purgingTimer.Set(this.purgeInterval);
             }
         }
 
@@ -114,15 +118,15 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    _cacheLock.EnterWriteLock();
+                    this.cacheLock.AcquireWriterLock(-1);
                     lockHeld = true;
                 }
                 PurgeIfNeeded();
                 EnforceQuota();
-                IExpirableItem currentItem = _entries[key] as IExpirableItem;
+                IExpirableItem currentItem = this.entries[key] as IExpirableItem;
                 if (currentItem == null || IsExpired(currentItem))
                 {
-                    _entries[key] = item;
+                    this.entries[key] = item;
                 }
                 else if (!replaceExistingEntry)
                 {
@@ -130,9 +134,9 @@ namespace System.ServiceModel.Security
                 }
                 else
                 {
-                    _entries[key] = item;
+                    this.entries[key] = item;
                 }
-                if (currentItem != null && _doRemoveNotification)
+                if (currentItem != null && doRemoveNotification)
                 {
                     this.OnRemove(ExtractItem(currentItem));
                 }
@@ -143,7 +147,7 @@ namespace System.ServiceModel.Security
             {
                 if (lockHeld)
                 {
-                    _cacheLock.ExitWriteLock();
+                    this.cacheLock.ReleaseWriterLock();
                 }
             }
         }
@@ -156,20 +160,20 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    _cacheLock.EnterWriteLock();
+                    this.cacheLock.AcquireWriterLock(-1);
                     lockHeld = true;
                 }
                 PurgeIfNeeded();
                 EnforceQuota();
-                IExpirableItem currentItem = _entries[key] as IExpirableItem;
+                IExpirableItem currentItem = this.entries[key] as IExpirableItem;
                 if (currentItem == null || IsExpired(currentItem))
                 {
                     return false;
                 }
                 else
                 {
-                    _entries[key] = new ExpirableItem(item, expirationTime);
-                    if (currentItem != null && _doRemoveNotification)
+                    this.entries[key] = new ExpirableItem(item, expirationTime);
+                    if (currentItem != null && doRemoveNotification)
                     {
                         this.OnRemove(ExtractItem(currentItem));
                     }
@@ -181,7 +185,7 @@ namespace System.ServiceModel.Security
             {
                 if (lockHeld)
                 {
-                    _cacheLock.ExitWriteLock();
+                    this.cacheLock.ReleaseWriterLock();
                 }
             }
         }
@@ -194,26 +198,26 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    _cacheLock.EnterWriteLock();
+                    this.cacheLock.AcquireWriterLock(-1);
                     lockHeld = true;
                 }
 
-                int count = _entries.Count;
-                if (_doRemoveNotification)
+                int count = this.entries.Count;
+                if (doRemoveNotification)
                 {
-                    foreach (IExpirableItem item in _entries.Values)
+                    foreach (IExpirableItem item in this.entries.Values)
                     {
                         OnRemove(ExtractItem(item));
                     }
                 }
-                _entries.Clear();
+                this.entries.Clear();
                 CancelTimerIfNeeded();
             }
             finally
             {
                 if (lockHeld)
                 {
-                    _cacheLock.ExitWriteLock();
+                    this.cacheLock.ReleaseWriterLock();
                 }
             }
         }
@@ -226,10 +230,10 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    _cacheLock.EnterReadLock();
+                    this.cacheLock.AcquireReaderLock(-1);
                     lockHeld = true;
                 }
-                IExpirableItem item = _entries[key] as IExpirableItem;
+                IExpirableItem item = this.entries[key] as IExpirableItem;
                 if (item == null)
                 {
                     return null;
@@ -248,7 +252,7 @@ namespace System.ServiceModel.Security
             {
                 if (lockHeld)
                 {
-                    _cacheLock.ExitReadLock();
+                    this.cacheLock.ReleaseReaderLock();
                 }
             }
         }
@@ -271,16 +275,16 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    _cacheLock.EnterWriteLock();
+                    this.cacheLock.AcquireWriterLock(-1);
                     lockHeld = true;
                 }
                 PurgeIfNeeded();
-                IExpirableItem currentItem = _entries[key] as IExpirableItem;
+                IExpirableItem currentItem = this.entries[key] as IExpirableItem;
                 bool result = (currentItem != null) && !IsExpired(currentItem);
                 if (currentItem != null)
                 {
-                    _entries.Remove(key);
-                    if (_doRemoveNotification)
+                    this.entries.Remove(key);
+                    if (doRemoveNotification)
                     {
                         this.OnRemove(ExtractItem(currentItem));
                     }
@@ -292,33 +296,34 @@ namespace System.ServiceModel.Security
             {
                 if (lockHeld)
                 {
-                    _cacheLock.ExitWriteLock();
+                    this.cacheLock.ReleaseWriterLock();
                 }
             }
         }
 
 
-        private void EnforceQuota()
+        void EnforceQuota()
         {
-            if (!(_cacheLock.IsWriteLockHeld == true))
+            if (!(this.cacheLock.IsWriterLockHeld == true))
             {
                 // we failfast here because if we don't have the lock we could corrupt the cache
                 Fx.Assert("Cache write lock is not held.");
-                Environment.FailFast("Cache write lock is not held.");
+                DiagnosticUtility.FailFast("Cache write lock is not held.");
             }
-            if (this.Count >= _maxCacheItems)
+            if (this.Count >= this.maxCacheItems)
             {
                 ArrayList keysToBeRemoved;
-                keysToBeRemoved = this.OnQuotaReached(_entries);
+                keysToBeRemoved = this.OnQuotaReached(this.entries);
                 if (keysToBeRemoved != null)
                 {
                     for (int i = 0; i < keysToBeRemoved.Count; ++i)
                     {
-                        _entries.Remove(keysToBeRemoved[i]);
+                        this.entries.Remove(keysToBeRemoved[i]);
                     }
+                    
                 }
                 CancelTimerIfNeeded();
-                if (this.Count >= _maxCacheItems)
+                if (this.Count >= this.maxCacheItems)
                 {
                     this.ThrowQuotaReachedException();
                 }
@@ -338,35 +343,35 @@ namespace System.ServiceModel.Security
             }
         }
 
-        private bool IsExpired(IExpirableItem item)
+        bool IsExpired(IExpirableItem item)
         {
             Fx.Assert(item.ExpirationTime == DateTime.MaxValue || item.ExpirationTime.Kind == DateTimeKind.Utc, "");
             return (item.ExpirationTime <= DateTime.UtcNow);
         }
 
-        private bool ShouldPurge()
+        bool ShouldPurge()
         {
-            if (this.Count >= _maxCacheItems)
+            if (this.Count >= this.maxCacheItems)
             {
                 return true;
             }
-            else if (_purgingMode == PurgingMode.AccessBasedPurge && DateTime.UtcNow > _nextPurgeTimeUtc && this.Count > _lowWaterMark)
+            else if (this.purgingMode == PurgingMode.AccessBasedPurge && DateTime.UtcNow > this.nextPurgeTimeUtc && this.Count > this.lowWaterMark)
             {
                 return true;
             }
-            else
+            else 
             {
                 return false;
             }
         }
 
-        private void PurgeIfNeeded()
+        void PurgeIfNeeded()
         {
-            if (!(_cacheLock.IsWriteLockHeld == true))
+            if (!(this.cacheLock.IsWriterLockHeld == true))
             {
                 // we failfast here because if we don't have the lock we could corrupt the cache
                 Fx.Assert("Cache write lock is not held.");
-                Environment.FailFast("Cache write lock is not held.");
+                DiagnosticUtility.FailFast("Cache write lock is not held.");
             }
             if (ShouldPurge())
             {
@@ -377,18 +382,18 @@ namespace System.ServiceModel.Security
         /// <summary>
         /// This method must be called from within a writer lock
         /// </summary>
-        private void PurgeStaleItems()
+        void PurgeStaleItems()
         {
-            if (!(_cacheLock.IsWriteLockHeld == true))
+            if (!(this.cacheLock.IsWriterLockHeld == true))
             {
                 // we failfast here because if we don't have the lock we could corrupt the cache
                 Fx.Assert("Cache write lock is not held.");
-                Environment.FailFast("Cache write lock is not held.");
+                DiagnosticUtility.FailFast("Cache write lock is not held.");
             }
             ArrayList expiredItems = new ArrayList();
-            foreach (object key in _entries.Keys)
+            foreach (object key in this.entries.Keys)
             {
-                IExpirableItem item = _entries[key] as IExpirableItem;
+                IExpirableItem item = this.entries[key] as IExpirableItem;
                 if (IsExpired(item))
                 {
                     // this is a stale item. Remove!
@@ -398,20 +403,20 @@ namespace System.ServiceModel.Security
             }
             for (int i = 0; i < expiredItems.Count; ++i)
             {
-                _entries.Remove(expiredItems[i]);
+                this.entries.Remove(expiredItems[i]);
             }
             CancelTimerIfNeeded();
-            _nextPurgeTimeUtc = DateTime.UtcNow.Add(_purgeInterval);
+            this.nextPurgeTimeUtc = DateTime.UtcNow.Add(this.purgeInterval);
         }
 
-        private void ThrowQuotaReachedException()
+        void ThrowQuotaReachedException()
         {
-            string message = SR.Format(SR.CacheQuotaReached, _maxCacheItems);
+            string message = SR.GetString(SR.CacheQuotaReached, this.maxCacheItems);
             Exception inner = new QuotaExceededException(message);
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(message, inner));
         }
 
-        private static void PurgeCallbackStatic(object state)
+        static void PurgeCallbackStatic(object state)
         {
             TimeBoundedCache self = (TimeBoundedCache)state;
 
@@ -421,25 +426,25 @@ namespace System.ServiceModel.Security
                 try { }
                 finally
                 {
-                    self._cacheLock.EnterWriteLock();
+                    self.cacheLock.AcquireWriterLock(-1);
                     lockHeld = true;
                 }
 
-                if (self._purgingTimer == null)
+                if (self.purgingTimer == null)
                 {
                     return;
                 }
                 self.PurgeStaleItems();
-                if (self.Count > 0 && self._purgingTimer != null)
+                if (self.Count > 0 && self.purgingTimer != null)
                 {
-                    self._purgingTimer.Change(self._purgeInterval, TimeSpan.FromMilliseconds(-1));
+                    self.purgingTimer.Set(self.purgeInterval);
                 }
             }
             finally
             {
                 if (lockHeld)
                 {
-                    self._cacheLock.ExitWriteLock();
+                    self.cacheLock.ReleaseWriterLock();
                 }
             }
         }
@@ -451,17 +456,17 @@ namespace System.ServiceModel.Security
 
         internal class ExpirableItemComparer : IComparer<IExpirableItem>
         {
-            private static ExpirableItemComparer s_instance;
+            static ExpirableItemComparer instance;
 
             public static ExpirableItemComparer Default
             {
                 get
                 {
-                    if (s_instance == null)
+                    if (instance == null)
                     {
-                        s_instance = new ExpirableItemComparer();
+                        instance = new ExpirableItemComparer();
                     }
-                    return s_instance;
+                    return instance;
                 }
             }
 
@@ -490,22 +495,22 @@ namespace System.ServiceModel.Security
 
         internal sealed class ExpirableItem : IExpirableItem
         {
-            private DateTime _expirationTime;
-            private object _item;
+            DateTime expirationTime;
+            object item;
 
             public ExpirableItem(object item, DateTime expirationTime)
             {
-                _item = item;
-                Fx.Assert(expirationTime == DateTime.MaxValue || expirationTime.Kind == DateTimeKind.Utc, "");
-                _expirationTime = expirationTime;
+                this.item = item;
+                Fx.Assert( expirationTime == DateTime.MaxValue || expirationTime.Kind == DateTimeKind.Utc, "");
+                this.expirationTime = expirationTime;
             }
 
-            public DateTime ExpirationTime { get { return _expirationTime; } }
-            public object Item { get { return _item; } }
+            public DateTime ExpirationTime { get { return this.expirationTime; } }
+            public object Item { get { return this.item; } }
         }
     }
 
-    internal enum PurgingMode
+    enum PurgingMode
     {
         TimerBasedPurge,
         AccessBasedPurge

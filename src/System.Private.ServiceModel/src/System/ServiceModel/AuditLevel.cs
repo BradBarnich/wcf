@@ -1,10 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.ComponentModel;
+
     public enum AuditLevel
     {
         None = 0,
@@ -13,7 +14,7 @@ namespace System.ServiceModel
         SuccessOrFailure = Success | Failure,
     }
 
-    internal static class AuditLevelHelper
+    static class AuditLevelHelper
     {
         public static bool IsDefined(AuditLevel auditLevel)
         {
@@ -31,5 +32,6 @@ namespace System.ServiceModel
                     typeof(AuditLevel)));
             }
         }
+
     }
 }

@@ -1,22 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Diagnostics;
-using System.Xml;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.ServiceModel;
+    using System.IO;
+    using System.ServiceModel.Diagnostics;
+    using System.Xml;
+
     /// <summary>
     /// Base class for non-SOAP messages
     /// </summary>
-    internal abstract class ContentOnlyMessage : Message
+    abstract class ContentOnlyMessage : Message
     {
-        private MessageHeaders _headers;
-        private MessageProperties _properties;
+        MessageHeaders headers;
+        MessageProperties properties;
 
         protected ContentOnlyMessage()
         {
-            _headers = new MessageHeaders(MessageVersion.None);
+            this.headers = new MessageHeaders(MessageVersion.None);
         }
 
         public override MessageHeaders Headers
@@ -25,10 +28,11 @@ namespace System.ServiceModel.Channels
             {
                 if (IsDisposed)
                 {
+#pragma warning suppress 56503 // [....], required by base class contract
                     throw TraceUtility.ThrowHelperError(CreateMessageDisposedException(), this);
                 }
 
-                return _headers;
+                return this.headers;
             }
         }
 
@@ -38,15 +42,16 @@ namespace System.ServiceModel.Channels
             {
                 if (IsDisposed)
                 {
+#pragma warning suppress 56503 // [....], required by base class contract
                     throw TraceUtility.ThrowHelperError(CreateMessageDisposedException(), this);
                 }
 
-                if (_properties == null)
+                if (this.properties == null)
                 {
-                    _properties = new MessageProperties();
+                    this.properties = new MessageProperties();
                 }
 
-                return _properties;
+                return this.properties;
             }
         }
 
@@ -54,7 +59,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _headers.MessageVersion;
+                return headers.MessageVersion;
             }
         }
 
@@ -64,34 +69,34 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class StringMessage : ContentOnlyMessage
+    class StringMessage : ContentOnlyMessage
     {
-        private string _data;
+        string data;
 
         public StringMessage(string data)
             : base()
         {
-            _data = data;
+            this.data = data;
         }
 
         public override bool IsEmpty
         {
             get
             {
-                return String.IsNullOrEmpty(_data);
+                return String.IsNullOrEmpty(this.data);
             }
         }
 
         protected override void OnWriteBodyContents(XmlDictionaryWriter writer)
         {
-            if (_data != null && _data.Length > 0)
+            if (data != null && data.Length > 0)
             {
-                writer.WriteElementString("BODY", _data);
+                writer.WriteElementString("BODY", data);
             }
         }
     }
 
-    internal class NullMessage : StringMessage
+    class NullMessage : StringMessage
     {
         public NullMessage()
             : base(string.Empty)

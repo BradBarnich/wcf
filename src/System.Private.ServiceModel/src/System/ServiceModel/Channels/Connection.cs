@@ -1,122 +1,176 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.IO;
-using System.Net;
-using System.Runtime;
-using System.Threading;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Diagnostics;
+    using System.IO;
+    using System.Net;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Threading;
+    using System.ServiceModel.Diagnostics.Application;
+
     // Low level abstraction for a socket/pipe
-    public interface IConnection
+    interface IConnection
     {
         byte[] AsyncReadBuffer { get; }
         int AsyncReadBufferSize { get; }
+        TraceEventType ExceptionEventType { get; set; }
+        IPEndPoint RemoteIPEndPoint { get; }
 
         void Abort();
         void Close(TimeSpan timeout, bool asyncAndLinger);
+        void Shutdown(TimeSpan timeout);
 
         AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout,
-            Action<object> callback, object state);
+            WaitCallback callback, object state);
         void EndWrite();
         void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout);
         void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout, BufferManager bufferManager);
 
         int Read(byte[] buffer, int offset, int size, TimeSpan timeout);
-        AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, Action<object> callback, object state);
+        AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, WaitCallback callback, object state);
         int EndRead();
+
+        // very ugly listener stuff
+        object DuplicateAndClose(int targetProcessId);
+        object GetCoreTransport();
+        IAsyncResult BeginValidate(Uri uri, AsyncCallback callback, object state);
+        bool EndValidate(IAsyncResult result);
     }
 
     // Low level abstraction for connecting a socket/pipe
-    public interface IConnectionInitiator
+    interface IConnectionInitiator
     {
         IConnection Connect(Uri uri, TimeSpan timeout);
-        Task<IConnection> ConnectAsync(Uri uri, TimeSpan timeout);
+        IAsyncResult BeginConnect(Uri uri, TimeSpan timeout, AsyncCallback callback, object state);
+        IConnection EndConnect(IAsyncResult result);
     }
 
-    internal abstract class DelegatingConnection : IConnection
+    // Low level abstraction for listening for sockets/pipes
+    interface IConnectionListener : IDisposable
     {
-        private IConnection _connection;
+        void Listen();
+        IAsyncResult BeginAccept(AsyncCallback callback, object state);
+        IConnection EndAccept(IAsyncResult result);
+    }
+
+    abstract class DelegatingConnection : IConnection
+    {
+        IConnection connection;
 
         protected DelegatingConnection(IConnection connection)
         {
-            _connection = connection;
+            this.connection = connection;
         }
 
         public virtual byte[] AsyncReadBuffer
         {
-            get { return _connection.AsyncReadBuffer; }
+            get { return connection.AsyncReadBuffer; }
         }
 
         public virtual int AsyncReadBufferSize
         {
-            get { return _connection.AsyncReadBufferSize; }
+            get { return connection.AsyncReadBufferSize; }
         }
 
+        public TraceEventType ExceptionEventType
+        {
+            get { return connection.ExceptionEventType; }
+            set { connection.ExceptionEventType = value; }
+        }
 
         protected IConnection Connection
         {
-            get { return _connection; }
+            get { return connection; }
+        }
+
+        public IPEndPoint RemoteIPEndPoint
+        {
+            get { return connection.RemoteIPEndPoint; }
         }
 
         public virtual void Abort()
         {
-            _connection.Abort();
+            connection.Abort();
         }
 
         public virtual void Close(TimeSpan timeout, bool asyncAndLinger)
         {
-            _connection.Close(timeout, asyncAndLinger);
+            connection.Close(timeout, asyncAndLinger);
+        }
+
+        public virtual void Shutdown(TimeSpan timeout)
+        {
+            connection.Shutdown(timeout);
+        }
+
+        public virtual object DuplicateAndClose(int targetProcessId)
+        {
+            return connection.DuplicateAndClose(targetProcessId);
+        }
+
+        public virtual object GetCoreTransport()
+        {
+            return connection.GetCoreTransport();
+        }
+
+        public virtual IAsyncResult BeginValidate(Uri uri, AsyncCallback callback, object state)
+        {
+            return connection.BeginValidate(uri, callback, state);
+        }
+
+        public virtual bool EndValidate(IAsyncResult result)
+        {
+            return connection.EndValidate(result);
         }
 
         public virtual AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout,
-            Action<object> callback, object state)
+            WaitCallback callback, object state)
         {
-            return _connection.BeginWrite(buffer, offset, size, immediate, timeout, callback, state);
+            return connection.BeginWrite(buffer, offset, size, immediate, timeout, callback, state);
         }
 
         public virtual void EndWrite()
         {
-            _connection.EndWrite();
+            connection.EndWrite();
         }
 
         public virtual void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout)
         {
-            _connection.Write(buffer, offset, size, immediate, timeout);
+            connection.Write(buffer, offset, size, immediate, timeout);
         }
 
         public virtual void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout, BufferManager bufferManager)
         {
-            _connection.Write(buffer, offset, size, immediate, timeout, bufferManager);
+            connection.Write(buffer, offset, size, immediate, timeout, bufferManager);
         }
 
         public virtual int Read(byte[] buffer, int offset, int size, TimeSpan timeout)
         {
-            return _connection.Read(buffer, offset, size, timeout);
+            return connection.Read(buffer, offset, size, timeout);
         }
 
         public virtual AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout,
-            Action<object> callback, object state)
+            WaitCallback callback, object state)
         {
-            return _connection.BeginRead(offset, size, timeout, callback, state);
+            return connection.BeginRead(offset, size, timeout, callback, state);
         }
 
         public virtual int EndRead()
         {
-            return _connection.EndRead();
+            return connection.EndRead();
         }
     }
 
-    internal class PreReadConnection : DelegatingConnection
+    class PreReadConnection : DelegatingConnection
     {
-        private int _asyncBytesRead;
-        private byte[] _preReadData;
-        private int _preReadOffset;
-        private int _preReadCount;
+        int asyncBytesRead;
+        byte[] preReadData;
+        int preReadOffset;
+        int preReadCount;
 
         public PreReadConnection(IConnection innerConnection, byte[] initialData)
             : this(innerConnection, initialData, 0, initialData.Length)
@@ -126,27 +180,27 @@ namespace System.ServiceModel.Channels
         public PreReadConnection(IConnection innerConnection, byte[] initialData, int initialOffset, int initialSize)
             : base(innerConnection)
         {
-            _preReadData = initialData;
-            _preReadOffset = initialOffset;
-            _preReadCount = initialSize;
+            this.preReadData = initialData;
+            this.preReadOffset = initialOffset;
+            this.preReadCount = initialSize;
         }
 
         public void AddPreReadData(byte[] initialData, int initialOffset, int initialSize)
         {
-            if (_preReadCount > 0)
+            if (this.preReadCount > 0)
             {
-                byte[] tempBuffer = _preReadData;
-                _preReadData = Fx.AllocateByteArray(initialSize + _preReadCount);
-                Buffer.BlockCopy(tempBuffer, _preReadOffset, _preReadData, 0, _preReadCount);
-                Buffer.BlockCopy(initialData, initialOffset, _preReadData, _preReadCount, initialSize);
-                _preReadOffset = 0;
-                _preReadCount += initialSize;
+                byte[] tempBuffer = this.preReadData;
+                this.preReadData = DiagnosticUtility.Utility.AllocateByteArray(initialSize + this.preReadCount);
+                Buffer.BlockCopy(tempBuffer, this.preReadOffset, this.preReadData, 0, this.preReadCount);
+                Buffer.BlockCopy(initialData, initialOffset, this.preReadData, this.preReadCount, initialSize);
+                this.preReadOffset = 0;
+                this.preReadCount += initialSize;
             }
             else
             {
-                _preReadData = initialData;
-                _preReadOffset = initialOffset;
-                _preReadCount = initialSize;
+                this.preReadData = initialData;
+                this.preReadOffset = initialOffset;
+                this.preReadCount = initialSize;
             }
         }
 
@@ -154,29 +208,29 @@ namespace System.ServiceModel.Channels
         {
             ConnectionUtilities.ValidateBufferBounds(buffer, offset, size);
 
-            if (_preReadCount > 0)
+            if (this.preReadCount > 0)
             {
-                int bytesToCopy = Math.Min(size, _preReadCount);
-                Buffer.BlockCopy(_preReadData, _preReadOffset, buffer, offset, bytesToCopy);
-                _preReadOffset += bytesToCopy;
-                _preReadCount -= bytesToCopy;
+                int bytesToCopy = Math.Min(size, this.preReadCount);
+                Buffer.BlockCopy(this.preReadData, this.preReadOffset, buffer, offset, bytesToCopy);
+                this.preReadOffset += bytesToCopy;
+                this.preReadCount -= bytesToCopy;
                 return bytesToCopy;
             }
 
             return base.Read(buffer, offset, size, timeout);
         }
 
-        public override AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, Action<object> callback, object state)
+        public override AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, WaitCallback callback, object state)
         {
             ConnectionUtilities.ValidateBufferBounds(AsyncReadBufferSize, offset, size);
 
-            if (_preReadCount > 0)
+            if (this.preReadCount > 0)
             {
-                int bytesToCopy = Math.Min(size, _preReadCount);
-                Buffer.BlockCopy(_preReadData, _preReadOffset, AsyncReadBuffer, offset, bytesToCopy);
-                _preReadOffset += bytesToCopy;
-                _preReadCount -= bytesToCopy;
-                _asyncBytesRead = bytesToCopy;
+                int bytesToCopy = Math.Min(size, this.preReadCount);
+                Buffer.BlockCopy(this.preReadData, this.preReadOffset, AsyncReadBuffer, offset, bytesToCopy);
+                this.preReadOffset += bytesToCopy;
+                this.preReadCount -= bytesToCopy;
+                this.asyncBytesRead = bytesToCopy;
                 return AsyncCompletionResult.Completed;
             }
 
@@ -185,10 +239,10 @@ namespace System.ServiceModel.Channels
 
         public override int EndRead()
         {
-            if (_asyncBytesRead > 0)
+            if (this.asyncBytesRead > 0)
             {
-                int retValue = _asyncBytesRead;
-                _asyncBytesRead = 0;
+                int retValue = this.asyncBytesRead;
+                this.asyncBytesRead = 0;
                 return retValue;
             }
 
@@ -196,28 +250,26 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class ConnectionStream : Stream
+    class ConnectionStream : Stream
     {
-        private TimeSpan _closeTimeout;
-        private int _readTimeout;
-        private int _writeTimeout;
-        private IConnection _connection;
-        private bool _immediate;
-        private static Action<object> s_onWriteComplete = new Action<object>(OnWriteComplete);
-        private static Action<object> s_onReadComplete = new Action<object>(OnReadComplete);
+        TimeSpan closeTimeout;
+        int readTimeout;
+        int writeTimeout;
+        IConnection connection;
+        bool immediate;
 
         public ConnectionStream(IConnection connection, IDefaultCommunicationTimeouts defaultTimeouts)
         {
-            _connection = connection;
-            _closeTimeout = defaultTimeouts.CloseTimeout;
+            this.connection = connection;
+            this.closeTimeout = defaultTimeouts.CloseTimeout;
             this.ReadTimeout = TimeoutHelper.ToMilliseconds(defaultTimeouts.ReceiveTimeout);
             this.WriteTimeout = TimeoutHelper.ToMilliseconds(defaultTimeouts.SendTimeout);
-            _immediate = true;
+            immediate = true;
         }
 
         public IConnection Connection
         {
-            get { return _connection; }
+            get { return connection; }
         }
 
         public override bool CanRead
@@ -242,51 +294,52 @@ namespace System.ServiceModel.Channels
 
         public TimeSpan CloseTimeout
         {
-            get { return _closeTimeout; }
-            set { _closeTimeout = value; }
+            get { return closeTimeout; }
+            set { this.closeTimeout = value; }
         }
 
         public override int ReadTimeout
         {
-            get { return _readTimeout; }
+            get { return this.readTimeout; }
             set
             {
                 if (value < -1)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.Format(SR.ValueMustBeInRange, -1, int.MaxValue)));
+                        SR.GetString(SR.ValueMustBeInRange, -1, int.MaxValue)));
                 }
 
-                _readTimeout = value;
+                this.readTimeout = value;
             }
         }
 
         public override int WriteTimeout
         {
-            get { return _writeTimeout; }
+            get { return this.writeTimeout; }
             set
             {
                 if (value < -1)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.Format(SR.ValueMustBeInRange, -1, int.MaxValue)));
+                        SR.GetString(SR.ValueMustBeInRange, -1, int.MaxValue)));
                 }
 
-                _writeTimeout = value;
+                this.writeTimeout = value;
             }
         }
 
         public bool Immediate
         {
-            get { return _immediate; }
-            set { _immediate = value; }
+            get { return immediate; }
+            set { immediate = value; }
         }
 
         public override long Length
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SPS_SeekNotSupported));
+#pragma warning suppress 56503 // [....], required by the Stream.Length contract
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
             }
         }
 
@@ -294,26 +347,29 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SPS_SeekNotSupported));
+#pragma warning suppress 56503 // [....], required by the Stream.Position contract
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
             }
             set
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SPS_SeekNotSupported));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
             }
         }
 
+        public TraceEventType ExceptionEventType
+        {
+            get { return connection.ExceptionEventType; }
+            set { connection.ExceptionEventType = value; }
+        }
 
         public void Abort()
         {
-            _connection.Abort();
+            connection.Abort();
         }
 
-        protected override void Dispose(bool disposing)
+        public override void Close()
         {
-            if (disposing)
-            {
-                _connection.Close(this.CloseTimeout, false);
-            }
+            connection.Close(this.CloseTimeout, false);
         }
 
         public override void Flush()
@@ -321,100 +377,29 @@ namespace System.ServiceModel.Channels
             // NOP
         }
 
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
-            // There's room for improvement here to avoid allocation in the synchronous completion case. We could store
-            // the tcs in ConnectionStream and only allocate if the result is Queued. We would need to return a cached
-            // completed Task in the success case to also avoid allocation. The race condition of completing async but 
-            // running the callback before the tcs has been allocated would need to be accounted for.
-            var tcs = new TaskCompletionSource<bool>(this);
-            var asyncCompletionResult = _connection.BeginWrite(buffer, offset, count, this.Immediate,
-                TimeoutHelper.FromMilliseconds(this.WriteTimeout), s_onWriteComplete, tcs);
-            if (asyncCompletionResult == AsyncCompletionResult.Completed)
-            {
-                _connection.EndWrite();
-                tcs.TrySetResult(true);
-            }
-
-            return tcs.Task;
+            return new WriteAsyncResult(this.connection, buffer, offset, count, this.Immediate, TimeoutHelper.FromMilliseconds(this.WriteTimeout), callback, state);
         }
 
-        private static void OnWriteComplete(object state)
+        public override void EndWrite(IAsyncResult asyncResult)
         {
-            if (state == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("state");
-            }
-
-            var tcs = state as TaskCompletionSource<bool>;
-            if (tcs == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("state", SR.SPS_InvalidAsyncResult);
-            }
-
-            var thisPtr = tcs.Task.AsyncState as ConnectionStream;
-            if (thisPtr == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("state", SR.SPS_InvalidAsyncResult);
-            }
-
-            try
-            {
-                thisPtr._connection.EndWrite();
-                tcs.TrySetResult(true);
-            }
-            catch (Exception e)
-            {
-                tcs.TrySetException(e);
-            }
+            WriteAsyncResult.End(asyncResult);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            _connection.Write(buffer, offset, count, this.Immediate, TimeoutHelper.FromMilliseconds(this.WriteTimeout));
+            connection.Write(buffer, offset, count, this.Immediate, TimeoutHelper.FromMilliseconds(this.WriteTimeout));
         }
 
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
-            var tcs = new TaskCompletionSource<int>(this);
-            AsyncCompletionResult asyncCompletionResult = _connection.BeginRead(0, Math.Min(count, _connection.AsyncReadBufferSize),
-                TimeoutHelper.FromMilliseconds(this.ReadTimeout), s_onReadComplete, tcs);
-
-            if (asyncCompletionResult == AsyncCompletionResult.Completed)
-            {
-                tcs.TrySetResult(_connection.EndRead());
-            }
-
-            return tcs.Task;
+            return new ReadAsyncResult(connection, buffer, offset, count, TimeoutHelper.FromMilliseconds(this.ReadTimeout), callback, state);
         }
 
-        private static void OnReadComplete(object state)
+        public override int EndRead(IAsyncResult asyncResult)
         {
-            if (state == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("state");
-            }
-
-            var tcs = state as TaskCompletionSource<int>;
-            if (tcs == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("state", SR.SPS_InvalidAsyncResult);
-            }
-
-            var thisPtr = tcs.Task.AsyncState as ConnectionStream;
-            if (thisPtr == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("state", SR.SPS_InvalidAsyncResult);
-            }
-
-            try
-            {
-                tcs.TrySetResult(thisPtr._connection.EndRead());
-            }
-            catch (Exception e)
-            {
-                tcs.TrySetException(e);
-            }
+            return ReadAsyncResult.End(asyncResult);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -424,73 +409,193 @@ namespace System.ServiceModel.Channels
 
         protected int Read(byte[] buffer, int offset, int count, TimeSpan timeout)
         {
-            return _connection.Read(buffer, offset, count, timeout);
+            return connection.Read(buffer, offset, count, timeout);
         }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SPS_SeekNotSupported));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
         }
 
 
         public override void SetLength(long value)
         {
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SPS_SeekNotSupported));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SeekNotSupported)));
+        }
+
+        public void Shutdown(TimeSpan timeout)
+        {
+            connection.Shutdown(timeout);
+        }
+
+        public IAsyncResult BeginValidate(Uri uri, AsyncCallback callback, object state)
+        {
+            return this.connection.BeginValidate(uri, callback, state);
+        }
+
+        public bool EndValidate(IAsyncResult result)
+        {
+            return this.connection.EndValidate(result);
+        }
+
+        abstract class IOAsyncResult : AsyncResult
+        {
+            static WaitCallback onAsyncIOComplete;
+            IConnection connection;
+
+            protected IOAsyncResult(IConnection connection, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                this.connection = connection;
+            }
+
+            protected WaitCallback GetWaitCompletion()
+            {
+                if (onAsyncIOComplete == null)
+                {
+                    onAsyncIOComplete = new WaitCallback(OnAsyncIOComplete);
+                }
+
+                return onAsyncIOComplete;
+            }
+
+            protected abstract void HandleIO(IConnection connection);
+
+            static void OnAsyncIOComplete(object state)
+            {
+                IOAsyncResult thisPtr = (IOAsyncResult)state;
+
+                Exception completionException = null;
+                try
+                {
+                    thisPtr.HandleIO(thisPtr.connection);
+                }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+
+                    completionException = e;
+                }
+                thisPtr.Complete(false, completionException);
+            }
+        }
+
+        sealed class ReadAsyncResult : IOAsyncResult
+        {
+            int bytesRead;
+            byte[] buffer;
+            int offset;
+
+            public ReadAsyncResult(IConnection connection, byte[] buffer, int offset, int count, TimeSpan timeout,
+                AsyncCallback callback, object state)
+                : base(connection, callback, state)
+            {
+                this.buffer = buffer;
+                this.offset = offset;
+
+                AsyncCompletionResult readResult = connection.BeginRead(0, Math.Min(count, connection.AsyncReadBufferSize),
+                    timeout, GetWaitCompletion(), this);
+                if (readResult == AsyncCompletionResult.Completed)
+                {
+                    HandleIO(connection);
+                    base.Complete(true);
+                }
+            }
+
+            protected override void HandleIO(IConnection connection)
+            {
+                bytesRead = connection.EndRead();
+                Buffer.BlockCopy(connection.AsyncReadBuffer, 0, buffer, offset, bytesRead);
+            }
+
+            public static int End(IAsyncResult result)
+            {
+                ReadAsyncResult thisPtr = AsyncResult.End<ReadAsyncResult>(result);
+                return thisPtr.bytesRead;
+            }
+        }
+
+        sealed class WriteAsyncResult : IOAsyncResult
+        {
+            public WriteAsyncResult(IConnection connection, byte[] buffer, int offset, int count, bool immediate, TimeSpan timeout, AsyncCallback callback, object state)
+                : base(connection, callback, state)
+            {
+                AsyncCompletionResult writeResult = connection.BeginWrite(buffer, offset, count, immediate, timeout, GetWaitCompletion(), this);
+                if (writeResult == AsyncCompletionResult.Completed)
+                {
+                    HandleIO(connection);
+                    base.Complete(true);
+                }
+            }
+
+            protected override void HandleIO(IConnection connection)
+            {
+                connection.EndWrite();
+            }
+
+            public static void End(IAsyncResult result)
+            {
+                AsyncResult.End<WriteAsyncResult>(result);
+            }
         }
     }
 
-    internal class StreamConnection : IConnection
+    class StreamConnection : IConnection
     {
-        private byte[] _asyncReadBuffer;
-        private int _bytesRead;
-        private ConnectionStream _innerStream;
-        private Action<Task<int>, object> _onRead;
-        private Action<Task, object> _onWrite;
-        private Task<int> _readResult;
-        private Task _writeResult;
-        private Action<object> _readCallback;
-        private Action<object> _writeCallback;
-        private Stream _stream;
+        byte[] asyncReadBuffer;
+        int bytesRead;
+        ConnectionStream innerStream;
+        AsyncCallback onRead;
+        AsyncCallback onWrite;
+        IAsyncResult readResult;
+        IAsyncResult writeResult;
+        WaitCallback readCallback;
+        WaitCallback writeCallback;
+        Stream stream;
 
         public StreamConnection(Stream stream, ConnectionStream innerStream)
         {
-            Contract.Assert(stream != null, "StreamConnection: Stream cannot be null.");
-            Contract.Assert(innerStream != null, "StreamConnection: Inner stream cannot be null.");
+            Fx.Assert(stream != null, "StreamConnection: Stream cannot be null.");
+            Fx.Assert(innerStream != null, "StreamConnection: Inner stream cannot be null.");
 
-            _stream = stream;
-            _innerStream = innerStream;
+            this.stream = stream;
+            this.innerStream = innerStream;
 
-            _onRead = new Action<Task<int>, object>(OnRead);
-            _onWrite = new Action<Task, object>(OnWrite);
+            onRead = Fx.ThunkCallback(new AsyncCallback(OnRead));
+            onWrite = Fx.ThunkCallback(new AsyncCallback(OnWrite));
         }
 
         public byte[] AsyncReadBuffer
         {
             get
             {
-                if (_asyncReadBuffer == null)
+                if (this.asyncReadBuffer == null)
                 {
                     lock (ThisLock)
                     {
-                        if (_asyncReadBuffer == null)
+                        if (this.asyncReadBuffer == null)
                         {
-                            _asyncReadBuffer = Fx.AllocateByteArray(_innerStream.Connection.AsyncReadBufferSize);
+                            this.asyncReadBuffer = DiagnosticUtility.Utility.AllocateByteArray(innerStream.Connection.AsyncReadBufferSize);
                         }
                     }
                 }
 
-                return _asyncReadBuffer;
+                return this.asyncReadBuffer;
             }
         }
 
         public int AsyncReadBufferSize
         {
-            get { return _innerStream.Connection.AsyncReadBufferSize; }
+            get { return innerStream.Connection.AsyncReadBufferSize; }
         }
 
         public Stream Stream
         {
-            get { return _stream; }
+            get { return this.stream; }
         }
 
         public object ThisLock
@@ -498,21 +603,27 @@ namespace System.ServiceModel.Channels
             get { return this; }
         }
 
+        public TraceEventType ExceptionEventType
+        {
+            get { return innerStream.ExceptionEventType; }
+            set { innerStream.ExceptionEventType = value; }
+        }
 
         public IPEndPoint RemoteIPEndPoint
         {
             get
             {
-                throw ExceptionHelper.PlatformNotSupported();
+#pragma warning suppress 56503 // Not publicly accessible and this should never be called.
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
             }
         }
 
         public void Abort()
         {
-            _innerStream.Abort();
+            innerStream.Abort();
         }
 
-        private Exception ConvertIOException(IOException ioException)
+        Exception ConvertIOException(IOException ioException)
         {
             if (ioException.InnerException is TimeoutException)
             {
@@ -528,16 +639,16 @@ namespace System.ServiceModel.Channels
             }
             else
             {
-                return new CommunicationException(SR.StreamError, ioException);
+                return new CommunicationException(SR.GetString(SR.StreamError), ioException);
             }
         }
 
         public void Close(TimeSpan timeout, bool asyncAndLinger)
         {
-            _innerStream.CloseTimeout = timeout;
+            innerStream.CloseTimeout = timeout;
             try
             {
-                _stream.Dispose();
+                stream.Close();
             }
             catch (IOException ioException)
             {
@@ -545,29 +656,61 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        public AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout,
-            Action<object> callback, object state)
+        public void Shutdown(TimeSpan timeout)
         {
-            Contract.Requires(callback != null, "Cannot call BeginWrite without a callback");
-            Contract.Requires(_writeCallback == null, "BeginWrite cannot be called twice");
+            innerStream.Shutdown(timeout);
+        }
 
-            _writeCallback = callback;
+        public object DuplicateAndClose(int targetProcessId)
+        {
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
+        }
+
+        public virtual object GetCoreTransport()
+        {
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
+        }
+
+        public IAsyncResult BeginValidate(Uri uri, AsyncCallback callback, object state)
+        {
+            return this.innerStream.BeginValidate(uri, callback, state);
+        }
+
+        public bool EndValidate(IAsyncResult result)
+        {
+            return this.innerStream.EndValidate(result);
+        }
+
+        public AsyncCompletionResult BeginWrite(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout,
+            WaitCallback callback, object state)
+        {
+            if (callback == null)
+            {
+                Fx.AssertAndThrow("Cannot call BeginWrite without a callback");
+            }
+
+            if (this.writeCallback != null)
+            {
+                Fx.AssertAndThrow("BeginWrite cannot be called twice");
+            }
+
+            this.writeCallback = callback;
             bool throwing = true;
 
             try
             {
-                _innerStream.Immediate = immediate;
+                innerStream.Immediate = immediate;
                 SetWriteTimeout(timeout);
-                Task localTask = _stream.WriteAsync(buffer, offset, size);
+                IAsyncResult localResult = stream.BeginWrite(buffer, offset, size, this.onWrite, state);
 
-                throwing = false;
-                if (!localTask.IsCompleted)
+                if (!localResult.CompletedSynchronously)
                 {
-                    localTask.ContinueWith(_onWrite, state);
+                    throwing = false;
                     return AsyncCompletionResult.Queued;
                 }
 
-                localTask.GetAwaiter().GetResult();
+                throwing = false;
+                stream.EndWrite(localResult);
             }
             catch (IOException ioException)
             {
@@ -577,7 +720,7 @@ namespace System.ServiceModel.Channels
             {
                 if (throwing)
                 {
-                    _writeCallback = null;
+                    this.writeCallback = null;
                 }
             }
 
@@ -586,15 +729,15 @@ namespace System.ServiceModel.Channels
 
         public void EndWrite()
         {
-            Task localResult = _writeResult;
-            _writeResult = null;
-            _writeCallback = null;
+            IAsyncResult localResult = this.writeResult;
+            this.writeResult = null;
+            this.writeCallback = null;
 
             if (localResult != null)
             {
                 try
                 {
-                    localResult.GetAwaiter().GetResult();
+                    stream.EndWrite(localResult);
                 }
                 catch (IOException ioException)
                 {
@@ -603,20 +746,29 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        private void OnWrite(Task antecedant, Object state)
+        void OnWrite(IAsyncResult result)
         {
-            Contract.Requires(_writeResult == null, "StreamConnection: OnWrite called twice.");
-            _writeResult = antecedant;
-            this._writeCallback(state);
+            if (result.CompletedSynchronously)
+            {
+                return;
+            }
+
+            if (this.writeResult != null)
+            {
+                throw Fx.AssertAndThrow("StreamConnection: OnWrite called twice.");
+            }
+
+            this.writeResult = result;
+            this.writeCallback(result.AsyncState);
         }
 
         public void Write(byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout)
         {
             try
             {
-                _innerStream.Immediate = immediate;
+                innerStream.Immediate = immediate;
                 SetWriteTimeout(timeout);
-                _stream.Write(buffer, offset, size);
+                stream.Write(buffer, offset, size);
             }
             catch (IOException ioException)
             {
@@ -630,24 +782,24 @@ namespace System.ServiceModel.Channels
             bufferManager.ReturnBuffer(buffer);
         }
 
-        private void SetReadTimeout(TimeSpan timeout)
+        void SetReadTimeout(TimeSpan timeout)
         {
             int timeoutInMilliseconds = TimeoutHelper.ToMilliseconds(timeout);
-            if (_stream.CanTimeout)
+            if (stream.CanTimeout)
             {
-                _stream.ReadTimeout = timeoutInMilliseconds;
+                stream.ReadTimeout = timeoutInMilliseconds;
             }
-            _innerStream.ReadTimeout = timeoutInMilliseconds;
+            innerStream.ReadTimeout = timeoutInMilliseconds;
         }
 
-        private void SetWriteTimeout(TimeSpan timeout)
+        void SetWriteTimeout(TimeSpan timeout)
         {
             int timeoutInMilliseconds = TimeoutHelper.ToMilliseconds(timeout);
-            if (_stream.CanTimeout)
+            if (stream.CanTimeout)
             {
-                _stream.WriteTimeout = timeoutInMilliseconds;
+                stream.WriteTimeout = timeoutInMilliseconds;
             }
-            _innerStream.WriteTimeout = timeoutInMilliseconds;
+            innerStream.WriteTimeout = timeoutInMilliseconds;
         }
 
         public int Read(byte[] buffer, int offset, int size, TimeSpan timeout)
@@ -655,7 +807,7 @@ namespace System.ServiceModel.Channels
             try
             {
                 SetReadTimeout(timeout);
-                return _stream.Read(buffer, offset, size);
+                return stream.Read(buffer, offset, size);
             }
             catch (IOException ioException)
             {
@@ -663,24 +815,22 @@ namespace System.ServiceModel.Channels
             }
         }
 
-        public AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, Action<object> callback, object state)
+        public AsyncCompletionResult BeginRead(int offset, int size, TimeSpan timeout, WaitCallback callback, object state)
         {
             ConnectionUtilities.ValidateBufferBounds(AsyncReadBufferSize, offset, size);
-            _readCallback = callback;
+            readCallback = callback;
 
             try
             {
                 SetReadTimeout(timeout);
-                Task<int> localTask = _stream.ReadAsync(AsyncReadBuffer, offset, size);
-                //IAsyncResult localResult = stream.BeginRead(AsyncReadBuffer, offset, size, onRead, state);
+                IAsyncResult localResult = stream.BeginRead(AsyncReadBuffer, offset, size, onRead, state);
 
-                if (!localTask.IsCompleted)
+                if (!localResult.CompletedSynchronously)
                 {
-                    localTask.ContinueWith(_onRead, state);
                     return AsyncCompletionResult.Queued;
                 }
 
-                _bytesRead = localTask.GetAwaiter().GetResult();
+                bytesRead = stream.EndRead(localResult);
             }
             catch (IOException ioException)
             {
@@ -692,14 +842,14 @@ namespace System.ServiceModel.Channels
 
         public int EndRead()
         {
-            Task<int> localResult = _readResult;
-            _readResult = null;
+            IAsyncResult localResult = this.readResult;
+            this.readResult = null;
 
             if (localResult != null)
             {
                 try
                 {
-                    _bytesRead = localResult.GetAwaiter().GetResult();
+                    bytesRead = stream.EndRead(localResult);
                 }
                 catch (IOException ioException)
                 {
@@ -707,24 +857,33 @@ namespace System.ServiceModel.Channels
                 }
             }
 
-            return _bytesRead;
+            return bytesRead;
         }
 
-        private void OnRead(Task<int> antecedant, object state)
+        void OnRead(IAsyncResult result)
         {
-            Contract.Requires(_readResult == null, "StreamConnection: OnRead called twice.");
-            _readResult = antecedant;
-            this._readCallback(state);
-        }
-    }
+            if (result.CompletedSynchronously)
+            {
+                return;
+            }
 
-    internal class ConnectionMessageProperty
+            if (this.readResult != null)
+            {
+                throw Fx.AssertAndThrow("StreamConnection: OnRead called twice.");
+            }
+
+            this.readResult = result;
+            readCallback(result.AsyncState);
+        }
+   }
+
+    class ConnectionMessageProperty
     {
-        private IConnection _connection;
+        IConnection connection;
 
         public ConnectionMessageProperty(IConnection connection)
         {
-            _connection = connection;
+            this.connection = connection;
         }
 
         public static string Name
@@ -734,11 +893,11 @@ namespace System.ServiceModel.Channels
 
         public IConnection Connection
         {
-            get { return _connection; }
+            get { return this.connection; }
         }
     }
 
-    internal static class ConnectionUtilities
+    static class ConnectionUtilities
     {
         internal static void CloseNoThrow(IConnection connection, TimeSpan timeout)
         {
@@ -748,11 +907,17 @@ namespace System.ServiceModel.Channels
                 connection.Close(timeout, false);
                 success = true;
             }
-            catch (TimeoutException)
+            catch (TimeoutException e)
             {
+                if (TD.CloseTimeoutIsEnabled())
+                {
+                    TD.CloseTimeout(e.Message);
+                }
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Information);
             }
-            catch (CommunicationException)
+            catch (CommunicationException e)
             {
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Information);
             }
             finally
             {
@@ -782,87 +947,28 @@ namespace System.ServiceModel.Channels
         {
             if (offset < 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("offset", offset, SR.ValueMustBeNonNegative));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("offset", offset, SR.GetString(
+                    SR.ValueMustBeNonNegative)));
             }
 
             if (offset > bufferSize)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("offset", offset, SR.Format(SR.OffsetExceedsBufferSize, bufferSize)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("offset", offset, SR.GetString(
+                    SR.OffsetExceedsBufferSize, bufferSize)));
             }
 
             if (size <= 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.ValueMustBePositive));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.GetString(
+                    SR.ValueMustBePositive)));
             }
 
             int remainingBufferSpace = bufferSize - offset;
             if (size > remainingBufferSpace)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.Format(
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.GetString(
                     SR.SizeExceedsRemainingBufferSpace, remainingBufferSpace)));
             }
-        }
-    }
-}
-
-namespace System.ServiceModel.Channels.ConnectionHelpers
-{
-    internal static class IConnectionExtensions
-    {
-        // This method is a convenience method for the open/close code paths and shouldn't be used on message send/receive.
-        internal static async Task WriteAsync(this IConnection connection, byte[] buffer, int offset, int size, bool immediate, TimeSpan timeout)
-        {
-            var tcs = new TaskCompletionSource<bool>();
-            var result = connection.BeginWrite(buffer, offset, size, immediate, timeout, OnIoComplete, tcs);
-            if (result == AsyncCompletionResult.Completed)
-            {
-                tcs.SetResult(true);
-            }
-
-            await tcs.Task;
-            connection.EndWrite();
-        }
-
-        // This method is a convenience method for the open/close code paths and shouldn't be used on message send/receive.
-        internal static async Task<int> ReadAsync(this IConnection connection, int offset, int size, TimeSpan timeout)
-        {
-            // read ACK
-            var tcs = new TaskCompletionSource<bool>();
-            //ackBuffer
-
-            var result = connection.BeginRead(offset, size, timeout, OnIoComplete, tcs);
-            if (result == AsyncCompletionResult.Completed)
-            {
-                tcs.SetResult(true);
-            }
-
-            await tcs.Task;
-            int ackBytesRead = connection.EndRead();
-            return ackBytesRead;
-        }
-
-        // This method is a convenience method for the open/close code paths and shouldn't be used on message send/receive.
-        internal static async Task<int> ReadAsync(this IConnection connection, byte[] buffer, int offset, int size, TimeSpan timeout)
-        {
-            int ackBytesRead = await connection.ReadAsync(0, size, timeout);
-            Buffer.BlockCopy(connection.AsyncReadBuffer, 0, buffer, offset, ackBytesRead);
-            return ackBytesRead;
-        }
-
-        private static void OnIoComplete(object state)
-        {
-            if (state == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("state");
-            }
-
-            var tcs = state as TaskCompletionSource<bool>;
-            if (tcs == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("state", SR.SPS_InvalidAsyncResult);
-            }
-
-            tcs.TrySetResult(true);
         }
     }
 }

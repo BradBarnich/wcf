@@ -1,13 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
-using System.Net.Http.Headers;
+using System;
+
+using System.ServiceModel;
+using System.Xml;
+using System.Collections.Generic;
+using System.IdentityModel.Selectors;
+using System.Globalization;
+using System.Net;
+
 
 namespace System.ServiceModel.Security.Tokens
 {
-    public sealed class InitiatorServiceModelSecurityTokenRequirement : ServiceModelSecurityTokenRequirement
+    public sealed class InitiatorServiceModelSecurityTokenRequirement : ServiceModelSecurityTokenRequirement 
     {
-        private HttpHeaders _httpHeaders;
+        WebHeaderCollection webHeaderCollection;
 
         public InitiatorServiceModelSecurityTokenRequirement()
             : base()
@@ -63,15 +72,15 @@ namespace System.ServiceModel.Security.Tokens
             }
         }
 
-        internal HttpHeaders HttpHeaders
+        internal WebHeaderCollection WebHeaders
         {
             get
             {
-                return _httpHeaders;
+                return this.webHeaderCollection;
             }
             set
             {
-                _httpHeaders = value;
+                this.webHeaderCollection = value;
             }
         }
 

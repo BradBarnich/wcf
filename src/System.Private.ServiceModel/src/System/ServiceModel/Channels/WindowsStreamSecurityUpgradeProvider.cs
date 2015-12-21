@@ -1,69 +1,73 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-using System.Diagnostics.Contracts;
-using System.IdentityModel.Policy;
-using System.IdentityModel.Selectors;
-using System.IdentityModel.Tokens;
-using System.IO;
-using System.Net;
-using System.Net.Security;
-using System.Runtime;
-using System.Security.Authentication;
-using System.Security.Principal;
-using System.ServiceModel;
-using System.ServiceModel.Description;
-using System.ServiceModel.Diagnostics.Application;
-using System.ServiceModel.Security;
-using System.ServiceModel.Security.Tokens;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.ObjectModel;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Selectors;
+    using System.IdentityModel.Tokens;
+    using System.IO;
+    using System.Net;
+    using System.Net.Security;
+    using System.Runtime;
+    using System.Security.Authentication;
+    using System.Security.Principal;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.ServiceModel.Security;
+
     class WindowsStreamSecurityUpgradeProvider : StreamSecurityUpgradeProvider
     {
-        bool _extractGroupsForWindowsAccounts;
-        EndpointIdentity _identity;
-        IdentityVerifier _identityVerifier;
-        ProtectionLevel _protectionLevel;
-        SecurityTokenManager _securityTokenManager;
-        NetworkCredential _serverCredential;
-        string _scheme;
-        bool _isClient;
-        Uri _listenUri;
+        bool extractGroupsForWindowsAccounts;
+        EndpointIdentity identity;
+        IdentityVerifier identityVerifier;
+        ProtectionLevel protectionLevel;
+        SecurityTokenManager securityTokenManager;
+        NetworkCredential serverCredential;
+        string scheme;
+        bool isClient;
+        Uri listenUri;
 
         public WindowsStreamSecurityUpgradeProvider(WindowsStreamSecurityBindingElement bindingElement,
             BindingContext context, bool isClient)
             : base(context.Binding)
         {
-            Contract.Assert(isClient, ".NET Core and .NET Native does not support server side");
-
-            _extractGroupsForWindowsAccounts = TransportDefaults.ExtractGroupsForWindowsAccounts;
-            _protectionLevel = bindingElement.ProtectionLevel;
-            _scheme = context.Binding.Scheme;
-            _isClient = isClient;
-            _listenUri = TransportSecurityHelpers.GetListenUri(context.ListenUriBaseAddress, context.ListenUriRelativeAddress);
+            this.extractGroupsForWindowsAccounts = TransportDefaults.ExtractGroupsForWindowsAccounts;
+            this.protectionLevel = bindingElement.ProtectionLevel;
+            this.scheme = context.Binding.Scheme;
+            this.isClient = isClient;
+            this.listenUri = TransportSecurityHelpers.GetListenUri(context.ListenUriBaseAddress, context.ListenUriRelativeAddress);
 
             SecurityCredentialsManager credentialProvider = context.BindingParameters.Find<SecurityCredentialsManager>();
             if (credentialProvider == null)
             {
-                credentialProvider = ClientCredentials.CreateDefaultCredentials();
+                if (isClient)
+                {
+                    credentialProvider = ClientCredentials.CreateDefaultCredentials();
+                }
+                else
+                {
+                    credentialProvider = ServiceCredentials.CreateDefaultCredentials();
+                }
             }
 
-            _securityTokenManager = credentialProvider.CreateSecurityTokenManager();
+
+            this.securityTokenManager = credentialProvider.CreateSecurityTokenManager();
         }
 
         public string Scheme
         {
-            get { return _scheme; }
+            get { return this.scheme; }
         }
 
         internal bool ExtractGroupsForWindowsAccounts
         {
             get
             {
-                return _extractGroupsForWindowsAccounts;
+                return this.extractGroupsForWindowsAccounts;
             }
         }
 
@@ -72,20 +76,20 @@ namespace System.ServiceModel.Channels
             get
             {
                 // If the server credential is null, then we have not been opened yet and have no identity to expose.
-                if (_serverCredential != null)
+                if (this.serverCredential != null)
                 {
-                    if (_identity == null)
+                    if (this.identity == null)
                     {
                         lock (ThisLock)
                         {
-                            if (_identity == null)
+                            if (this.identity == null)
                             {
-                                _identity = SecurityUtils.CreateWindowsIdentity(_serverCredential);
+                                this.identity = SecurityUtils.CreateWindowsIdentity(this.serverCredential);
                             }
                         }
                     }
                 }
-                return _identity;
+                return this.identity;
             }
         }
 
@@ -93,7 +97,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _identityVerifier;
+                return this.identityVerifier;
             }
         }
 
@@ -101,7 +105,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _protectionLevel;
+                return protectionLevel;
             }
         }
 
@@ -109,7 +113,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _serverCredential;
+                return this.serverCredential;
             }
         }
 
@@ -145,12 +149,12 @@ namespace System.ServiceModel.Channels
 
         protected override void OnOpen(TimeSpan timeout)
         {
-            if (!_isClient)
+            if (!isClient)
             {
-                SecurityTokenRequirement sspiTokenRequirement = TransportSecurityHelpers.CreateSspiTokenRequirement(Scheme, _listenUri);
-                _serverCredential =
-                    TransportSecurityHelpers.GetSspiCredential(_securityTokenManager, sspiTokenRequirement, timeout,
-                    out _extractGroupsForWindowsAccounts);
+                SecurityTokenRequirement sspiTokenRequirement = TransportSecurityHelpers.CreateSspiTokenRequirement(this.Scheme, this.listenUri);
+                this.serverCredential =
+                    TransportSecurityHelpers.GetSspiCredential(this.securityTokenManager, sspiTokenRequirement, timeout,
+                    out this.extractGroupsForWindowsAccounts);
             }
         }
 
@@ -169,34 +173,31 @@ namespace System.ServiceModel.Channels
         {
             base.OnOpened();
 
-            if (_identityVerifier == null)
+            if (this.identityVerifier == null)
             {
-                _identityVerifier = IdentityVerifier.CreateDefault();
+                this.identityVerifier = IdentityVerifier.CreateDefault();
             }
 
-            if (_serverCredential == null)
+            if (this.serverCredential == null)
             {
-                _serverCredential = CredentialCache.DefaultNetworkCredentials;
+                this.serverCredential = CredentialCache.DefaultNetworkCredentials;
             }
         }
 
-        private class WindowsStreamSecurityUpgradeAcceptor : StreamSecurityUpgradeAcceptorBase
+        class WindowsStreamSecurityUpgradeAcceptor : StreamSecurityUpgradeAcceptorBase
         {
-            private WindowsStreamSecurityUpgradeProvider _parent;
-            private SecurityMessageProperty _clientSecurity;
+            WindowsStreamSecurityUpgradeProvider parent;
+            SecurityMessageProperty clientSecurity;
 
             public WindowsStreamSecurityUpgradeAcceptor(WindowsStreamSecurityUpgradeProvider parent)
                 : base(FramingUpgradeString.Negotiate)
             {
-                _parent = parent;
-                _clientSecurity = new SecurityMessageProperty();
+                this.parent = parent;
+                this.clientSecurity = new SecurityMessageProperty();
             }
 
             protected override Stream OnAcceptUpgrade(Stream stream, out SecurityMessageProperty remoteSecurity)
             {
-#if FEATURE_NETNATIVE // NegotiateStream
-                throw ExceptionHelper.PlatformNotSupported("NegotiateStream is not supported on UWP yet"); 
-#else 
                 // wrap stream
                 NegotiateStream negotiateStream = new NegotiateStream(stream);
 
@@ -205,10 +206,10 @@ namespace System.ServiceModel.Channels
                 {
                     if (TD.WindowsStreamSecurityOnAcceptUpgradeIsEnabled())
                     {
-                        TD.WindowsStreamSecurityOnAcceptUpgrade(EventTraceActivity);
+                        TD.WindowsStreamSecurityOnAcceptUpgrade(this.EventTraceActivity);
                     }
 
-                    negotiateStream.AuthenticateAsServer(_parent.ServerCredential, _parent.ProtectionLevel,
+                    negotiateStream.AuthenticateAsServer(parent.ServerCredential, parent.ProtectionLevel,
                         TokenImpersonationLevel.Identification);
                 }
                 catch (AuthenticationException exception)
@@ -219,26 +220,26 @@ namespace System.ServiceModel.Channels
                 catch (IOException ioException)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(
-                        SR.Format(SR.NegotiationFailedIO, ioException.Message), ioException));
+                        SR.GetString(SR.NegotiationFailedIO, ioException.Message), ioException));
                 }
 
-                remoteSecurity = CreateClientSecurity(negotiateStream, _parent.ExtractGroupsForWindowsAccounts);
+                remoteSecurity = CreateClientSecurity(negotiateStream, parent.ExtractGroupsForWindowsAccounts);
                 return negotiateStream;
-#endif // FEATURE_NETNATIVE
             }
 
             protected override IAsyncResult OnBeginAcceptUpgrade(Stream stream, AsyncCallback callback, object state)
             {
-                throw ExceptionHelper.PlatformNotSupported(); 
+                AcceptUpgradeAsyncResult result = new AcceptUpgradeAsyncResult(this, callback, state);
+                result.Begin(stream);
+                return result;
             }
 
             protected override Stream OnEndAcceptUpgrade(IAsyncResult result,
                 out SecurityMessageProperty remoteSecurity)
             {
-                throw ExceptionHelper.PlatformNotSupported();
+                return AcceptUpgradeAsyncResult.End(result, out remoteSecurity);
             }
 
-#if !FEATURE_NETNATIVE // NegotiateStream
             SecurityMessageProperty CreateClientSecurity(NegotiateStream negotiateStream,
                 bool extractGroupsForWindowsAccounts)
             {
@@ -252,75 +253,145 @@ namespace System.ServiceModel.Channels
                 // null is returned.
                 SecurityToken token = new WindowsSecurityToken(remoteIdentity, SecurityUniqueId.Create().Value, remoteIdentity.AuthenticationType);
                 ReadOnlyCollection<IAuthorizationPolicy> authorizationPolicies = authenticator.ValidateToken(token);
-                _clientSecurity = new SecurityMessageProperty();
-                _clientSecurity.TransportToken = new SecurityTokenSpecification(token, authorizationPolicies);
-                _clientSecurity.ServiceSecurityContext = new ServiceSecurityContext(authorizationPolicies);
-                return _clientSecurity;
+                this.clientSecurity = new SecurityMessageProperty();
+                this.clientSecurity.TransportToken = new SecurityTokenSpecification(token, authorizationPolicies);
+                this.clientSecurity.ServiceSecurityContext = new ServiceSecurityContext(authorizationPolicies);
+                return this.clientSecurity;
             }
-#endif // !FEATURE_NETNATIVE
 
             public override SecurityMessageProperty GetRemoteSecurity()
             {
-                if (_clientSecurity.TransportToken != null)
+                if (this.clientSecurity.TransportToken != null)
                 {
-                    return _clientSecurity;
+                    return this.clientSecurity;
                 }
                 return base.GetRemoteSecurity();
+            }
+
+            class AcceptUpgradeAsyncResult : StreamSecurityUpgradeAcceptorAsyncResult
+            {
+                WindowsStreamSecurityUpgradeAcceptor acceptor;
+                NegotiateStream negotiateStream;
+
+                public AcceptUpgradeAsyncResult(WindowsStreamSecurityUpgradeAcceptor acceptor, AsyncCallback callback,
+                    object state)
+                    : base(callback, state)
+                {
+                    this.acceptor = acceptor;
+                }
+
+                protected override IAsyncResult OnBegin(Stream stream, AsyncCallback callback)
+                {
+                    this.negotiateStream = new NegotiateStream(stream);
+                    return this.negotiateStream.BeginAuthenticateAsServer(this.acceptor.parent.ServerCredential,
+                        this.acceptor.parent.ProtectionLevel, TokenImpersonationLevel.Identification, callback, this);
+                }
+
+                protected override Stream OnCompleteAuthenticateAsServer(IAsyncResult result)
+                {
+                    this.negotiateStream.EndAuthenticateAsServer(result);
+                    return this.negotiateStream;
+                }
+
+                protected override SecurityMessageProperty ValidateCreateSecurity()
+                {
+                    return this.acceptor.CreateClientSecurity(this.negotiateStream, this.acceptor.parent.ExtractGroupsForWindowsAccounts);
+                }
             }
         }
 
         class WindowsStreamSecurityUpgradeInitiator : StreamSecurityUpgradeInitiatorBase
         {
-            private WindowsStreamSecurityUpgradeProvider _parent;
-            private IdentityVerifier _identityVerifier;
-            private NetworkCredential _credential;
-            private TokenImpersonationLevel _impersonationLevel;
-            private SspiSecurityTokenProvider _clientTokenProvider;
-            private bool _allowNtlm;
+            WindowsStreamSecurityUpgradeProvider parent;
+            IdentityVerifier identityVerifier;
+            NetworkCredential credential;
+            TokenImpersonationLevel impersonationLevel;
+            SspiSecurityTokenProvider clientTokenProvider;
+            bool allowNtlm;
 
             public WindowsStreamSecurityUpgradeInitiator(
                 WindowsStreamSecurityUpgradeProvider parent, EndpointAddress remoteAddress, Uri via)
                 : base(FramingUpgradeString.Negotiate, remoteAddress, via)
             {
-                _parent = parent;
-                _clientTokenProvider = TransportSecurityHelpers.GetSspiTokenProvider(
-                    parent._securityTokenManager, remoteAddress, via, parent.Scheme, out _identityVerifier);
+                this.parent = parent;
+                this.clientTokenProvider = TransportSecurityHelpers.GetSspiTokenProvider(
+                    parent.securityTokenManager, remoteAddress, via, parent.Scheme, out this.identityVerifier);
             }
 
-            internal override async Task OpenAsync(TimeSpan timeout)
+            IAsyncResult BaseBeginOpen(TimeSpan timeout, AsyncCallback callback, object state)
             {
-                TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
-                base.Open(timeoutHelper.RemainingTime());
+                return base.BeginOpen(timeout, callback, state);
+            }
 
-                OutWrapper<TokenImpersonationLevel> impersonationLevelWrapper = new OutWrapper<TokenImpersonationLevel>();
-                OutWrapper<bool> allowNtlmWrapper = new OutWrapper<bool>(); 
-                
-                SecurityUtils.OpenTokenProviderIfRequired(_clientTokenProvider, timeoutHelper.RemainingTime());
-                _credential = await TransportSecurityHelpers.GetSspiCredentialAsync(
-                    _clientTokenProvider,
-                    impersonationLevelWrapper,
-                    allowNtlmWrapper,
-                    timeoutHelper.GetCancellationToken());
+            void BaseEndOpen(IAsyncResult result)
+            {
+                base.EndOpen(result);
+            }
 
-                _impersonationLevel = impersonationLevelWrapper.Value;
-                _allowNtlm = allowNtlmWrapper; 
+            internal override IAsyncResult BeginOpen(TimeSpan timeout, AsyncCallback callback, object state)
+            {
+                return new OpenAsyncResult(this, timeout, callback, state);
+            }
 
-                return; 
+            internal override void EndOpen(IAsyncResult result)
+            {
+                OpenAsyncResult.End(result);
             }
 
             internal override void Open(TimeSpan timeout)
             {
-                OpenAsync(timeout).GetAwaiter();
+                TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
+                base.Open(timeoutHelper.RemainingTime());
+                SecurityUtils.OpenTokenProviderIfRequired(this.clientTokenProvider, timeoutHelper.RemainingTime());
+                this.credential = TransportSecurityHelpers.GetSspiCredential(this.clientTokenProvider, timeoutHelper.RemainingTime(),
+                    out this.impersonationLevel, out this.allowNtlm);
             }
-            
+
+            IAsyncResult BaseBeginClose(TimeSpan timeout, AsyncCallback callback, object state)
+            {
+                return base.BeginClose(timeout, callback, state);
+            }
+
+            void BaseEndClose(IAsyncResult result)
+            {
+                base.EndClose(result);
+            }
+
+            internal override IAsyncResult BeginClose(TimeSpan timeout, AsyncCallback callback, object state)
+            {
+                return new CloseAsyncResult(this, timeout, callback, state);
+            }
+
+            internal override void EndClose(IAsyncResult result)
+            {
+                CloseAsyncResult.End(result);
+            }
+
             internal override void Close(TimeSpan timeout)
             {
                 TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
                 base.Close(timeoutHelper.RemainingTime());
-                SecurityUtils.CloseTokenProviderIfRequired(_clientTokenProvider, timeoutHelper.RemainingTime());
+                SecurityUtils.CloseTokenProviderIfRequired(this.clientTokenProvider, timeoutHelper.RemainingTime());
             }
 
-#if !FEATURE_NETNATIVE // NegotiateStream
+            protected override IAsyncResult OnBeginInitiateUpgrade(Stream stream, AsyncCallback callback, object state)
+            {
+                if (TD.WindowsStreamSecurityOnInitiateUpgradeIsEnabled())
+                {
+                    TD.WindowsStreamSecurityOnInitiateUpgrade();
+                }
+
+                InitiateUpgradeAsyncResult result = new InitiateUpgradeAsyncResult(this, callback, state);
+                result.Begin(stream);
+                return result;
+            }
+
+            protected override Stream OnEndInitiateUpgrade(IAsyncResult result,
+                out SecurityMessageProperty remoteSecurity)
+            {
+                return InitiateUpgradeAsyncResult.End(result, out remoteSecurity);
+            }
+
             static SecurityMessageProperty CreateServerSecurity(NegotiateStream negotiateStream)
             {
                 GenericIdentity remoteIdentity = (GenericIdentity)negotiateStream.RemoteIdentity;
@@ -338,26 +409,9 @@ namespace System.ServiceModel.Channels
                     return null;
                 }
             }
-#endif // !FEATURE_NETNATIVE
 
-            protected override Stream OnInitiateUpgrade(Stream stream, out SecurityMessageProperty remoteSecurity)
-            {
-                OutWrapper<SecurityMessageProperty> remoteSecurityOut = new OutWrapper<SecurityMessageProperty>(); 
-                
-                var retVal = OnInitiateUpgradeAsync(stream, remoteSecurityOut).GetAwaiter().GetResult();
-                remoteSecurity = remoteSecurityOut.Value;
-
-                return retVal;
-            }
-
-
-#if FEATURE_NETNATIVE // NegotiateStream
-            protected override Task<Stream> OnInitiateUpgradeAsync(Stream stream, OutWrapper<SecurityMessageProperty> remoteSecurity)
-            {
-                throw ExceptionHelper.PlatformNotSupported("Windows Stream Security is not supported on UWP yet"); 
-            }
-#else
-            protected override async Task<Stream> OnInitiateUpgradeAsync(Stream stream, OutWrapper<SecurityMessageProperty> remoteSecurity)
+            protected override Stream OnInitiateUpgrade(Stream stream,
+                out SecurityMessageProperty remoteSecurity)
             {
                 NegotiateStream negotiateStream;
                 string targetName;
@@ -369,12 +423,12 @@ namespace System.ServiceModel.Channels
                 }
 
                 // prepare
-                InitiateUpgradePrepare(stream, out negotiateStream, out targetName, out identity);
+                this.InitiateUpgradePrepare(stream, out negotiateStream, out targetName, out identity);
 
                 // authenticate
                 try
                 {
-                    await negotiateStream.AuthenticateAsClientAsync(_credential, targetName, _parent.ProtectionLevel, _impersonationLevel);
+                    negotiateStream.AuthenticateAsClient(credential, targetName, parent.ProtectionLevel, impersonationLevel);
                 }
                 catch (AuthenticationException exception)
                 {
@@ -384,17 +438,15 @@ namespace System.ServiceModel.Channels
                 catch (IOException ioException)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(
-                        SR.Format(SR.NegotiationFailedIO, ioException.Message), ioException));
+                        SR.GetString(SR.NegotiationFailedIO, ioException.Message), ioException));
                 }
 
-                remoteSecurity.Value = CreateServerSecurity(negotiateStream);
-                ValidateMutualAuth(identity, negotiateStream, remoteSecurity.Value, _allowNtlm);
+                remoteSecurity = CreateServerSecurity(negotiateStream);
+                this.ValidateMutualAuth(identity, negotiateStream, remoteSecurity, allowNtlm);
 
                 return negotiateStream;
             }
-#endif // FEATURE_NETNATIVE 
 
-#if !FEATURE_NETNATIVE // NegotiateStream
             void InitiateUpgradePrepare(
                 Stream stream,
                 out NegotiateStream negotiateStream,
@@ -406,13 +458,13 @@ namespace System.ServiceModel.Channels
                 targetName = string.Empty;
                 identity = null;
 
-                if (_parent.IdentityVerifier.TryGetIdentity(RemoteAddress, Via, out identity))
+                if (parent.IdentityVerifier.TryGetIdentity(this.RemoteAddress, this.Via, out identity))
                 {
-                    targetName = SecurityUtils.GetSpnFromIdentity(identity, RemoteAddress);
+                    targetName = SecurityUtils.GetSpnFromIdentity(identity, this.RemoteAddress);
                 }
                 else
                 {
-                    targetName = SecurityUtils.GetSpnFromTarget(RemoteAddress);
+                    targetName = SecurityUtils.GetSpnFromTarget(this.RemoteAddress);
                 }
             }
 
@@ -423,21 +475,333 @@ namespace System.ServiceModel.Channels
                 {
                     if (expectedIdentity != null)
                     {
-                        if (!_parent.IdentityVerifier.CheckAccess(expectedIdentity,
+                        if (!parent.IdentityVerifier.CheckAccess(expectedIdentity,
                             remoteSecurity.ServiceSecurityContext.AuthorizationContext))
                         {
                             string primaryIdentity = SecurityUtils.GetIdentityNamesFromContext(remoteSecurity.ServiceSecurityContext.AuthorizationContext);
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(SR.Format(
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(SR.GetString(
                                 SR.RemoteIdentityFailedVerification, primaryIdentity)));
                         }
                     }
                 }
                 else if (!allowNtlm)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(SR.Format(SR.StreamMutualAuthNotSatisfied)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SecurityNegotiationException(SR.GetString(
+                        SR.StreamMutualAuthNotSatisfied)));
                 }
             }
-#endif // FEATURE_NETNATIVE 
+
+            class InitiateUpgradeAsyncResult : StreamSecurityUpgradeInitiatorAsyncResult
+            {
+                EndpointIdentity expectedIdentity;
+                WindowsStreamSecurityUpgradeInitiator initiator;
+                NegotiateStream negotiateStream;
+
+                public InitiateUpgradeAsyncResult(WindowsStreamSecurityUpgradeInitiator initiator,
+                    AsyncCallback callback, object state)
+                    : base(callback, state)
+                {
+                    this.initiator = initiator;
+                }
+
+                protected override IAsyncResult OnBeginAuthenticateAsClient(Stream stream, AsyncCallback callback)
+                {
+                    string targetName;
+                    this.initiator.InitiateUpgradePrepare(stream, out this.negotiateStream, out targetName,
+                        out this.expectedIdentity);
+
+                    return this.negotiateStream.BeginAuthenticateAsClient(this.initiator.credential, targetName,
+                            this.initiator.parent.ProtectionLevel, this.initiator.impersonationLevel, callback, this);
+                }
+
+                protected override Stream OnCompleteAuthenticateAsClient(IAsyncResult result)
+                {
+                    this.negotiateStream.EndAuthenticateAsClient(result);
+                    return this.negotiateStream;
+                }
+
+                protected override SecurityMessageProperty ValidateCreateSecurity()
+                {
+                    SecurityMessageProperty remoteSecurity = CreateServerSecurity(negotiateStream);
+                    this.initiator.ValidateMutualAuth(this.expectedIdentity, this.negotiateStream,
+                        remoteSecurity, this.initiator.allowNtlm);
+                    return remoteSecurity;
+                }
+            }
+
+            class OpenAsyncResult : AsyncResult
+            {
+                WindowsStreamSecurityUpgradeInitiator parent;
+                TimeoutHelper timeoutHelper;
+                AsyncCallback onBaseOpen;
+                AsyncCallback onOpenTokenProvider;
+                AsyncCallback onGetSspiCredential;
+
+                public OpenAsyncResult(WindowsStreamSecurityUpgradeInitiator parent, TimeSpan timeout,
+                    AsyncCallback callback, object state)
+                    : base(callback, state)
+                {
+                    this.parent = parent;
+                    TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
+
+                    // since we're at channel.Open and not per-message, minimize our statics overhead and leverage GC for our callback
+                    this.onBaseOpen = Fx.ThunkCallback(new AsyncCallback(OnBaseOpen));
+                    this.onGetSspiCredential = Fx.ThunkCallback(new AsyncCallback(OnGetSspiCredential));
+                    this.onOpenTokenProvider = Fx.ThunkCallback(new AsyncCallback(OnOpenTokenProvider));
+                    IAsyncResult result = parent.BaseBeginOpen(timeoutHelper.RemainingTime(), onBaseOpen, this);
+
+                    if (!result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    if (HandleBaseOpenComplete(result))
+                    {
+                        base.Complete(true);
+                    }
+                }
+
+                public static void End(IAsyncResult result)
+                {
+                    AsyncResult.End<OpenAsyncResult>(result);
+                }
+
+                bool HandleBaseOpenComplete(IAsyncResult result)
+                {
+                    parent.BaseEndOpen(result);
+                    IAsyncResult openTokenProviderResult = SecurityUtils.BeginOpenTokenProviderIfRequired(
+                        parent.clientTokenProvider, timeoutHelper.RemainingTime(), onOpenTokenProvider, this);
+
+                    if (!openTokenProviderResult.CompletedSynchronously)
+                    {
+                        return false;
+                    }
+
+                    return HandleOpenTokenProviderComplete(openTokenProviderResult);
+                }
+
+                bool HandleOpenTokenProviderComplete(IAsyncResult result)
+                {
+                    SecurityUtils.EndOpenTokenProviderIfRequired(result);
+                    IAsyncResult getCredentialResult = TransportSecurityHelpers.BeginGetSspiCredential(
+                        parent.clientTokenProvider, timeoutHelper.RemainingTime(), onGetSspiCredential, this);
+
+                    if (!getCredentialResult.CompletedSynchronously)
+                    {
+                        return false;
+                    }
+
+                    return HandleGetSspiCredentialComplete(getCredentialResult);
+                }
+
+                bool HandleGetSspiCredentialComplete(IAsyncResult result)
+                {
+                    parent.credential = TransportSecurityHelpers.EndGetSspiCredential(result,
+                        out parent.impersonationLevel, out parent.allowNtlm);
+                    return true;
+                }
+
+                void OnBaseOpen(IAsyncResult result)
+                {
+                    if (result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    Exception completionException = null;
+                    bool completeSelf = false;
+                    try
+                    {
+                        completeSelf = this.HandleBaseOpenComplete(result);
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completeSelf = true;
+                        completionException = e;
+                    }
+
+                    if (completeSelf)
+                    {
+                        base.Complete(false, completionException);
+                    }
+                }
+
+                void OnOpenTokenProvider(IAsyncResult result)
+                {
+                    if (result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    Exception completionException = null;
+                    bool completeSelf = false;
+                    try
+                    {
+                        completeSelf = this.HandleOpenTokenProviderComplete(result);
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completeSelf = true;
+                        completionException = e;
+                    }
+
+                    if (completeSelf)
+                    {
+                        base.Complete(false, completionException);
+                    }
+                }
+
+                void OnGetSspiCredential(IAsyncResult result)
+                {
+                    if (result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    Exception completionException = null;
+                    bool completeSelf = false;
+                    try
+                    {
+                        completeSelf = this.HandleGetSspiCredentialComplete(result);
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completeSelf = true;
+                        completionException = e;
+                    }
+
+                    if (completeSelf)
+                    {
+                        base.Complete(false, completionException);
+                    }
+                }
+            }
+
+            class CloseAsyncResult : AsyncResult
+            {
+                WindowsStreamSecurityUpgradeInitiator parent;
+                TimeoutHelper timeoutHelper;
+                AsyncCallback onBaseClose;
+                AsyncCallback onCloseTokenProvider;
+
+                public CloseAsyncResult(WindowsStreamSecurityUpgradeInitiator parent, TimeSpan timeout,
+                    AsyncCallback callback, object state)
+                    : base(callback, state)
+                {
+                    this.parent = parent;
+                    this.timeoutHelper = new TimeoutHelper(timeout);
+
+                    // since we're at channel.Open and not per-message, minimize our statics overhead and leverage GC for our callback
+                    this.onBaseClose = Fx.ThunkCallback(new AsyncCallback(OnBaseClose));
+                    this.onCloseTokenProvider = Fx.ThunkCallback(new AsyncCallback(OnCloseTokenProvider));
+                    IAsyncResult result = parent.BaseBeginClose(timeoutHelper.RemainingTime(), onBaseClose, this);
+
+                    if (!result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    if (HandleBaseCloseComplete(result))
+                    {
+                        base.Complete(true);
+                    }
+                }
+
+                public static void End(IAsyncResult result)
+                {
+                    AsyncResult.End<CloseAsyncResult>(result);
+                }
+
+                bool HandleBaseCloseComplete(IAsyncResult result)
+                {
+                    parent.BaseEndClose(result);
+                    IAsyncResult closeTokenProviderResult = SecurityUtils.BeginCloseTokenProviderIfRequired(
+                        parent.clientTokenProvider, timeoutHelper.RemainingTime(), onCloseTokenProvider, this);
+
+                    if (!closeTokenProviderResult.CompletedSynchronously)
+                    {
+                        return false;
+                    }
+
+                    SecurityUtils.EndCloseTokenProviderIfRequired(closeTokenProviderResult);
+                    return true;
+                }
+
+                void OnBaseClose(IAsyncResult result)
+                {
+                    if (result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    Exception completionException = null;
+                    bool completeSelf = false;
+                    try
+                    {
+                        completeSelf = this.HandleBaseCloseComplete(result);
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completeSelf = true;
+                        completionException = e;
+                    }
+
+                    if (completeSelf)
+                    {
+                        base.Complete(false, completionException);
+                    }
+                }
+
+                void OnCloseTokenProvider(IAsyncResult result)
+                {
+                    if (result.CompletedSynchronously)
+                    {
+                        return;
+                    }
+
+                    Exception completionException = null;
+                    try
+                    {
+                        SecurityUtils.EndCloseTokenProviderIfRequired(result);
+                    }
+#pragma warning suppress 56500 // [....], transferring exception to another thread
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+
+                        completionException = e;
+                    }
+
+                    base.Complete(false, completionException);
+                }
+            }
         }
     }
 }

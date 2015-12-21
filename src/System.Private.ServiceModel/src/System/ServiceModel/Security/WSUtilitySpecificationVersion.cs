@@ -1,5 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
@@ -14,12 +15,12 @@ namespace System.ServiceModel.Security
     using System.ServiceModel.Diagnostics;
     using System.Text;
     using System.Xml;
-
+    
     using CanonicalFormWriter = System.IdentityModel.CanonicalFormWriter;
     using SignatureResourcePool = System.IdentityModel.SignatureResourcePool;
     using HashStream = System.IdentityModel.HashStream;
 
-    internal abstract class WSUtilitySpecificationVersion
+    abstract class WSUtilitySpecificationVersion
     {
         internal static readonly string[] AcceptedDateTimeFormats = new string[]
         {
@@ -33,11 +34,11 @@ namespace System.ServiceModel.Security
             "yyyy-MM-ddTHH:mm:ssZ"
         };
 
-        private readonly XmlDictionaryString _namespaceUri;
+        readonly XmlDictionaryString namespaceUri;
 
         internal WSUtilitySpecificationVersion(XmlDictionaryString namespaceUri)
         {
-            _namespaceUri = namespaceUri;
+            this.namespaceUri = namespaceUri;
         }
 
         public static WSUtilitySpecificationVersion Default
@@ -47,7 +48,7 @@ namespace System.ServiceModel.Security
 
         internal XmlDictionaryString NamespaceUri
         {
-            get { return _namespaceUri; }
+            get { return this.namespaceUri; }
         }
 
         public static WSUtilitySpecificationVersion OneDotZero
@@ -63,18 +64,18 @@ namespace System.ServiceModel.Security
 
         internal abstract void WriteTimestampCanonicalForm(Stream stream, SecurityTimestamp timestamp, byte[] buffer);
 
-        private sealed class WSUtilitySpecificationVersionOneDotZero : WSUtilitySpecificationVersion
+        sealed class WSUtilitySpecificationVersionOneDotZero : WSUtilitySpecificationVersion
         {
-            private static readonly WSUtilitySpecificationVersionOneDotZero s_instance = new WSUtilitySpecificationVersionOneDotZero();
+            static readonly WSUtilitySpecificationVersionOneDotZero instance = new WSUtilitySpecificationVersionOneDotZero();
 
-            private WSUtilitySpecificationVersionOneDotZero()
+            WSUtilitySpecificationVersionOneDotZero()
                 : base(XD.UtilityDictionary.Namespace)
             {
             }
 
             public static WSUtilitySpecificationVersionOneDotZero Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             internal override bool IsReaderAtTimestamp(XmlDictionaryReader reader)
@@ -84,7 +85,47 @@ namespace System.ServiceModel.Security
 
             internal override SecurityTimestamp ReadTimestamp(XmlDictionaryReader reader, string digestAlgorithm, SignatureResourcePool resourcePool)
             {
-                throw ExceptionHelper.PlatformNotSupported();
+                bool canonicalize = digestAlgorithm != null && reader.CanCanonicalize;
+                HashStream hashStream = null;
+
+                reader.MoveToStartElement(XD.UtilityDictionary.Timestamp, XD.UtilityDictionary.Namespace);
+                if (canonicalize)
+                {
+                    hashStream = resourcePool.TakeHashStream(digestAlgorithm);
+                    reader.StartCanonicalization(hashStream, false, null);
+                }
+                string id = reader.GetAttribute(XD.UtilityDictionary.IdAttribute, XD.UtilityDictionary.Namespace);
+                reader.ReadStartElement();
+
+                reader.ReadStartElement(XD.UtilityDictionary.CreatedElement, XD.UtilityDictionary.Namespace);
+                DateTime creationTimeUtc = reader.ReadContentAsDateTime().ToUniversalTime();
+                reader.ReadEndElement();
+
+                DateTime expiryTimeUtc;
+                if (reader.IsStartElement(XD.UtilityDictionary.ExpiresElement, XD.UtilityDictionary.Namespace))
+                {
+                    reader.ReadStartElement();
+                    expiryTimeUtc = reader.ReadContentAsDateTime().ToUniversalTime();
+                    reader.ReadEndElement();
+                }
+                else
+                {
+                    expiryTimeUtc = SecurityUtils.MaxUtcDateTime;
+                }
+
+                reader.ReadEndElement();
+
+                byte[] digest;
+                if (canonicalize)
+                {
+                    reader.EndCanonicalization();
+                    digest = hashStream.FlushHashAndGetValue();
+                }
+                else
+                {
+                    digest = null;
+                }
+                return new SecurityTimestamp(creationTimeUtc, expiryTimeUtc, id, digestAlgorithm, digest);
             }
 
             internal override void WriteTimestamp(XmlDictionaryWriter writer, SecurityTimestamp timestamp)
@@ -114,49 +155,49 @@ namespace System.ServiceModel.Security
             }
         }
 
-        private sealed class TimestampCanonicalFormWriter : CanonicalFormWriter
+        sealed class TimestampCanonicalFormWriter : CanonicalFormWriter
         {
-            private const string timestamp = UtilityStrings.Prefix + ":" + UtilityStrings.Timestamp;
-            private const string created = UtilityStrings.Prefix + ":" + UtilityStrings.CreatedElement;
-            private const string expires = UtilityStrings.Prefix + ":" + UtilityStrings.ExpiresElement;
-            private const string idAttribute = UtilityStrings.Prefix + ":" + UtilityStrings.IdAttribute;
-            private const string ns = "xmlns:" + UtilityStrings.Prefix + "=\"" + UtilityStrings.Namespace + "\"";
+            const string timestamp = UtilityStrings.Prefix + ":" + UtilityStrings.Timestamp;
+            const string created = UtilityStrings.Prefix + ":" + UtilityStrings.CreatedElement;
+            const string expires = UtilityStrings.Prefix + ":" + UtilityStrings.ExpiresElement;
+            const string idAttribute = UtilityStrings.Prefix + ":" + UtilityStrings.IdAttribute;
+            const string ns = "xmlns:" + UtilityStrings.Prefix + "=\"" + UtilityStrings.Namespace + "\"";
 
-            private const string xml1 = "<" + timestamp + " " + ns + " " + idAttribute + "=\"";
-            private const string xml2 = "\"><" + created + ">";
-            private const string xml3 = "</" + created + "><" + expires + ">";
-            private const string xml4 = "</" + expires + "></" + timestamp + ">";
+            const string xml1 = "<" + timestamp + " " + ns + " " + idAttribute + "=\"";
+            const string xml2 = "\"><" + created + ">";
+            const string xml3 = "</" + created + "><" + expires + ">";
+            const string xml4 = "</" + expires + "></" + timestamp + ">";
 
-            private readonly byte[] _fragment1;
-            private readonly byte[] _fragment2;
-            private readonly byte[] _fragment3;
-            private readonly byte[] _fragment4;
+            readonly byte[] fragment1;
+            readonly byte[] fragment2;
+            readonly byte[] fragment3;
+            readonly byte[] fragment4;
 
-            private static readonly TimestampCanonicalFormWriter s_instance = new TimestampCanonicalFormWriter();
+            static readonly TimestampCanonicalFormWriter instance = new TimestampCanonicalFormWriter();
 
-            private TimestampCanonicalFormWriter()
+            TimestampCanonicalFormWriter()
             {
-                Encoding encoding = CanonicalFormWriter.Utf8WithoutPreamble;
-                _fragment1 = encoding.GetBytes(xml1);
-                _fragment2 = encoding.GetBytes(xml2);
-                _fragment3 = encoding.GetBytes(xml3);
-                _fragment4 = encoding.GetBytes(xml4);
+                UTF8Encoding encoding = CanonicalFormWriter.Utf8WithoutPreamble;
+                this.fragment1 = encoding.GetBytes(xml1);
+                this.fragment2 = encoding.GetBytes(xml2);
+                this.fragment3 = encoding.GetBytes(xml3);
+                this.fragment4 = encoding.GetBytes(xml4);
             }
 
             public static TimestampCanonicalFormWriter Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             public void WriteCanonicalForm(Stream stream, string id, char[] created, char[] expires, byte[] workBuffer)
             {
-                stream.Write(_fragment1, 0, _fragment1.Length);
+                stream.Write(this.fragment1, 0, this.fragment1.Length);
                 EncodeAndWrite(stream, workBuffer, id);
-                stream.Write(_fragment2, 0, _fragment2.Length);
+                stream.Write(this.fragment2, 0, this.fragment2.Length);
                 EncodeAndWrite(stream, workBuffer, created);
-                stream.Write(_fragment3, 0, _fragment3.Length);
+                stream.Write(this.fragment3, 0, this.fragment3.Length);
                 EncodeAndWrite(stream, workBuffer, expires);
-                stream.Write(_fragment4, 0, _fragment4.Length);
+                stream.Write(this.fragment4, 0, this.fragment4.Length);
             }
         }
     }

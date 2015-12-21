@@ -1,16 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public class MessageDescriptionCollection : Collection<MessageDescription>
     {
         internal MessageDescriptionCollection()
-        {
+        {            
         }
-
+        
         public MessageDescription Find(string action)
         {
             foreach (MessageDescription description in this)

@@ -1,8 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System;
+    using System.ServiceModel;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Diagnostics;
+    using System.Diagnostics;
+
     public abstract class ChannelManagerBase : CommunicationObject, IDefaultCommunicationTimeouts
     {
         protected ChannelManagerBase()
@@ -44,7 +52,7 @@ namespace System.ServiceModel.Channels
 
         internal Exception CreateChannelTypeNotSupportedException(Type type)
         {
-            return new ArgumentException(SR.Format(SR.ChannelTypeNotSupported, type), "TChannel");
+            return new ArgumentException(SR.GetString(SR.ChannelTypeNotSupported, type), "TChannel");
         }
     }
 }

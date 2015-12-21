@@ -1,14 +1,16 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.ServiceModel.Description;
-using System.Globalization;
-using System.Text;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal struct ChannelRequirements
+    using System.Collections.Generic;
+    using System.ServiceModel.Dispatcher;
+    using System.ServiceModel.Description;
+    using System.Globalization;
+    using System.Text;
+
+    struct ChannelRequirements
     {
         public bool usesInput;
         public bool usesReply;
@@ -100,6 +102,7 @@ namespace System.ServiceModel.Channels
                     case SessionMode.NotAllowed:
                         return new Type[] {
                             typeof(IRequestChannel),
+                            typeof(IDuplexChannel),
                         };
                 }
             }
@@ -231,7 +234,7 @@ namespace System.ServiceModel.Channels
             if (exception == null)
             {
                 // none of the obvious speculations about the failure holds, so we fall back to the generic error message
-                exception = new InvalidOperationException(SR.Format(SR.EndpointListenerRequirementsCannotBeMetBy3,
+                exception = new InvalidOperationException(SR.GetString(SR.EndpointListenerRequirementsCannotBeMetBy3,
                         bindingName, contractChannelTypesString, bindingChannelTypesString));
             }
 
@@ -249,7 +252,7 @@ namespace System.ServiceModel.Channels
             if (exception == null)
             {
                 // none of the obvious speculations about the failure holds, so we fall back to the generic error message
-                exception = new InvalidOperationException(SR.Format(SR.CouldnTCreateChannelForType2, bindingName, contractChannelTypesString));
+                exception = new InvalidOperationException(SR.GetString(SR.CouldnTCreateChannelForType2, bindingName, contractChannelTypesString));
             }
 
             return exception;
@@ -344,31 +347,31 @@ namespace System.ServiceModel.Channels
 
             if (!bindingSupportsAtLeastOneChannelType)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportAnyChannelTypes1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportAnyChannelTypes1, bindingName));
             }
             if (contractRequiresSession && !bindingSupportsSession)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportSessionButContractRequires1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportSessionButContractRequires1, bindingName));
             }
             if (contractRequiresDatagram && !bindingSupportsDatagram)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesntSupportDatagramButContractRequires, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesntSupportDatagramButContractRequires, bindingName));
             }
             if (contractRequiresDuplex && !bindingSupportsDuplex)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportDuplexButContractRequires1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportDuplexButContractRequires1, bindingName));
             }
             if (contractRequiresRequestReply && !bindingSupportsRequestReply)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportRequestReplyButContract1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportRequestReplyButContract1, bindingName));
             }
             if (contractRequiresOneWay && !bindingSupportsOneWay)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportOneWayButContractRequires1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportOneWayButContractRequires1, bindingName));
             }
             if (contractRequiresTwoWay && !bindingSupportsTwoWay)
             {
-                return new InvalidOperationException(SR.Format(SR.BindingDoesnTSupportTwoWayButContractRequires1, bindingName));
+                return new InvalidOperationException(SR.GetString(SR.BindingDoesnTSupportTwoWayButContractRequires1, bindingName));
             }
 
             contractChannelTypesString = contractChannelTypes.ToString();

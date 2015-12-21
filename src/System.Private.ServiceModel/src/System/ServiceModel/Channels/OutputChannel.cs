@@ -1,16 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.ServiceModel;
-using System.ServiceModel.Diagnostics;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public abstract class OutputChannel : ChannelBase, IOutputChannel
+    using System.Diagnostics;
+    using System.Runtime.Diagnostics;
+    using System.ServiceModel;
+    using System.ServiceModel.Diagnostics;
+
+    abstract class OutputChannel : ChannelBase, IOutputChannel
     {
         protected OutputChannel(ChannelManagerBase manager)
             : base(manager)
@@ -32,17 +31,17 @@ namespace System.ServiceModel.Channels
 
             if (timeout < TimeSpan.Zero)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("timeout", timeout, SR.SFxTimeoutOutOfRange0));
+                    new ArgumentOutOfRangeException("timeout", timeout, SR.GetString(SR.SFxTimeoutOutOfRange0)));
 
             ThrowIfDisposedOrNotOpen();
             AddHeadersTo(message);
             this.EmitTrace(message);
-            return OnSendAsync(message, timeout).ToApm(callback, state);
+            return OnBeginSend(message, timeout, callback, state);
         }
 
         public void EndSend(IAsyncResult result)
         {
-            result.ToApmEnd();
+            OnEndSend(result);
         }
 
         public override T GetProperty<T>()
@@ -63,7 +62,9 @@ namespace System.ServiceModel.Channels
 
         protected abstract void OnSend(Message message, TimeSpan timeout);
 
-        protected abstract Task OnSendAsync(Message message, TimeSpan timeout);
+        protected abstract IAsyncResult OnBeginSend(Message message, TimeSpan timeout, AsyncCallback callback, object state);
+
+        protected abstract void OnEndSend(IAsyncResult result);
 
         public void Send(Message message)
         {
@@ -77,7 +78,7 @@ namespace System.ServiceModel.Channels
 
             if (timeout < TimeSpan.Zero)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentOutOfRangeException("timeout", timeout, SR.SFxTimeoutOutOfRange0));
+                    new ArgumentOutOfRangeException("timeout", timeout, SR.GetString(SR.SFxTimeoutOutOfRange0)));
 
             ThrowIfDisposedOrNotOpen();
 
@@ -86,9 +87,19 @@ namespace System.ServiceModel.Channels
             OnSend(message, timeout);
         }
 
-
-        private void EmitTrace(Message message)
+        protected virtual TraceRecord CreateSendTrace(Message message)
         {
+            return MessageTransmitTraceRecord.CreateSendTraceRecord(message, this.RemoteAddress);
+        }
+
+        void EmitTrace(Message message)
+        {
+            if (DiagnosticUtility.ShouldTraceInformation)
+            {
+                TraceUtility.TraceEvent(TraceEventType.Information, TraceCode.MessageSent,
+                    SR.GetString(SR.TraceCodeMessageSent),
+                    this.CreateSendTrace(message), this, null);
+            }
         }
 
         protected virtual void AddHeadersTo(Message message)

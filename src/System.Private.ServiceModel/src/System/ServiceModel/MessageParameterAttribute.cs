@@ -1,17 +1,20 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System;
+    using System.ServiceModel.Channels;
+
     [AttributeUsage(ServiceModelAttributeTargets.Parameter, Inherited = false)]
     public sealed class MessageParameterAttribute : Attribute
     {
-        private string _name;
-        private bool _isNameSetExplicit;
+        string name;
+        bool isNameSetExplicit;
         internal const string NamePropertyName = "Name";
         public string Name
         {
-            get { return _name; }
+            get { return name; }
             set
             {
                 if (value == null)
@@ -21,15 +24,15 @@ namespace System.ServiceModel
                 if (value == string.Empty)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxNameCannotBeEmpty));
+                        SR.GetString(SR.SFxNameCannotBeEmpty)));
                 }
-                _name = value; _isNameSetExplicit = true;
+                name = value; isNameSetExplicit = true;
             }
         }
 
         internal bool IsNameSetExplicit
         {
-            get { return _isNameSetExplicit; }
+            get { return isNameSetExplicit; }
         }
     }
 }

@@ -1,114 +1,436 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-using System.Text;
-using System.Threading.Tasks;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.Specialized;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.Threading;
+    using System.Transactions;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.Runtime.Diagnostics;
+    using System.Security;
+
     class ImmutableDispatchRuntime
     {
-        readonly private int _correlationCount;
-        readonly private ConcurrencyBehavior _concurrency;
-        readonly private IDemuxer _demuxer;
-        readonly private ErrorBehavior _error;
-        private readonly bool _enableFaults;
-        private InstanceBehavior _instance;
-        private readonly bool _manualAddressing;
-        private readonly ThreadBehavior _thread;
-        private readonly bool _validateMustUnderstand;
-        private readonly bool _sendAsynchronously;
+        readonly AuthenticationBehavior authenticationBehavior;
+        readonly AuthorizationBehavior authorizationBehavior;
+        readonly int correlationCount;
+        readonly ConcurrencyBehavior concurrency;
+        readonly IDemuxer demuxer;
+        readonly ErrorBehavior error;
+        readonly bool enableFaults;
+        readonly bool ignoreTransactionFlow;
+        readonly bool impersonateOnSerializingReply;
+        readonly IInputSessionShutdown[] inputSessionShutdownHandlers;
+        readonly InstanceBehavior instance;
+        readonly bool isOnServer;
+        readonly bool manualAddressing;
+        readonly IDispatchMessageInspector[] messageInspectors;
+        readonly int parameterInspectorCorrelationOffset;
+        readonly IRequestReplyCorrelator requestReplyCorrelator;
+        readonly SecurityImpersonationBehavior securityImpersonation;
+        readonly TerminatingOperationBehavior terminate;
+        readonly ThreadBehavior thread;
+        readonly TransactionBehavior transaction;
+        readonly bool validateMustUnderstand;
+        readonly bool receiveContextEnabledChannel;
+        readonly bool sendAsynchronously;
+        readonly bool requireClaimsPrincipalOnOperationContext;
 
-        private readonly MessageRpcProcessor _processMessage1;
-        private readonly MessageRpcProcessor _processMessage11;
-        private readonly MessageRpcProcessor _processMessage2;
-        private readonly MessageRpcProcessor _processMessage3;
-        private readonly MessageRpcProcessor _processMessage31;
-        private readonly MessageRpcProcessor _processMessage4;
-        private readonly MessageRpcProcessor _processMessage41;
-        private readonly MessageRpcProcessor _processMessage5;
-        private readonly MessageRpcProcessor _processMessage6;
-        private readonly MessageRpcProcessor _processMessage7;
-        private readonly MessageRpcProcessor _processMessage8;
-        private readonly MessageRpcProcessor _processMessage9;
-        private readonly MessageRpcProcessor _processMessageCleanup;
-        private readonly MessageRpcProcessor _processMessageCleanupError;
+        readonly MessageRpcProcessor processMessage1;
+        readonly MessageRpcProcessor processMessage11;
+        readonly MessageRpcProcessor processMessage2;
+        readonly MessageRpcProcessor processMessage3;
+        readonly MessageRpcProcessor processMessage31;
+        readonly MessageRpcProcessor processMessage4;
+        readonly MessageRpcProcessor processMessage41;
+        readonly MessageRpcProcessor processMessage5;
+        readonly MessageRpcProcessor processMessage6;
+        readonly MessageRpcProcessor processMessage7;
+        readonly MessageRpcProcessor processMessage8;
+        readonly MessageRpcProcessor processMessage9;
+        readonly MessageRpcProcessor processMessageCleanup;
+        readonly MessageRpcProcessor processMessageCleanupError;
 
-        static AsyncCallback onReplyCompleted = Fx.ThunkCallback(new AsyncCallback(OnReplyCompletedCallback));
+        static AsyncCallback onFinalizeCorrelationCompleted =
+            Fx.ThunkCallback(new AsyncCallback(OnFinalizeCorrelationCompletedCallback));
+        static AsyncCallback onReplyCompleted =
+            Fx.ThunkCallback(new AsyncCallback(OnReplyCompletedCallback));
+
+        bool didTraceProcessMessage1 = false;
+        bool didTraceProcessMessage2 = false;
+        bool didTraceProcessMessage3 = false;
+        bool didTraceProcessMessage31 = false;
+        bool didTraceProcessMessage4 = false;
+        bool didTraceProcessMessage41 = false;
 
         internal ImmutableDispatchRuntime(DispatchRuntime dispatch)
         {
-            _concurrency = new ConcurrencyBehavior(dispatch);
-            _error = new ErrorBehavior(dispatch.ChannelDispatcher);
-            _enableFaults = dispatch.EnableFaults;
-            _instance = new InstanceBehavior(dispatch, this);
-            _manualAddressing = dispatch.ManualAddressing;
-            _thread = new ThreadBehavior(dispatch);
-            _sendAsynchronously = dispatch.ChannelDispatcher.SendAsynchronously;
-            _correlationCount = dispatch.MaxParameterInspectors;
+            this.authenticationBehavior = AuthenticationBehavior.TryCreate(dispatch);
+            this.authorizationBehavior = AuthorizationBehavior.TryCreate(dispatch);
+            this.concurrency = new ConcurrencyBehavior(dispatch);
+            this.error = new ErrorBehavior(dispatch.ChannelDispatcher);
+            this.enableFaults = dispatch.EnableFaults;
+            this.inputSessionShutdownHandlers = EmptyArray<IInputSessionShutdown>.ToArray(dispatch.InputSessionShutdownHandlers);
+            this.instance = new InstanceBehavior(dispatch, this);
+            this.isOnServer = dispatch.IsOnServer;
+            this.manualAddressing = dispatch.ManualAddressing;
+            this.messageInspectors = EmptyArray<IDispatchMessageInspector>.ToArray(dispatch.MessageInspectors);
+            this.requestReplyCorrelator = new RequestReplyCorrelator();
+            this.securityImpersonation = SecurityImpersonationBehavior.CreateIfNecessary(dispatch);
+            this.requireClaimsPrincipalOnOperationContext = dispatch.RequireClaimsPrincipalOnOperationContext;
+            this.impersonateOnSerializingReply = dispatch.ImpersonateOnSerializingReply;
+            this.terminate = TerminatingOperationBehavior.CreateIfNecessary(dispatch);
+            this.thread = new ThreadBehavior(dispatch);
+            this.validateMustUnderstand = dispatch.ValidateMustUnderstand;
+            this.ignoreTransactionFlow = dispatch.IgnoreTransactionMessageProperty;
+            this.transaction = TransactionBehavior.CreateIfNeeded(dispatch);
+            this.receiveContextEnabledChannel = dispatch.ChannelDispatcher.ReceiveContextEnabled;
+            this.sendAsynchronously = dispatch.ChannelDispatcher.SendAsynchronously;
+            this.parameterInspectorCorrelationOffset = (dispatch.MessageInspectors.Count +
+                dispatch.MaxCallContextInitializers);
+            this.correlationCount = this.parameterInspectorCorrelationOffset + dispatch.MaxParameterInspectors;
 
             DispatchOperationRuntime unhandled = new DispatchOperationRuntime(dispatch.UnhandledDispatchOperation, this);
 
-            ActionDemuxer demuxer = new ActionDemuxer();
-            for (int i = 0; i < dispatch.Operations.Count; i++)
+            if (dispatch.OperationSelector == null)
             {
-                DispatchOperation operation = dispatch.Operations[i];
-                DispatchOperationRuntime operationRuntime = new DispatchOperationRuntime(operation, this);
-                demuxer.Add(operation.Action, operationRuntime);
+                ActionDemuxer demuxer = new ActionDemuxer();
+                for (int i = 0; i < dispatch.Operations.Count; i++)
+                {
+                    DispatchOperation operation = dispatch.Operations[i];
+                    DispatchOperationRuntime operationRuntime = new DispatchOperationRuntime(operation, this);
+                    demuxer.Add(operation.Action, operationRuntime);
+                }
+
+                demuxer.SetUnhandled(unhandled);
+                this.demuxer = demuxer;
+            }
+            else
+            {
+                CustomDemuxer demuxer = new CustomDemuxer(dispatch.OperationSelector);
+                for (int i = 0; i < dispatch.Operations.Count; i++)
+                {
+                    DispatchOperation operation = dispatch.Operations[i];
+                    DispatchOperationRuntime operationRuntime = new DispatchOperationRuntime(operation, this);
+                    demuxer.Add(operation.Name, operationRuntime);
+                }
+
+                demuxer.SetUnhandled(unhandled);
+                this.demuxer = demuxer;
             }
 
-            demuxer.SetUnhandled(unhandled);
-            _demuxer = demuxer;
+            this.processMessage1 = new MessageRpcProcessor(this.ProcessMessage1);
+            this.processMessage11 = new MessageRpcProcessor(this.ProcessMessage11);
+            this.processMessage2 = new MessageRpcProcessor(this.ProcessMessage2);
+            this.processMessage3 = new MessageRpcProcessor(this.ProcessMessage3);
+            this.processMessage31 = new MessageRpcProcessor(this.ProcessMessage31);
+            this.processMessage4 = new MessageRpcProcessor(this.ProcessMessage4);
+            this.processMessage41 = new MessageRpcProcessor(this.ProcessMessage41);
+            this.processMessage5 = new MessageRpcProcessor(this.ProcessMessage5);
+            this.processMessage6 = new MessageRpcProcessor(this.ProcessMessage6);
+            this.processMessage7 = new MessageRpcProcessor(this.ProcessMessage7);
+            this.processMessage8 = new MessageRpcProcessor(this.ProcessMessage8);
+            this.processMessage9 = new MessageRpcProcessor(this.ProcessMessage9);
+            this.processMessageCleanup = new MessageRpcProcessor(this.ProcessMessageCleanup);
+            this.processMessageCleanupError = new MessageRpcProcessor(this.ProcessMessageCleanupError);
+        }
 
-            _processMessage1 = ProcessMessage1;
-            _processMessage11 = ProcessMessage11;
-            _processMessage2 = ProcessMessage2;
-            _processMessage3 = ProcessMessage3;
-            _processMessage31 = ProcessMessage31;
-            _processMessage4 = ProcessMessage4;
-            _processMessage41 = ProcessMessage41;
-            _processMessage5 = ProcessMessage5;
-            _processMessage6 = ProcessMessage6;
-            _processMessage7 = ProcessMessage7;
-            _processMessage8 = ProcessMessage8;
-            _processMessage9 = ProcessMessage9;
-            _processMessageCleanup = ProcessMessageCleanup;
-            _processMessageCleanupError = ProcessMessageCleanupError;
+        internal int CallContextCorrelationOffset
+        {
+            get { return this.messageInspectors.Length; }
         }
 
         internal int CorrelationCount
         {
-            get { return _correlationCount; }
+            get { return this.correlationCount; }
         }
 
         internal bool EnableFaults
         {
-            get { return _enableFaults; }
+            get { return this.enableFaults; }
+        }
+
+        internal InstanceBehavior InstanceBehavior
+        {
+            get { return this.instance; }
+        }
+
+        internal bool IsImpersonationEnabledOnSerializingReply
+        {
+            get { return this.impersonateOnSerializingReply; }
+        }
+
+        internal bool RequireClaimsPrincipalOnOperationContext
+        {
+            get { return this.requireClaimsPrincipalOnOperationContext; }
         }
 
         internal bool ManualAddressing
         {
-            get { return _manualAddressing; }
+            get { return this.manualAddressing; }
+        }
+
+        internal int MessageInspectorCorrelationOffset
+        {
+            get { return 0; }
+        }
+
+        internal int ParameterInspectorCorrelationOffset
+        {
+            get { return this.parameterInspectorCorrelationOffset; }
+        }
+
+        internal IRequestReplyCorrelator RequestReplyCorrelator
+        {
+            get { return this.requestReplyCorrelator; }
+        }
+
+        internal SecurityImpersonationBehavior SecurityImpersonation
+        {
+            get { return this.securityImpersonation; }
         }
 
         internal bool ValidateMustUnderstand
         {
-            get { return _validateMustUnderstand; }
+            get { return validateMustUnderstand; }
+        }
+
+        internal ErrorBehavior ErrorBehavior
+        {
+            get { return this.error; }
+        }
+
+        bool AcquireDynamicInstanceContext(ref MessageRpc rpc)
+        {
+            if (rpc.InstanceContext.QuotaThrottle != null)
+            {
+                return AcquireDynamicInstanceContextCore(ref rpc);
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        bool AcquireDynamicInstanceContextCore(ref MessageRpc rpc)
+        {
+            bool success = rpc.InstanceContext.QuotaThrottle.Acquire(rpc.Pause());
+
+            if (success)
+            {
+                rpc.UnPause();
+            }
+
+            return success;
         }
 
         internal void AfterReceiveRequest(ref MessageRpc rpc)
         {
-            // IDispatchMessageInspector would normally be called here. That interface isn't in contract.
+            if (this.messageInspectors.Length > 0)
+            {
+                AfterReceiveRequestCore(ref rpc);
+            }
+        }
+        internal void AfterReceiveRequestCore(ref MessageRpc rpc)
+        {
+            int offset = this.MessageInspectorCorrelationOffset;
+            try
+            {
+                for (int i = 0; i < this.messageInspectors.Length; i++)
+                {
+                    rpc.Correlation[offset + i] = this.messageInspectors[i].AfterReceiveRequest(ref rpc.Request, (IClientChannel)rpc.Channel.Proxy, rpc.InstanceContext);
+                    if (TD.MessageInspectorAfterReceiveInvokedIsEnabled())
+                    {
+                        TD.MessageInspectorAfterReceiveInvoked(rpc.EventTraceActivity, this.messageInspectors[i].GetType().FullName);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+                if (ErrorBehavior.ShouldRethrowExceptionAsIs(e))
+                {
+                    throw;
+                }
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperCallback(e);
+            }
+        }
+
+        void BeforeSendReply(ref MessageRpc rpc, ref Exception exception, ref bool thereIsAnUnhandledException)
+        {
+            if (this.messageInspectors.Length > 0)
+            {
+                BeforeSendReplyCore(ref rpc, ref exception, ref thereIsAnUnhandledException);
+            }
+        }
+
+        internal void BeforeSendReplyCore(ref MessageRpc rpc, ref Exception exception, ref bool thereIsAnUnhandledException)
+        {
+            int offset = this.MessageInspectorCorrelationOffset;
+            for (int i = 0; i < this.messageInspectors.Length; i++)
+            {
+                try
+                {
+                    Message originalReply = rpc.Reply;
+                    Message reply = originalReply;
+
+                    this.messageInspectors[i].BeforeSendReply(ref reply, rpc.Correlation[offset + i]);
+                    if (TD.MessageInspectorBeforeSendInvokedIsEnabled())
+                    {
+                        TD.MessageInspectorBeforeSendInvoked(rpc.EventTraceActivity, this.messageInspectors[i].GetType().FullName);
+                    }
+
+                    if ((reply == null) && (originalReply != null))
+                    {
+                        string message = SR.GetString(SR.SFxNullReplyFromExtension2, this.messageInspectors[i].GetType().ToString(), (rpc.Operation.Name ?? ""));
+                        ErrorBehavior.ThrowAndCatch(new InvalidOperationException(message));
+                    }
+                    rpc.Reply = reply;
+                }
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    if (!ErrorBehavior.ShouldRethrowExceptionAsIs(e))
+                    {
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperCallback(e);
+                    }
+
+                    if (exception == null)
+                    {
+                        exception = e;
+                    }
+                    thereIsAnUnhandledException = (!this.error.HandleError(e)) || thereIsAnUnhandledException;
+                }
+            }
+        }
+
+        void FinalizeCorrelation(ref MessageRpc rpc)
+        {
+            Message reply = rpc.Reply;
+
+            if (reply != null && rpc.Error == null)
+            {
+                if (rpc.transaction != null && rpc.transaction.Current != null &&
+                    rpc.transaction.Current.TransactionInformation.Status != TransactionStatus.Active)
+                {
+                    return;
+                }
+
+                CorrelationCallbackMessageProperty callback;
+
+                if (CorrelationCallbackMessageProperty.TryGet(reply, out callback))
+                {
+                    if (callback.IsFullyDefined)
+                    {
+                        try
+                        {
+                            rpc.RequestContextThrewOnReply = true;
+                            rpc.CorrelationCallback = callback;
+
+                            rpc.Reply = rpc.CorrelationCallback.FinalizeCorrelation(reply,
+                                rpc.ReplyTimeoutHelper.RemainingTime());
+                        }
+                        catch (Exception e)
+                        {
+                            if (Fx.IsFatal(e))
+                            {
+                                throw;
+                            }
+
+                            if (!this.error.HandleError(e))
+                            {
+                                rpc.CorrelationCallback = null;
+                                rpc.CanSendReply = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        rpc.CorrelationCallback = new RpcCorrelationCallbackMessageProperty(callback, this, ref rpc);
+                        reply.Properties[CorrelationCallbackMessageProperty.Name] = rpc.CorrelationCallback;
+                    }
+                }
+            }
+        }
+
+        void BeginFinalizeCorrelation(ref MessageRpc rpc)
+        {
+            Message reply = rpc.Reply;
+
+            if (reply != null && rpc.Error == null)
+            {
+                if (rpc.transaction != null && rpc.transaction.Current != null &&
+                    rpc.transaction.Current.TransactionInformation.Status != TransactionStatus.Active)
+                {
+                    return;
+                }
+
+                CorrelationCallbackMessageProperty callback;
+
+                if (CorrelationCallbackMessageProperty.TryGet(reply, out callback))
+                {
+                    if (callback.IsFullyDefined)
+                    {
+                        bool success = false;
+
+                        try
+                        {
+                            rpc.RequestContextThrewOnReply = true;
+                            rpc.CorrelationCallback = callback;
+
+                            IResumeMessageRpc resume = rpc.Pause();
+                            rpc.AsyncResult = rpc.CorrelationCallback.BeginFinalizeCorrelation(reply,
+                                rpc.ReplyTimeoutHelper.RemainingTime(), onFinalizeCorrelationCompleted, resume);
+                            success = true;
+
+                            if (rpc.AsyncResult.CompletedSynchronously)
+                            {
+                                rpc.UnPause();
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            if (Fx.IsFatal(e))
+                            {
+                                throw;
+                            }
+
+                            if (!this.error.HandleError(e))
+                            {
+                                rpc.CorrelationCallback = null;
+                                rpc.CanSendReply = false;
+                            }
+                        }
+                        finally
+                        {
+                            if (!success)
+                            {
+                                rpc.UnPause();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        rpc.CorrelationCallback = new RpcCorrelationCallbackMessageProperty(callback, this, ref rpc);
+                        reply.Properties[CorrelationCallbackMessageProperty.Name] = rpc.CorrelationCallback;
+                    }
+                }
+            }
         }
 
         void Reply(ref MessageRpc rpc)
@@ -129,11 +451,11 @@ namespace System.ServiceModel.Dispatcher
             }
             catch (CommunicationException e)
             {
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
             catch (TimeoutException e)
             {
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
             catch (Exception e)
             {
@@ -142,7 +464,14 @@ namespace System.ServiceModel.Dispatcher
                     throw;
                 }
 
-                if (!_error.HandleError(e))
+                if (DiagnosticUtility.ShouldTraceError)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Error, TraceCode.ServiceOperationExceptionOnReply,
+                        SR.GetString(SR.TraceCodeServiceOperationExceptionOnReply),
+                        this, e);
+                }
+
+                if (!this.error.HandleError(e))
                 {
                     rpc.RequestContextThrewOnReply = true;
                     rpc.CanSendReply = false;
@@ -169,11 +498,11 @@ namespace System.ServiceModel.Dispatcher
             }
             catch (CommunicationException e)
             {
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
             catch (TimeoutException e)
             {
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
             catch (Exception e)
             {
@@ -182,7 +511,15 @@ namespace System.ServiceModel.Dispatcher
                     throw;
                 }
 
-                if (!_error.HandleError(e))
+                if (DiagnosticUtility.ShouldTraceError)
+                {
+                    TraceUtility.TraceEvent(System.Diagnostics.TraceEventType.Error,
+                        TraceCode.ServiceOperationExceptionOnReply,
+                        SR.GetString(SR.TraceCodeServiceOperationExceptionOnReply),
+                        this, e);
+                }
+
+                if (!this.error.HandleError(e))
                 {
                     rpc.RequestContextThrewOnReply = true;
                     rpc.CanSendReply = false;
@@ -199,9 +536,29 @@ namespace System.ServiceModel.Dispatcher
 
         internal bool Dispatch(ref MessageRpc rpc, bool isOperationContextSet)
         {
-            rpc.ErrorProcessor = _processMessage8;
-            rpc.NextProcessor = _processMessage1;
+            rpc.ErrorProcessor = this.processMessage8;
+            rpc.NextProcessor = this.processMessage1;
             return rpc.Process(isOperationContextSet);
+        }
+
+        void EndFinalizeCorrelation(ref MessageRpc rpc)
+        {
+            try
+            {
+                rpc.Reply = rpc.CorrelationCallback.EndFinalizeCorrelation(rpc.AsyncResult);
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+
+                if (!this.error.HandleError(e))
+                {
+                    rpc.CanSendReply = false;
+                }
+            }
         }
 
         bool EndReply(ref MessageRpc rpc)
@@ -226,41 +583,97 @@ namespace System.ServiceModel.Dispatcher
                     throw;
                 }
 
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
 
             return success;
         }
 
-        void SetActivityIdOnThread(ref MessageRpc rpc)
+        internal void InputSessionDoneReceiving(ServiceChannel channel)
         {
-            if (FxTrace.Trace.IsEnd2EndActivityTracingEnabled && rpc.EventTraceActivity != null)
+            if (this.inputSessionShutdownHandlers.Length > 0)
             {
-                // Propogate the ActivityId to the service operation
-                EventTraceActivityHelper.SetOnThread(rpc.EventTraceActivity);
+                this.InputSessionDoneReceivingCore(channel);
             }
         }
 
-        void TransferChannelFromPendingList(ref MessageRpc rpc)
+        void InputSessionDoneReceivingCore(ServiceChannel channel)
         {
-            if (rpc.Channel.IsPending)
+            IDuplexContextChannel proxy = channel.Proxy as IDuplexContextChannel;
+
+            if (proxy != null)
             {
-                rpc.Channel.IsPending = false;
-
-                ChannelDispatcher channelDispatcher = rpc.Channel.ChannelDispatcher;
-                IInstanceContextProvider provider = _instance.InstanceContextProvider;
-
-                if (!InstanceContextProviderBase.IsProviderSessionful(provider) &&
-                    !InstanceContextProviderBase.IsProviderSingleton(provider))
+                IInputSessionShutdown[] handlers = this.inputSessionShutdownHandlers;
+                try
                 {
-                    IChannel proxy = rpc.Channel.Proxy as IChannel;
-                    if (!rpc.InstanceContext.IncomingChannels.Contains(proxy))
+                    for (int i = 0; i < handlers.Length; i++)
                     {
-                        channelDispatcher.Channels.Add(proxy);
+                        handlers[i].DoneReceiving(proxy);
                     }
                 }
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    if (!this.error.HandleError(e))
+                    {
+                        proxy.Abort();
+                    }
+                }
+            }
+        }
 
-                channelDispatcher.PendingChannels.Remove(rpc.Channel.Binder.Channel);
+        internal bool IsConcurrent(ref MessageRpc rpc)
+        {
+            return this.concurrency.IsConcurrent(ref rpc);
+        }
+
+        internal void InputSessionFaulted(ServiceChannel channel)
+        {
+            if (this.inputSessionShutdownHandlers.Length > 0)
+            {
+                this.InputSessionFaultedCore(channel);
+            }
+        }
+
+        void InputSessionFaultedCore(ServiceChannel channel)
+        {
+            IDuplexContextChannel proxy = channel.Proxy as IDuplexContextChannel;
+
+            if (proxy != null)
+            {
+                IInputSessionShutdown[] handlers = this.inputSessionShutdownHandlers;
+                try
+                {
+                    for (int i = 0; i < handlers.Length; i++)
+                    {
+                        handlers[i].ChannelFaulted(proxy);
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    if (!this.error.HandleError(e))
+                    {
+                        proxy.Abort();
+                    }
+                }
+            }
+        }
+
+        static internal void GotDynamicInstanceContext(object state)
+        {
+            bool alreadyResumedNoLock;
+            ((IResumeMessageRpc)state).Resume(out alreadyResumedNoLock);
+
+            if (alreadyResumedNoLock)
+            {
+                Fx.Assert("GotDynamicInstanceContext more than once for same call.");
             }
         }
 
@@ -280,6 +693,23 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        static void OnFinalizeCorrelationCompletedCallback(IAsyncResult result)
+        {
+            if (result.CompletedSynchronously)
+            {
+                return;
+            }
+
+            IResumeMessageRpc resume = result.AsyncState as IResumeMessageRpc;
+
+            if (resume == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxInvalidAsyncResultState0));
+            }
+
+            resume.Resume(result);
+        }
+
         static void OnReplyCompletedCallback(IAsyncResult result)
         {
             if (result.CompletedSynchronously)
@@ -291,7 +721,7 @@ namespace System.ServiceModel.Dispatcher
 
             if (resume == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.SFxInvalidAsyncResultState0);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxInvalidAsyncResultState0));
             }
 
             resume.Resume(result);
@@ -305,6 +735,28 @@ namespace System.ServiceModel.Dispatcher
 
             if (!rpc.Operation.IsOneWay)
             {
+                if (DiagnosticUtility.ShouldTraceWarning)
+                {
+                    // If a service both returns null and sets RequestContext null, that
+                    // means they handled it (either by calling Close or Reply manually).
+                    // These traces catch accidents, where you accidentally return null,
+                    // or you accidentally close the context so we can't return your message.
+                    if ((rpc.Reply == null) && (context != null))
+                    {
+                        TraceUtility.TraceEvent(System.Diagnostics.TraceEventType.Warning,
+                            TraceCode.ServiceOperationMissingReply,
+                            SR.GetString(SR.TraceCodeServiceOperationMissingReply, rpc.Operation.Name ?? String.Empty),
+                            null, null);
+                    }
+                    else if ((context == null) && (rpc.Reply != null))
+                    {
+                        TraceUtility.TraceEvent(System.Diagnostics.TraceEventType.Warning,
+                            TraceCode.ServiceOperationMissingReplyContext,
+                            SR.GetString(SR.TraceCodeServiceOperationMissingReplyContext, rpc.Operation.Name ?? String.Empty),
+                            null, null);
+                    }
+                }
+
                 if ((context != null) && (rpc.Reply != null))
                 {
                     try
@@ -317,11 +769,13 @@ namespace System.ServiceModel.Dispatcher
                         {
                             throw;
                         }
-                        thereIsAnUnhandledException = !_error.HandleError(e);
+                        thereIsAnUnhandledException = (!this.error.HandleError(e)) || thereIsAnUnhandledException;
                         exception = e;
                     }
                 }
             }
+
+            this.BeforeSendReply(ref rpc, ref exception, ref thereIsAnUnhandledException);
 
             if (rpc.Operation.IsOneWay)
             {
@@ -337,7 +791,7 @@ namespace System.ServiceModel.Dispatcher
                     // ProvideFault to expect that SFx will address the reply.  Instead
                     // we always just do 'internal server error' processing.
                     rpc.Error = exception;
-                    _error.ProvideOnlyFaultOfLastResort(ref rpc);
+                    this.error.ProvideOnlyFaultOfLastResort(ref rpc);
 
                     try
                     {
@@ -349,7 +803,7 @@ namespace System.ServiceModel.Dispatcher
                         {
                             throw;
                         }
-                        _error.HandleError(e);
+                        this.error.HandleError(e);
                     }
                 }
             }
@@ -363,7 +817,7 @@ namespace System.ServiceModel.Dispatcher
         {
             bool canSendReply = true;
 
-            if (!_manualAddressing)
+            if (!this.manualAddressing)
             {
                 if (!object.ReferenceEquals(rpc.RequestID, null))
                 {
@@ -387,32 +841,38 @@ namespace System.ServiceModel.Dispatcher
 
         internal DispatchOperationRuntime GetOperation(ref Message message)
         {
-            return _demuxer.GetOperation(ref message);
-        }
-
-        interface IDemuxer
-        {
-            DispatchOperationRuntime GetOperation(ref Message request);
-        }
-
-        internal bool IsConcurrent(ref MessageRpc rpc)
-        {
-            return _concurrency.IsConcurrent(ref rpc);
+            return this.demuxer.GetOperation(ref message);
         }
 
         internal void ProcessMessage1(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage11;
+            rpc.NextProcessor = this.processMessage11;
+
+            if (this.receiveContextEnabledChannel)
+            {
+                ReceiveContextRPCFacet.CreateIfRequired(this, ref rpc);
+            }
 
             if (!rpc.IsPaused)
             {
-                ProcessMessage11(ref rpc);
+                this.ProcessMessage11(ref rpc);
+            }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage1)
+            {
+                this.didTraceProcessMessage1 = true;
+
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage31Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
             }
         }
 
         internal void ProcessMessage11(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage2;
+            rpc.NextProcessor = this.processMessage2;
 
             if (rpc.Operation.IsOneWay)
             {
@@ -425,87 +885,190 @@ namespace System.ServiceModel.Dispatcher
                     ((object)rpc.RequestID == null) &&
                     (rpc.Operation.Action != MessageHeaders.WildcardAction))
                 {
-                    CommunicationException error = new CommunicationException(SR.SFxOneWayMessageToTwoWayMethod0);
+                    CommunicationException error = new CommunicationException(SR.GetString(SR.SFxOneWayMessageToTwoWayMethod0));
                     throw TraceUtility.ThrowHelperError(error, rpc.Request);
                 }
 
-                if (!_manualAddressing)
+                if (!this.manualAddressing)
                 {
                     EndpointAddress replyTo = rpc.ReplyToInfo.ReplyTo;
                     if (replyTo != null && replyTo.IsNone && rpc.Channel.IsReplyChannel)
                     {
-                        CommunicationException error = new CommunicationException(SR.SFxRequestReplyNone);
+                        CommunicationException error = new CommunicationException(SR.GetString(SR.SFxRequestReplyNone));
                         throw TraceUtility.ThrowHelperError(error, rpc.Request);
+                    }
+
+                    if (this.isOnServer)
+                    {
+                        EndpointAddress remoteAddress = rpc.Channel.RemoteAddress;
+                        if ((remoteAddress != null) && !remoteAddress.IsAnonymous)
+                        {
+                            MessageHeaders headers = rpc.Request.Headers;
+                            Uri remoteUri = remoteAddress.Uri;
+
+                            if ((replyTo != null) && !replyTo.IsAnonymous && (remoteUri != replyTo.Uri))
+                            {
+                                string text = SR.GetString(SR.SFxRequestHasInvalidReplyToOnServer, replyTo.Uri, remoteUri);
+                                Exception error = new InvalidOperationException(text);
+                                throw TraceUtility.ThrowHelperError(error, rpc.Request);
+                            }
+
+                            EndpointAddress faultTo = headers.FaultTo;
+                            if ((faultTo != null) && !faultTo.IsAnonymous && (remoteUri != faultTo.Uri))
+                            {
+                                string text = SR.GetString(SR.SFxRequestHasInvalidFaultToOnServer, faultTo.Uri, remoteUri);
+                                Exception error = new InvalidOperationException(text);
+                                throw TraceUtility.ThrowHelperError(error, rpc.Request);
+                            }
+
+                            if (rpc.RequestVersion.Addressing == AddressingVersion.WSAddressingAugust2004)
+                            {
+                                EndpointAddress from = headers.From;
+                                if ((from != null) && !from.IsAnonymous && (remoteUri != from.Uri))
+                                {
+                                    string text = SR.GetString(SR.SFxRequestHasInvalidFromOnServer, from.Uri, remoteUri);
+                                    Exception error = new InvalidOperationException(text);
+                                    throw TraceUtility.ThrowHelperError(error, rpc.Request);
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (_concurrency.IsConcurrent(ref rpc))
+            if (this.concurrency.IsConcurrent(ref rpc))
             {
                 rpc.Channel.IncrementActivity();
                 rpc.SuccessfullyIncrementedActivity = true;
             }
 
-            _instance.EnsureInstanceContext(ref rpc);
+            if (this.authenticationBehavior != null)
+            {
+                this.authenticationBehavior.Authenticate(ref rpc);
+            }
+
+            if (this.authorizationBehavior != null)
+            {
+                this.authorizationBehavior.Authorize(ref rpc);
+            }
+
+            this.instance.EnsureInstanceContext(ref rpc);
             this.TransferChannelFromPendingList(ref rpc);
+
+            this.AcquireDynamicInstanceContext(ref rpc);
 
             if (!rpc.IsPaused)
             {
                 this.ProcessMessage2(ref rpc);
             }
-
         }
 
-        private void ProcessMessage2(ref MessageRpc rpc)
+        void ProcessMessage2(ref MessageRpc rpc)
         {
-            // Run dispatch message inspectors
-            rpc.NextProcessor = _processMessage3;
+            rpc.NextProcessor = this.processMessage3;
 
             this.AfterReceiveRequest(ref rpc);
 
-            _concurrency.LockInstance(ref rpc);
+            if (!this.ignoreTransactionFlow)
+            {
+                // Transactions need to have the context in the message
+                rpc.TransactionMessageProperty = TransactionMessageProperty.TryGet(rpc.Request);
+            }
+
+            this.concurrency.LockInstance(ref rpc);
 
             if (!rpc.IsPaused)
             {
                 this.ProcessMessage3(ref rpc);
             }
-        }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage2)
+            {
+                this.didTraceProcessMessage2 = true;
 
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage2Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
+            }
+        }
 
         void ProcessMessage3(ref MessageRpc rpc)
         {
-            // Manage transactions, can likely go away
-
-            rpc.NextProcessor = _processMessage31;
+            rpc.NextProcessor = this.processMessage31;
 
             rpc.SuccessfullyLockedInstance = true;
+
+            // This also needs to happen after LockInstance, in case
+            // we are using an AutoComplete=false transaction.
+            if (this.transaction != null)
+            {
+                this.transaction.ResolveTransaction(ref rpc);
+                if (rpc.Operation.TransactionRequired)
+                {
+                    this.transaction.SetCurrent(ref rpc);
+                }
+            }
 
             if (!rpc.IsPaused)
             {
                 this.ProcessMessage31(ref rpc);
             }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage3)
+            {
+                this.didTraceProcessMessage3 = true;
+
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage3Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
+            }
         }
 
         void ProcessMessage31(ref MessageRpc rpc)
         {
-            // More transaction stuff, can likely go away
-            rpc.NextProcessor = _processMessage4;
+            rpc.NextProcessor = this.processMessage4;
 
+            if (this.transaction != null)
+            {
+                if (rpc.Operation.TransactionRequired)
+                {
+                    ReceiveContextRPCFacet receiveContext = rpc.ReceiveContext;
+
+                    if (receiveContext != null)
+                    {
+                        rpc.ReceiveContext = null;
+                        receiveContext.Complete(this, ref rpc, TimeSpan.MaxValue, rpc.Transaction.Current);
+                    }
+                }
+            }
             if (!rpc.IsPaused)
             {
                 this.ProcessMessage4(ref rpc);
+            }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage31)
+            {
+                this.didTraceProcessMessage31 = true;
+
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage31Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
             }
         }
 
         void ProcessMessage4(ref MessageRpc rpc)
         {
-            // Bind request to synchronization context if needed
-
-            rpc.NextProcessor = _processMessage41;
+            rpc.NextProcessor = this.processMessage41;
 
             try
             {
-                _thread.BindThread(ref rpc);
+                this.thread.BindThread(ref rpc);
             }
             catch (Exception e)
             {
@@ -520,76 +1083,125 @@ namespace System.ServiceModel.Dispatcher
             {
                 this.ProcessMessage41(ref rpc);
             }
-        }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage4)
+            {
+                this.didTraceProcessMessage4 = true;
 
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage4Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
+            }
+
+        }
 
         void ProcessMessage41(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage5;
+            rpc.NextProcessor = this.processMessage5;
 
             // This needs to happen after LockInstance--LockInstance guarantees
             // in-order delivery, so we can't receive the next message until we
             // have acquired the lock.
             //
-            // This also needs to happen after BindThread, since
-            // running on UI thread should guarantee in-order delivery if
+            // This also needs to happen after BindThread, since EricZ believes
+            // that running on UI thread should guarantee in-order delivery if
             // the SynchronizationContext is single threaded.
-            if (_concurrency.IsConcurrent(ref rpc))
+            // Note: for IManualConcurrencyOperationInvoker, the invoke assumes full control over pumping.
+            if (this.concurrency.IsConcurrent(ref rpc) && !(rpc.Operation.Invoker is IManualConcurrencyOperationInvoker))
             {
                 rpc.EnsureReceive();
             }
 
-            _instance.EnsureServiceInstance(ref rpc);
+            this.instance.EnsureServiceInstance(ref rpc);
 
             if (!rpc.IsPaused)
             {
                 this.ProcessMessage5(ref rpc);
             }
+            else if (this.isOnServer && DiagnosticUtility.ShouldTraceInformation && !this.didTraceProcessMessage41)
+            {
+                this.didTraceProcessMessage41 = true;
+
+                TraceUtility.TraceEvent(
+                    TraceEventType.Information,
+                    TraceCode.MessageProcessingPaused,
+                    SR.GetString(SR.TraceCodeProcessMessage4Paused,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.ContractName,
+                    rpc.Channel.DispatchRuntime.EndpointDispatcher.EndpointAddress));
+            }
         }
 
-        private void ProcessMessage5(ref MessageRpc rpc)
+        void ProcessMessage5(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage6;
+            rpc.NextProcessor = this.processMessage6;
 
-            bool success = false;
             try
             {
-                // If async call completes in sync, it tells us through the gate below
-                rpc.PrepareInvokeContinueGate();
-
-                SetActivityIdOnThread(ref rpc);
-
-                rpc.Operation.InvokeBegin(ref rpc);
-                success = true;
-            }
-            finally
-            {
+                bool success = false;
                 try
                 {
-                    if (rpc.IsPaused)
+                    if (!rpc.Operation.IsSynchronous)
                     {
-                        // Check if the callback produced the async result and set it back on the RPC on this stack 
-                        // and proceed only if the gate was signaled by the callback and completed synchronously
-                        if (rpc.UnlockInvokeContinueGate(out rpc.AsyncResult))
+                        // If async call completes in [....], it tells us through the gate below
+                        rpc.PrepareInvokeContinueGate();
+                    }
+
+                    if (this.transaction != null)
+                    {
+                        this.transaction.InitializeCallContext(ref rpc);
+                    }
+
+                    SetActivityIdOnThread(ref rpc);
+
+                    rpc.Operation.InvokeBegin(ref rpc);
+                    success = true;
+                }
+                finally
+                {
+                    try
+                    {
+                        try
                         {
-                            rpc.UnPause();
+                            if (this.transaction != null)
+                            {
+                                this.transaction.ClearCallContext(ref rpc);
+                            }
+                        }
+                        finally
+                        {
+                            if (!rpc.Operation.IsSynchronous && rpc.IsPaused)
+                            {
+                                // Check if the callback produced the async result and set it back on the RPC on this stack 
+                                // and proceed only if the gate was signaled by the callback and completed synchronously
+                                if (rpc.UnlockInvokeContinueGate(out rpc.AsyncResult))
+                                {
+                                    rpc.UnPause();
+                                }
+                            }
                         }
                     }
-                }
-                catch (Exception e)
-                {
-                    if (Fx.IsFatal(e))
+                    catch (Exception e)
                     {
-                        throw;
-                    }
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
 
-                    if (success && !rpc.IsPaused)
-                    {
-                        throw;
-                    }
+                        if (success && (rpc.Operation.IsSynchronous || !rpc.IsPaused))
+                        {
+                            throw;
+                        }
 
-                    _error.HandleError(e);
+                        this.error.HandleError(e);
+                    }
                 }
+            }
+            catch
+            {
+                // This catch clause forces ClearCallContext to run prior to stackwalks exiting this frame.
+                throw;
             }
 
             // Proceed if rpc is unpaused and invoke begin was successful.
@@ -601,11 +1213,13 @@ namespace System.ServiceModel.Dispatcher
 
         void ProcessMessage6(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage7;
+            rpc.NextProcessor = (rpc.Operation.IsSynchronous) ?
+                this.processMessage8 :
+                this.processMessage7;
 
             try
             {
-                _thread.BindEndThread(ref rpc);
+                this.thread.BindEndThread(ref rpc);
             }
             catch (Exception e)
             {
@@ -618,7 +1232,14 @@ namespace System.ServiceModel.Dispatcher
 
             if (!rpc.IsPaused)
             {
-                this.ProcessMessage7(ref rpc);
+                if (rpc.Operation.IsSynchronous)
+                {
+                    this.ProcessMessage8(ref rpc);
+                }
+                else
+                {
+                    this.ProcessMessage7(ref rpc);
+                }
             }
         }
 
@@ -626,7 +1247,48 @@ namespace System.ServiceModel.Dispatcher
         {
             rpc.NextProcessor = null;
 
-            rpc.Operation.InvokeEnd(ref rpc);
+            try
+            {
+                bool success = false;
+                try
+                {
+                    if (this.transaction != null)
+                    {
+                        this.transaction.InitializeCallContext(ref rpc);
+                    }
+                    rpc.Operation.InvokeEnd(ref rpc);
+                    success = true;
+                }
+                finally
+                {
+                    try
+                    {
+                        if (this.transaction != null)
+                        {
+                            this.transaction.ClearCallContext(ref rpc);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+                        if (success)
+                        {
+                            // Throw the transaction.ClearContextException only if
+                            // there isn't an exception on the thread already.
+                            throw;
+                        }
+                        this.error.HandleError(e);
+                    }
+                }
+            }
+            catch
+            {
+                // Make sure user Exception filters are not run with bad call context
+                throw;
+            }
 
             // this never pauses
             this.ProcessMessage8(ref rpc);
@@ -634,11 +1296,11 @@ namespace System.ServiceModel.Dispatcher
 
         void ProcessMessage8(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessage9;
+            rpc.NextProcessor = this.processMessage9;
 
             try
             {
-                _error.ProvideMessageFault(ref rpc);
+                this.error.ProvideMessageFault(ref rpc);
             }
             catch (Exception e)
             {
@@ -647,7 +1309,7 @@ namespace System.ServiceModel.Dispatcher
                     throw;
                 }
 
-                _error.HandleError(e);
+                this.error.HandleError(e);
             }
 
             this.PrepareReply(ref rpc);
@@ -655,6 +1317,15 @@ namespace System.ServiceModel.Dispatcher
             if (rpc.CanSendReply)
             {
                 rpc.ReplyTimeoutHelper = new TimeoutHelper(rpc.Channel.OperationTimeout);
+
+                if (this.sendAsynchronously)
+                {
+                    this.BeginFinalizeCorrelation(ref rpc);
+                }
+                else
+                {
+                    this.FinalizeCorrelation(ref rpc);
+                }
             }
 
             if (!rpc.IsPaused)
@@ -665,7 +1336,17 @@ namespace System.ServiceModel.Dispatcher
 
         void ProcessMessage9(ref MessageRpc rpc)
         {
-            rpc.NextProcessor = _processMessageCleanup;
+            rpc.NextProcessor = this.processMessageCleanup;
+
+            if (rpc.FinalizeCorrelationImplicitly && this.sendAsynchronously)
+            {
+                this.EndFinalizeCorrelation(ref rpc);
+            }
+
+            if (rpc.CorrelationCallback == null || rpc.FinalizeCorrelationImplicitly)
+            {
+                this.ResolveTransactionOutcome(ref rpc);
+            }
 
             if (rpc.CanSendReply)
             {
@@ -674,7 +1355,7 @@ namespace System.ServiceModel.Dispatcher
                     TraceUtility.MessageFlowAtMessageSent(rpc.Reply, rpc.EventTraceActivity);
                 }
 
-                if (_sendAsynchronously)
+                if (this.sendAsynchronously)
                 {
                     this.BeginReply(ref rpc);
                 }
@@ -690,18 +1371,54 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        // Logic for knowing when to close stuff:
+        //
+        // ASSUMPTIONS:
+        //   Closing a stream over a message also closes the message.
+        //   Closing a message over a stream does not close the stream.
+        //     (OperationStreamProvider.ReleaseStream is no-op)
+        //
+        // This is a table of what should be disposed in what cases.
+        // The rows represent the type of parameter to the method and
+        // whether we are disposing parameters or not.  The columns
+        // are for the inputs vs. the outputs.  The cells contain the
+        // values that need to be Disposed.  M^P means that exactly
+        // one of the message and parameter needs to be disposed,
+        // since they refer to the same object.
+        //
+        //                               Request           Reply
+        //               Message   |     M or P      |     M or P
+        //     Dispose   Stream    |     P           |     M and P
+        //               Params    |     M and P     |     M and P
+        //                         |                 |
+        //               Message   |     none        |     none
+        //   NoDispose   Stream    |     none        |     M
+        //               Params    |     M           |     M
+        //
+        // By choosing to dispose the parameter in both of the "M or P"
+        // cases, the logic needed to generate this table is:
+        //
+        // CloseRequestMessage = IsParams
+        // CloseRequestParams  = rpc.Operation.DisposeParameters
+        // CloseReplyMessage   = rpc.Operation.SerializeReply
+        // CloseReplyParams    = rpc.Operation.DisposeParameters
+        //
+        // IsParams can be calculated based on whether the request
+        // message was consumed after deserializing but before calling
+        // the user.  This is stored as rpc.DidDeserializeRequestBody.
+        //
         void ProcessMessageCleanup(ref MessageRpc rpc)
         {
             Fx.Assert(
-                !object.ReferenceEquals(rpc.ErrorProcessor, _processMessageCleanupError),
+                !object.ReferenceEquals(rpc.ErrorProcessor, this.processMessageCleanupError),
                 "ProcessMessageCleanup run twice on the same MessageRpc!");
-            rpc.ErrorProcessor = _processMessageCleanupError;
+            rpc.ErrorProcessor = this.processMessageCleanupError;
 
             bool replyWasSent = false;
 
             if (rpc.CanSendReply)
             {
-                if (_sendAsynchronously)
+                if (this.sendAsynchronously)
                 {
                     replyWasSent = this.EndReply(ref rpc);
                 }
@@ -726,10 +1443,28 @@ namespace System.ServiceModel.Dispatcher
                     {
                         throw;
                     }
-                    _error.HandleError(e);
+                    this.error.HandleError(e);
                 }
 
-                rpc.DisposeParameters(false); //Dispose all input/output/return parameters
+                if (rpc.HostingProperty != null)
+                {
+                    try
+                    {
+                        rpc.HostingProperty.Close();
+                    }
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperFatal(e.Message, e);
+                    }
+                }
+
+                // for wf, wf owns the lifetime of the request message. So in that case, we should not dispose the inputs
+                IManualConcurrencyOperationInvoker manualInvoker = rpc.Operation.Invoker as IManualConcurrencyOperationInvoker;
+                rpc.DisposeParameters(manualInvoker != null && manualInvoker.OwnsFormatter); //Dispose all input/output/return parameters
 
                 if (rpc.FaultInfo.IsConsideredUnhandled)
                 {
@@ -770,7 +1505,7 @@ namespace System.ServiceModel.Dispatcher
                         {
                             throw;
                         }
-                        _error.HandleError(e);
+                        this.error.HandleError(e);
                     }
                 }
 
@@ -788,7 +1523,7 @@ namespace System.ServiceModel.Dispatcher
                         {
                             throw;
                         }
-                        _error.HandleError(e);
+                        this.error.HandleError(e);
                     }
                 }
 
@@ -796,6 +1531,7 @@ namespace System.ServiceModel.Dispatcher
                 {
                     rpc.OperationContext.FireOperationCompleted();
                 }
+#pragma warning suppress 56500 // covered by FxCOP
                 catch (Exception e)
                 {
                     if (Fx.IsFatal(e))
@@ -805,13 +1541,13 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperCallback(e);
                 }
 
-                _instance.AfterReply(ref rpc, _error);
+                this.instance.AfterReply(ref rpc, this.error);
 
                 if (rpc.SuccessfullyLockedInstance)
                 {
                     try
                     {
-                        _concurrency.UnlockInstance(ref rpc);
+                        this.concurrency.UnlockInstance(ref rpc);
                     }
                     catch (Exception e)
                     {
@@ -822,10 +1558,25 @@ namespace System.ServiceModel.Dispatcher
 
                         Fx.Assert("Exceptions should be caught by callee");
                         rpc.InstanceContext.FaultInternal();
-                        _error.HandleError(e);
+                        this.error.HandleError(e);
                     }
                 }
 
+                if (this.terminate != null)
+                {
+                    try
+                    {
+                        this.terminate.AfterReply(ref rpc);
+                    }
+                    catch (Exception e)
+                    {
+                        if (Fx.IsFatal(e))
+                        {
+                            throw;
+                        }
+                        this.error.HandleError(e);
+                    }
+                }
 
                 if (rpc.SuccessfullyIncrementedActivity)
                 {
@@ -839,49 +1590,133 @@ namespace System.ServiceModel.Dispatcher
                         {
                             throw;
                         }
-                        _error.HandleError(e);
+                        this.error.HandleError(e);
                     }
                 }
             }
             finally
             {
+                if (rpc.MessageRpcOwnsInstanceContextThrottle && rpc.channelHandler.InstanceContextServiceThrottle != null)
+                {
+                    rpc.channelHandler.InstanceContextServiceThrottle.DeactivateInstanceContext();
+                }
+
                 if (rpc.Activity != null && DiagnosticUtility.ShouldUseActivity)
                 {
                     rpc.Activity.Stop();
                 }
             }
 
-            _error.HandleError(ref rpc);
+            this.error.HandleError(ref rpc);
         }
 
         void ProcessMessageCleanupError(ref MessageRpc rpc)
         {
-            _error.HandleError(ref rpc);
+            this.error.HandleError(ref rpc);
+        }
+
+        void ResolveTransactionOutcome(ref MessageRpc rpc)
+        {
+            if (this.transaction != null)
+            {
+                try
+                {
+                    bool hadError = (rpc.Error != null);
+                    try
+                    {
+                        this.transaction.ResolveOutcome(ref rpc);
+                    }
+                    catch (FaultException e)
+                    {
+                        if (rpc.Error == null)
+                        {
+                            rpc.Error = e;
+                        }
+                    }
+                    finally
+                    {
+                        if (!hadError && rpc.Error != null)
+                        {
+                            this.error.ProvideMessageFault(ref rpc);
+                            this.PrepareAndAddressReply(ref rpc);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (Fx.IsFatal(e))
+                    {
+                        throw;
+                    }
+                    this.error.HandleError(e);
+                }
+
+            }
+        }
+
+        [Fx.Tag.SecurityNote(Critical = "Calls security critical method to set the ActivityId on the thread",
+            Safe = "Set the ActivityId only when MessageRpc is available")]
+        [SecuritySafeCritical]
+        void SetActivityIdOnThread(ref MessageRpc rpc)
+        {
+            if (FxTrace.Trace.IsEnd2EndActivityTracingEnabled && rpc.EventTraceActivity != null)
+            {
+                // Propogate the ActivityId to the service operation
+                EventTraceActivityHelper.SetOnThread(rpc.EventTraceActivity);
+            }
+        }
+
+        void TransferChannelFromPendingList(ref MessageRpc rpc)
+        {
+            if (rpc.Channel.IsPending)
+            {
+                rpc.Channel.IsPending = false;
+
+                ChannelDispatcher channelDispatcher = rpc.Channel.ChannelDispatcher;
+                IInstanceContextProvider provider = this.instance.InstanceContextProvider;
+
+                if (!InstanceContextProviderBase.IsProviderSessionful(provider) &&
+                    !InstanceContextProviderBase.IsProviderSingleton(provider))
+                {
+                    IChannel proxy = rpc.Channel.Proxy as IChannel;
+                    if (!rpc.InstanceContext.IncomingChannels.Contains(proxy))
+                    {
+                        channelDispatcher.Channels.Add(proxy);
+                    }
+                }
+
+                channelDispatcher.PendingChannels.Remove(rpc.Channel.Binder.Channel);
+            }
+        }
+
+        interface IDemuxer
+        {
+            DispatchOperationRuntime GetOperation(ref Message request);
         }
 
         class ActionDemuxer : IDemuxer
         {
-            readonly HybridDictionary _map;
-            DispatchOperationRuntime _unhandled;
+            HybridDictionary map;
+            DispatchOperationRuntime unhandled;
 
             internal ActionDemuxer()
             {
-                _map = new HybridDictionary();
+                this.map = new HybridDictionary();
             }
 
             internal void Add(string action, DispatchOperationRuntime operation)
             {
-                if (_map.Contains(action))
+                if (map.Contains(action))
                 {
-                    DispatchOperationRuntime existingOperation = (DispatchOperationRuntime)_map[action];
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxActionDemuxerDuplicate, existingOperation.Name, operation.Name, action)));
+                    DispatchOperationRuntime existingOperation = (DispatchOperationRuntime)map[action];
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxActionDemuxerDuplicate, existingOperation.Name, operation.Name, action)));
                 }
-                _map.Add(action, operation);
+                this.map.Add(action, operation);
             }
 
             internal void SetUnhandled(DispatchOperationRuntime operation)
             {
-                _unhandled = operation;
+                this.unhandled = operation;
             }
 
             public DispatchOperationRuntime GetOperation(ref Message request)
@@ -891,13 +1726,167 @@ namespace System.ServiceModel.Dispatcher
                 {
                     action = MessageHeaders.WildcardAction;
                 }
-                DispatchOperationRuntime operation = (DispatchOperationRuntime)_map[action];
+                DispatchOperationRuntime operation = (DispatchOperationRuntime)this.map[action];
                 if (operation != null)
                 {
                     return operation;
                 }
 
-                return _unhandled;
+                return this.unhandled;
+            }
+        }
+
+        class CustomDemuxer : IDemuxer
+        {
+            Dictionary<string, DispatchOperationRuntime> map;
+            IDispatchOperationSelector selector;
+            DispatchOperationRuntime unhandled;
+
+            internal CustomDemuxer(IDispatchOperationSelector selector)
+            {
+                this.selector = selector;
+                this.map = new Dictionary<string, DispatchOperationRuntime>();
+            }
+
+            internal void Add(string name, DispatchOperationRuntime operation)
+            {
+                this.map.Add(name, operation);
+            }
+
+            internal void SetUnhandled(DispatchOperationRuntime operation)
+            {
+                this.unhandled = operation;
+            }
+
+            public DispatchOperationRuntime GetOperation(ref Message request)
+            {
+                string operationName = this.selector.SelectOperation(ref request);
+                DispatchOperationRuntime operation = null;
+                if (this.map.TryGetValue(operationName, out operation))
+                {
+                    return operation;
+                }
+                else
+                {
+                    return this.unhandled;
+                }
+            }
+        }
+
+        class RpcCorrelationCallbackMessageProperty : CorrelationCallbackMessageProperty
+        {
+            CorrelationCallbackMessageProperty innerCallback;
+            MessageRpc rpc;
+            ImmutableDispatchRuntime runtime;
+            TransactionScope scope;
+
+            // This constructor should be used when creating the RPCCorrelationMessageproperty the first time
+            // Here we copy the data & the needed data from the original callback
+            public RpcCorrelationCallbackMessageProperty(CorrelationCallbackMessageProperty innerCallback,
+                ImmutableDispatchRuntime runtime, ref MessageRpc rpc)
+                : base(innerCallback)
+            {
+                this.innerCallback = innerCallback;
+                this.runtime = runtime;
+                this.rpc = rpc;
+            }
+
+            // This constructor should be used when we are making a copy from the already initialized RPCCorrelationCallbackMessageProperty
+            public RpcCorrelationCallbackMessageProperty(RpcCorrelationCallbackMessageProperty rpcCallbackMessageProperty)
+                : base(rpcCallbackMessageProperty)
+            {
+                this.innerCallback = rpcCallbackMessageProperty.innerCallback;
+                this.runtime = rpcCallbackMessageProperty.runtime;
+                this.rpc = rpcCallbackMessageProperty.rpc;
+            }
+
+            public override IMessageProperty CreateCopy()
+            {
+                return new RpcCorrelationCallbackMessageProperty(this);
+            }
+
+            protected override IAsyncResult OnBeginFinalizeCorrelation(Message message, TimeSpan timeout,
+                AsyncCallback callback, object state)
+            {
+                bool success = false;
+
+                this.Enter();
+
+                try
+                {
+                    IAsyncResult result = this.innerCallback.BeginFinalizeCorrelation(message, timeout, callback, state);
+                    success = true;
+                    return result;
+                }
+                finally
+                {
+                    this.Leave(success);
+                }
+            }
+
+            protected override Message OnEndFinalizeCorrelation(IAsyncResult result)
+            {
+                bool success = false;
+
+                this.Enter();
+
+                try
+                {
+                    Message message = this.innerCallback.EndFinalizeCorrelation(result);
+                    success = true;
+                    return message;
+                }
+                finally
+                {
+                    this.Leave(success);
+                    this.CompleteTransaction();
+                }
+            }
+
+            protected override Message OnFinalizeCorrelation(Message message, TimeSpan timeout)
+            {
+                bool success = false;
+
+                this.Enter();
+
+                try
+                {
+                    Message newMessage = this.innerCallback.FinalizeCorrelation(message, timeout);
+                    success = true;
+                    return newMessage;
+                }
+                finally
+                {
+                    this.Leave(success);
+                    this.CompleteTransaction();
+                }
+            }
+
+            void CompleteTransaction()
+            {
+                this.runtime.ResolveTransactionOutcome(ref this.rpc);
+            }
+
+            void Enter()
+            {
+                if (this.rpc.transaction != null && this.rpc.transaction.Current != null)
+                {
+                    this.scope = new TransactionScope(this.rpc.transaction.Current);
+                }
+            }
+
+            void Leave(bool complete)
+            {
+                if (this.scope != null)
+                {
+                    if (complete)
+                    {
+                        scope.Complete();
+                    }
+
+                    scope.Dispose();
+                    this.scope = null;
+                }
             }
         }
     }

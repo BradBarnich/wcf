@@ -1,25 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-using System.Collections.Generic;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
-    internal class ServiceModelDictionary : IXmlDictionary
+    using System.Xml;
+    using System.Collections.Generic;
+
+    class ServiceModelDictionary : IXmlDictionary
     {
         static public readonly ServiceModelDictionary Version1 = new ServiceModelDictionary(new ServiceModelStringsVersion1());
-        private ServiceModelStrings _strings;
-        private int _count;
-        private XmlDictionaryString[] _dictionaryStrings1;
-        private XmlDictionaryString[] _dictionaryStrings2;
-        private Dictionary<string, int> _dictionary;
-        private XmlDictionaryString[] _versionedDictionaryStrings;
+        ServiceModelStrings strings;
+        int count;
+        XmlDictionaryString[] dictionaryStrings1;
+        XmlDictionaryString[] dictionaryStrings2;
+        Dictionary<string, int> dictionary;
+        XmlDictionaryString[] versionedDictionaryStrings;
 
         public ServiceModelDictionary(ServiceModelStrings strings)
         {
-            _strings = strings;
-            _count = strings.Count;
+            this.strings = strings;
+            this.count = strings.Count;
         }
 
         static public ServiceModelDictionary CurrentVersion
@@ -39,15 +39,15 @@ namespace System.ServiceModel
         {
             if (key == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("key"));
-            if (_dictionary == null)
+            if (this.dictionary == null)
             {
-                Dictionary<string, int> dictionary = new Dictionary<string, int>(_count);
-                for (int i = 0; i < _count; i++)
-                    dictionary.Add(_strings[i], i);
-                _dictionary = dictionary;
+                Dictionary<string, int> dictionary = new Dictionary<string, int>(count);
+                for (int i = 0; i < count; i++)
+                    dictionary.Add(strings[i], i);
+                this.dictionary = dictionary;
             }
             int id;
-            if (_dictionary.TryGetValue(key, out id))
+            if (this.dictionary.TryGetValue(key, out id))
                 return TryLookup(id, out value);
             value = null;
             return false;
@@ -56,7 +56,7 @@ namespace System.ServiceModel
         public bool TryLookup(int key, out XmlDictionaryString value)
         {
             const int keyThreshold = 32;
-            if (key < 0 || key >= _count)
+            if (key < 0 || key >= count)
             {
                 value = null;
                 return false;
@@ -64,24 +64,24 @@ namespace System.ServiceModel
             XmlDictionaryString s;
             if (key < keyThreshold)
             {
-                if (_dictionaryStrings1 == null)
-                    _dictionaryStrings1 = new XmlDictionaryString[keyThreshold];
-                s = _dictionaryStrings1[key];
+                if (dictionaryStrings1 == null)
+                    dictionaryStrings1 = new XmlDictionaryString[keyThreshold];
+                s = dictionaryStrings1[key];
                 if (s == null)
                 {
-                    s = CreateString(_strings[key], key);
-                    _dictionaryStrings1[key] = s;
+                    s = CreateString(strings[key], key);
+                    dictionaryStrings1[key] = s;
                 }
             }
             else
             {
-                if (_dictionaryStrings2 == null)
-                    _dictionaryStrings2 = new XmlDictionaryString[_count - keyThreshold];
-                s = _dictionaryStrings2[key - keyThreshold];
+                if (dictionaryStrings2 == null)
+                    dictionaryStrings2 = new XmlDictionaryString[count - keyThreshold];
+                s = dictionaryStrings2[key - keyThreshold];
                 if (s == null)
                 {
-                    s = CreateString(_strings[key], key);
-                    _dictionaryStrings2[key - keyThreshold] = s;
+                    s = CreateString(strings[key], key);
+                    dictionaryStrings2[key - keyThreshold] = s;
                 }
             }
             value = s;
@@ -99,9 +99,9 @@ namespace System.ServiceModel
             }
             if (key.Dictionary == CurrentVersion)
             {
-                if (_versionedDictionaryStrings == null)
-                    _versionedDictionaryStrings = new XmlDictionaryString[CurrentVersion._count];
-                XmlDictionaryString s = _versionedDictionaryStrings[key.Key];
+                if (versionedDictionaryStrings == null)
+                    versionedDictionaryStrings = new XmlDictionaryString[CurrentVersion.count];
+                XmlDictionaryString s = versionedDictionaryStrings[key.Key];
                 if (s == null)
                 {
                     if (!TryLookup(key.Value, out s))
@@ -109,7 +109,7 @@ namespace System.ServiceModel
                         value = null;
                         return false;
                     }
-                    _versionedDictionaryStrings[key.Key] = s;
+                    versionedDictionaryStrings[key.Key] = s;
                 }
                 value = s;
                 return true;

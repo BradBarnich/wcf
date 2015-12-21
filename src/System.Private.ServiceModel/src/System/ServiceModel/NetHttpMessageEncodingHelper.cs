@@ -1,9 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿// <copyright>
+//   Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel
 {
-    internal static class NetHttpMessageEncodingHelper
+    static class NetHttpMessageEncodingHelper
     {
         internal static bool IsDefined(NetHttpMessageEncoding value)
         {

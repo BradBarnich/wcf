@@ -1,11 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.Runtime.Serialization;
+
     // Some binding elements can sometimes consume extra information when building factories.
     // BindingParameterCollection is a collection of objects with this extra information.
     // See comments in SecurityBindingElement and TransactionFlowBindingElement for examples

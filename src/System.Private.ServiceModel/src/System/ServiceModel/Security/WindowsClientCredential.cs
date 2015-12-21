@@ -1,18 +1,21 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net;
-using System.Security.Principal;
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System;
+    using System.Net;
+    using System.Security.Principal;
+    using System.ServiceModel;
+
     public sealed class WindowsClientCredential
     {
         internal const TokenImpersonationLevel DefaultImpersonationLevel = TokenImpersonationLevel.Identification;
-        private TokenImpersonationLevel _allowedImpersonationLevel = DefaultImpersonationLevel;
-        private NetworkCredential _windowsCredentials;
-        private bool _allowNtlm = SspiSecurityTokenProvider.DefaultAllowNtlm;
-        private bool _isReadOnly;
+        TokenImpersonationLevel allowedImpersonationLevel = DefaultImpersonationLevel;
+        NetworkCredential windowsCredentials;
+        bool allowNtlm = SspiSecurityTokenProvider.DefaultAllowNtlm;
+        bool isReadOnly;
 
         internal WindowsClientCredential()
         {
@@ -20,30 +23,29 @@ namespace System.ServiceModel.Security
 
         internal WindowsClientCredential(WindowsClientCredential other)
         {
-            if (other._windowsCredentials != null)
-                _windowsCredentials = SecurityUtils.GetNetworkCredentialsCopy(other._windowsCredentials);
-            _allowedImpersonationLevel = other._allowedImpersonationLevel;
-            _allowNtlm = other._allowNtlm;
-            _isReadOnly = other._isReadOnly;
+            if (other.windowsCredentials != null)
+                this.windowsCredentials = SecurityUtils.GetNetworkCredentialsCopy(other.windowsCredentials);
+            this.allowedImpersonationLevel = other.allowedImpersonationLevel;
+            this.allowNtlm = other.allowNtlm;
+            this.isReadOnly = other.isReadOnly;
         }
 
         public TokenImpersonationLevel AllowedImpersonationLevel
         {
             get
             {
-                return _allowedImpersonationLevel;
+                return this.allowedImpersonationLevel;
             }
             set
             {
                 ThrowIfImmutable();
 
-                if (((value == TokenImpersonationLevel.None) || (value == TokenImpersonationLevel.Anonymous))
-                    )
+                if (((value == TokenImpersonationLevel.None) || (value == TokenImpersonationLevel.Anonymous)) && System.ServiceModel.Channels.UnsafeNativeMethods.IsTailoredApplication.Value)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.UnsupportedTokenImpersonationLevel, "AllowedImpersonationLevel", value.ToString())));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.UnsupportedTokenImpersonationLevel, "AllowedImpersonationLevel", value.ToString())));
                 }
 
-                _allowedImpersonationLevel = value;
+                this.allowedImpersonationLevel = value;
             }
         }
 
@@ -51,14 +53,14 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                if (_windowsCredentials == null)
-                    _windowsCredentials = new NetworkCredential();
-                return _windowsCredentials;
+                if (this.windowsCredentials == null)
+                    this.windowsCredentials = new NetworkCredential();
+                return this.windowsCredentials;
             }
             set
             {
                 ThrowIfImmutable();
-                _windowsCredentials = value;
+                this.windowsCredentials = value;
             }
         }
 
@@ -67,25 +69,25 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _allowNtlm;
+                return this.allowNtlm;
             }
             set
             {
                 ThrowIfImmutable();
-                _allowNtlm = value;
+                this.allowNtlm = value;
             }
         }
 
         internal void MakeReadOnly()
         {
-            _isReadOnly = true;
+            this.isReadOnly = true;
         }
 
-        private void ThrowIfImmutable()
+        void ThrowIfImmutable()
         {
-            if (_isReadOnly)
+            if (this.isReadOnly)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.ObjectIsReadOnly));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
             }
         }
     }

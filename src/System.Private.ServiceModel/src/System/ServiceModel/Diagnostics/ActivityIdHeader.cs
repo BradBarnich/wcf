@@ -1,23 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Diagnostics
 {
-    internal class ActivityIdHeader : DictionaryHeader
+    using System;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.Xml;
+
+    class ActivityIdHeader : DictionaryHeader
     {
-        private Guid _guid;
-        private Guid _headerId;
+        Guid guid;
+        Guid headerId;
 
         internal ActivityIdHeader(Guid activityId)
             : base()
         {
-            _guid = activityId;
-            _headerId = Guid.NewGuid();
+            this.guid = activityId;
+            this.headerId = Guid.NewGuid();
         }
 
         public override XmlDictionaryString DictionaryName
@@ -55,6 +57,11 @@ namespace System.ServiceModel.Diagnostics
                 if (Fx.IsFatal(e))
                 {
                     throw;
+                }
+                if (DiagnosticUtility.ShouldTraceError)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Error, TraceCode.FailedToReadAnActivityIdHeader,
+                        SR.GetString(SR.TraceCodeFailedToReadAnActivityIdHeader), null, e);
                 }
             }
 
@@ -95,6 +102,11 @@ namespace System.ServiceModel.Diagnostics
                 {
                     throw;
                 }
+                if (DiagnosticUtility.ShouldTraceError)
+                {
+                    TraceUtility.TraceEvent(TraceEventType.Error, TraceCode.FailedToReadAnActivityIdHeader,
+                        SR.GetString(SR.TraceCodeFailedToReadAnActivityIdHeader), null, e);
+                }
             }
             return false;
         }
@@ -121,8 +133,9 @@ namespace System.ServiceModel.Diagnostics
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("writer");
             }
-            writer.WriteAttributeString("CorrelationId", _headerId.ToString());
-            writer.WriteValue(_guid);
+            writer.WriteAttributeString("CorrelationId", this.headerId.ToString());
+            writer.WriteValue(this.guid);
         }
+
     }
 }

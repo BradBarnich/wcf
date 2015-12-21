@@ -1,14 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
+    using System.Xml;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public class OperationDescriptionCollection : Collection<OperationDescription>
-    {
+    {        
         internal OperationDescriptionCollection()
-        {
+        {            
         }
 
         public OperationDescription Find(string name)
@@ -30,7 +33,7 @@ namespace System.ServiceModel.Description
                     results.Add(this[i]);
             }
             return results;
-        }
+        }        
 
         protected override void InsertItem(int index, OperationDescription item)
         {

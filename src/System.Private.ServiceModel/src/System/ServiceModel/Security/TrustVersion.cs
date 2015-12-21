@@ -1,26 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
+using System;
+using System.Collections.Generic;
+using System.Text;
 using System.Xml;
 
 namespace System.ServiceModel.Security
 {
     public abstract class TrustVersion
     {
-        private readonly XmlDictionaryString _trustNamespace;
-        private readonly XmlDictionaryString _prefix;
+        readonly XmlDictionaryString trustNamespace;
+        readonly XmlDictionaryString prefix;
 
         internal TrustVersion(XmlDictionaryString ns, XmlDictionaryString prefix)
         {
-            _trustNamespace = ns;
-            _prefix = prefix;
+            this.trustNamespace = ns;
+            this.prefix = prefix;
         }
 
         public XmlDictionaryString Namespace
         {
             get
             {
-                return _trustNamespace;
+                return this.trustNamespace;
             }
         }
 
@@ -28,7 +32,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _prefix;
+                return this.prefix;
             }
         }
 
@@ -47,9 +51,9 @@ namespace System.ServiceModel.Security
             get { return WSTrustVersion13.Instance; }
         }
 
-        internal class WSTrustVersionFeb2005 : TrustVersion
+        class WSTrustVersionFeb2005 : TrustVersion
         {
-            private static readonly WSTrustVersionFeb2005 s_instance = new WSTrustVersionFeb2005();
+            static readonly WSTrustVersionFeb2005 instance = new WSTrustVersionFeb2005();
 
             protected WSTrustVersionFeb2005()
                 : base(XD.TrustFeb2005Dictionary.Namespace, XD.TrustFeb2005Dictionary.Prefix)
@@ -60,14 +64,14 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
 
-        internal class WSTrustVersion13 : TrustVersion
+        class WSTrustVersion13 : TrustVersion
         {
-            private static readonly WSTrustVersion13 s_instance = new WSTrustVersion13();
+            static readonly WSTrustVersion13 instance = new WSTrustVersion13();
 
             protected WSTrustVersion13()
                 : base(DXD.TrustDec2005Dictionary.Namespace, DXD.TrustDec2005Dictionary.Prefix)
@@ -78,9 +82,10 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
+
     }
 }

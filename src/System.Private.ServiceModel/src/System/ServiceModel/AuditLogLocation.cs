@@ -1,11 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Security;
-using System.ComponentModel;
+//----------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.ServiceModel.Security;
+    using System.ComponentModel;
+
     public enum AuditLogLocation
     {
         Default,
@@ -13,12 +14,12 @@ namespace System.ServiceModel
         Security,
     }
 
-    internal static class AuditLogLocationHelper
+    static class AuditLogLocationHelper
     {
         public static bool IsDefined(AuditLogLocation auditLogLocation)
         {
             if (auditLogLocation == AuditLogLocation.Security && !SecurityAuditHelper.IsSecurityAuditSupported)
-                throw ExceptionHelper.PlatformNotSupported(SR.SecurityAuditPlatformNotSupported);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new PlatformNotSupportedException(SR.GetString(SR.SecurityAuditPlatformNotSupported)));
 
             return auditLogLocation == AuditLogLocation.Default
                 || auditLogLocation == AuditLogLocation.Application

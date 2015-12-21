@@ -1,38 +1,62 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Reflection;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-using System.Threading.Tasks;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    public class SyncMethodInvoker : IOperationInvoker
+    using System;
+    using System.Reflection;
+    using System.Runtime.Diagnostics;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.Globalization;
+    using System.Threading;
+    using System.Collections;
+    using System.Diagnostics;
+    using System.Security;
+    using System.Runtime;
+
+    class SyncMethodInvoker : IOperationInvoker
     {
-        readonly MethodInfo _method;
-        InvokeDelegate _invokeDelegate;
-        int _inputParameterCount;
-        int _outputParameterCount;
-        private string _methodName;
+        Type type;
+        string methodName;
+        MethodInfo method;
+        InvokeDelegate invokeDelegate;
+        int inputParameterCount;
+        int outputParameterCount;
 
         public SyncMethodInvoker(MethodInfo method)
         {
             if (method == null)
-            {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("method"));
-            }
 
-            _method = method;
+            this.method = method;
+        }
+
+        public SyncMethodInvoker(Type type, string methodName)
+        {
+            if (type == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("type"));
+
+            if (methodName == null)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("methodName"));
+
+            this.type = type;
+            this.methodName = methodName;
+        }
+
+        public bool IsSynchronous
+        {
+            get { return true; }
         }
 
         public MethodInfo Method
         {
             get
             {
-                return _method;
+                if (method == null)
+                    method = type.GetMethod(methodName);
+                return method;
             }
         }
 
@@ -40,9 +64,9 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                if (_methodName == null)
-                    _methodName = _method.Name;
-                return _methodName;
+                if (methodName == null)
+                    methodName = method.Name;
+                return methodName;
             }
         }
 
@@ -50,46 +74,49 @@ namespace System.ServiceModel.Dispatcher
         {
             EnsureIsInitialized();
 
-            return EmptyArray<object>.Allocate(_inputParameterCount);
+            return EmptyArray.Allocate(this.inputParameterCount);
         }
 
-        public IAsyncResult InvokeBegin(object instance, object[] inputs, AsyncCallback callback, object state)
-        {
-            return InvokeAsync(instance, inputs).ToApm(callback, state);
-        }
-
-        public object InvokeEnd(object instance, out object[] outputs, IAsyncResult result)
-        {
-            var task = result as Task<Tuple<object, object[]>>;
-            if (task == null)
-            {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.SFxInvalidCallbackIAsyncResult));
-            }
-
-            var tuple = task.Result;
-            outputs = tuple.Item2;
-            return tuple.Item1;
-        }
-
-        private Task<Tuple<object,object[]>> InvokeAsync(object instance, object[] inputs)
+        public object Invoke(object instance, object[] inputs, out object[] outputs)
         {
             EnsureIsInitialized();
 
             if (instance == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxNoServiceObject));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxNoServiceObject)));
             if (inputs == null)
             {
-                if (_inputParameterCount > 0)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInputParametersToServiceNull, _inputParameterCount)));
+                if (this.inputParameterCount > 0)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInputParametersToServiceNull, this.inputParameterCount)));
             }
-            else if (inputs.Length != _inputParameterCount)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInputParametersToServiceInvalid, _inputParameterCount, inputs.Length)));
+            else if (inputs.Length != this.inputParameterCount)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInputParametersToServiceInvalid, this.inputParameterCount, inputs.Length)));
 
-            var outputs = EmptyArray<object>.Allocate(_outputParameterCount);
+            outputs = EmptyArray.Allocate(this.outputParameterCount);
 
+            long startCounter = 0;
+            long stopCounter = 0;
             long beginOperation = 0;
             bool callSucceeded = false;
             bool callFaulted = false;
+
+            if (PerformanceCounters.PerformanceCountersEnabled)
+            {
+                PerformanceCounters.MethodCalled(this.MethodName);
+                try
+                {
+                    if (System.ServiceModel.Channels.UnsafeNativeMethods.QueryPerformanceCounter(out startCounter) == 0)
+                    {
+                        startCounter = -1;
+                    }
+                }
+                catch (SecurityException securityException)
+                {
+                    DiagnosticUtility.TraceHandledException(securityException, TraceEventType.Warning);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                        new SecurityException(SR.GetString(
+                                SR.PartialTrustPerformanceCountersNotEnabled), securityException));
+                }
+            }
 
             EventTraceActivity eventTraceActivity = null;
             if (TD.OperationCompletedIsEnabled() ||
@@ -136,13 +163,13 @@ namespace System.ServiceModel.Dispatcher
                 {
                     if (DiagnosticUtility.ShouldUseActivity)
                     {
-                        ServiceModelActivity.Start(activity, SR.Format(SR.ActivityExecuteMethod, _method.DeclaringType.FullName, _method.Name), ActivityType.ExecuteUserCode);
+                        ServiceModelActivity.Start(activity, SR.GetString(SR.ActivityExecuteMethod, this.method.DeclaringType.FullName, this.method.Name), ActivityType.ExecuteUserCode);
                     }
                     if (TD.OperationInvokedIsEnabled())
                     {
-                        TD.OperationInvoked(eventTraceActivity, MethodName, TraceUtility.GetCallerInfo(OperationContext.Current));
+                        TD.OperationInvoked(eventTraceActivity, this.MethodName, TraceUtility.GetCallerInfo(OperationContext.Current));
                     }
-                    returnValue = _invokeDelegate(instance, inputs, outputs);
+                    returnValue = this.invokeDelegate(instance, inputs, outputs);
                     callSucceeded = true;
                 }
             }
@@ -151,15 +178,42 @@ namespace System.ServiceModel.Dispatcher
                 callFaulted = true;
                 throw;
             }
+            catch (System.Security.SecurityException e)
+            {
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Warning);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(AuthorizationBehavior.CreateAccessDeniedFaultException());
+            }
             finally
             {
+                if (PerformanceCounters.PerformanceCountersEnabled)
+                {
+                    long elapsedTime = 0;
+                    if (startCounter >= 0 && System.ServiceModel.Channels.UnsafeNativeMethods.QueryPerformanceCounter(out stopCounter) != 0)
+                    {
+                        elapsedTime = stopCounter - startCounter;
+                    }
+
+                    if (callSucceeded) // call succeeded
+                    {
+                        PerformanceCounters.MethodReturnedSuccess(this.MethodName, elapsedTime);
+                    }
+                    else if (callFaulted) // call faulted
+                    {
+                        PerformanceCounters.MethodReturnedFault(this.MethodName, elapsedTime);
+                    }
+                    else // call failed
+                    {
+                        PerformanceCounters.MethodReturnedError(this.MethodName, elapsedTime);
+                    }
+                }
+
                 if (beginOperation != 0)
                 {
                     if (callSucceeded)
                     {
                         if (TD.OperationCompletedIsEnabled())
                         {
-                            TD.OperationCompleted(eventTraceActivity, _methodName,
+                            TD.OperationCompleted(eventTraceActivity, this.methodName,
                                 TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
                         }
                     }
@@ -167,7 +221,7 @@ namespace System.ServiceModel.Dispatcher
                     {
                         if (TD.OperationFaultedIsEnabled())
                         {
-                            TD.OperationFaulted(eventTraceActivity, _methodName,
+                            TD.OperationFaulted(eventTraceActivity, this.methodName,
                                 TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
                         }
                     }
@@ -175,19 +229,29 @@ namespace System.ServiceModel.Dispatcher
                     {
                         if (TD.OperationFailedIsEnabled())
                         {
-                            TD.OperationFailed(eventTraceActivity, _methodName,
+                            TD.OperationFailed(eventTraceActivity, this.methodName,
                                 TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
                         }
                     }
                 }
             }
 
-            return Task.FromResult(Tuple.Create(returnValue, outputs));
+            return returnValue;
+        }
+
+        public IAsyncResult InvokeBegin(object instance, object[] inputs, AsyncCallback callback, object state)
+        {
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
+        }
+
+        public object InvokeEnd(object instance, out object[] outputs, IAsyncResult result)
+        {
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         void EnsureIsInitialized()
         {
-            if (_invokeDelegate == null)
+            if (this.invokeDelegate == null)
             {
                 EnsureIsInitializedCore();
             }
@@ -199,10 +263,10 @@ namespace System.ServiceModel.Dispatcher
             // If two threads both reference this.count, temporary results may interact.
             int inputParameterCount;
             int outputParameterCount;
-            var invokeDelegate = new InvokerUtil().GenerateInvokeDelegate(Method, out inputParameterCount, out outputParameterCount);
-            _outputParameterCount = outputParameterCount;
-            _inputParameterCount = inputParameterCount;
-            _invokeDelegate = invokeDelegate;  // must set this last due to race
+            InvokeDelegate invokeDelegate = new InvokerUtil().GenerateInvokeDelegate(this.Method, out inputParameterCount, out outputParameterCount);
+            this.outputParameterCount = outputParameterCount;
+            this.inputParameterCount = inputParameterCount;
+            this.invokeDelegate = invokeDelegate;  // must set this last due to ----
         }
     }
 }

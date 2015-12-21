@@ -1,18 +1,20 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Security.Authentication.ExtendedProtection;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal sealed class ChannelBindingMessageProperty : IDisposable, IMessageProperty
-    {
-        private const string propertyName = "ChannelBindingMessageProperty";
+    using System;
+    using System.Threading;
+    using System.Security.Authentication.ExtendedProtection;
 
-        private ChannelBinding _channelBinding;
-        private object _thisLock;
-        private bool _ownsCleanup;
-        private int _refCount;
+    sealed class ChannelBindingMessageProperty : IDisposable, IMessageProperty
+    {
+        const string propertyName = "ChannelBindingMessageProperty";
+
+        ChannelBinding channelBinding;
+        object thisLock;
+        bool ownsCleanup;
+        int refCount;
 
         public ChannelBindingMessageProperty(ChannelBinding channelBinding, bool ownsCleanup)
         {
@@ -21,19 +23,19 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("channelBinding");
             }
 
-            _refCount = 1;
-            _thisLock = new object();
-            _channelBinding = channelBinding;
-            _ownsCleanup = ownsCleanup;
+            this.refCount = 1;
+            this.thisLock = new object();
+            this.channelBinding = channelBinding;
+            this.ownsCleanup = ownsCleanup;
         }
 
         public static string Name { get { return propertyName; } }
 
-        private bool IsDisposed
+        bool IsDisposed
         {
             get
             {
-                return _refCount <= 0;
+                return this.refCount <= 0;
             }
         }
 
@@ -42,7 +44,7 @@ namespace System.ServiceModel.Channels
             get
             {
                 ThrowIfDisposed();
-                return _channelBinding;
+                return this.channelBinding;
             }
         }
 
@@ -98,10 +100,10 @@ namespace System.ServiceModel.Channels
 
         public IMessageProperty CreateCopy()
         {
-            lock (_thisLock)
+            lock (this.thisLock)
             {
                 ThrowIfDisposed();
-                _refCount++;
+                this.refCount++;
                 return this;
             }
         }
@@ -110,21 +112,21 @@ namespace System.ServiceModel.Channels
         {
             if (!this.IsDisposed)
             {
-                lock (_thisLock)
+                lock (this.thisLock)
                 {
-                    if (!this.IsDisposed && --_refCount == 0)
+                    if (!this.IsDisposed && --this.refCount == 0)
                     {
-                        if (_ownsCleanup)
+                        if (ownsCleanup)
                         {
                             // Accessing via IDisposable to avoid Security check (functionally the same)
-                            ((IDisposable)_channelBinding).Dispose();
+                            ((IDisposable)this.channelBinding).Dispose();
                         }
                     }
                 }
             }
         }
 
-        private void ThrowIfDisposed()
+        void ThrowIfDisposed()
         {
             if (this.IsDisposed)
             {

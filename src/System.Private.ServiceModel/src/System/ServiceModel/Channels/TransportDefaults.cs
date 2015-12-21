@@ -1,56 +1,63 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net;
-using System.Net.Security;
-using System.Net.WebSockets;
-using System.Runtime;
-using System.Security.Authentication;
-using System.Security.Principal;
-using System.ServiceModel.Security;
-using System.Text;
-using System.Xml;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    // If any of the const's are modified in this file, they must also be modified
-    // on the Internal.ServiceModel.Primitives contract and implementation assemblies.
+    using System.Net;
+    using System.Net.Security;
+    using System.Net.WebSockets;
+    using System.Runtime;
+    using System.Security.Authentication;
+    using System.Security.Principal;
+    using System.ServiceModel;
+    using System.ServiceModel.Dispatcher;
+    using System.ServiceModel.Security;
+    using System.Text;
+    using System.Xml;
 
-    public static class EncoderDefaults
+    internal static class TransactionFlowDefaults
     {
-        public const int MaxReadPoolSize = 64;
-        public const int MaxWritePoolSize = 16;
+        internal const TransactionFlowOption IssuedTokens = TransactionFlowOption.NotAllowed;
+        internal const bool Transactions = false;
+        internal static TransactionProtocol TransactionProtocol = System.ServiceModel.TransactionProtocol.OleTransactions;
+        internal const string TransactionProtocolString = System.ServiceModel.Configuration.ConfigurationStrings.OleTransactions;
+    }
 
-        public const int MaxDepth = 32;
-        public const int MaxStringContentLength = 8192;
-        public const int MaxArrayLength = 16384;
-        public const int MaxBytesPerRead = 4096;
-        public const int MaxNameTableCharCount = 16384;
+    static class EncoderDefaults
+    {
+        internal const int MaxReadPoolSize = 64;
+        internal const int MaxWritePoolSize = 16;
 
-        public const int BufferedReadDefaultMaxDepth = 128;
-        public const int BufferedReadDefaultMaxStringContentLength = Int32.MaxValue;
-        public const int BufferedReadDefaultMaxArrayLength = Int32.MaxValue;
-        public const int BufferedReadDefaultMaxBytesPerRead = Int32.MaxValue;
-        public const int BufferedReadDefaultMaxNameTableCharCount = Int32.MaxValue;
+        internal const int MaxDepth = 32;
+        internal const int MaxStringContentLength = 8192;
+        internal const int MaxArrayLength = 16384;
+        internal const int MaxBytesPerRead = 4096;
+        internal const int MaxNameTableCharCount = 16384;
 
-        public const CompressionFormat DefaultCompressionFormat = CompressionFormat.None;
+        internal const int BufferedReadDefaultMaxDepth = 128;
+        internal const int BufferedReadDefaultMaxStringContentLength = Int32.MaxValue;
+        internal const int BufferedReadDefaultMaxArrayLength = Int32.MaxValue;
+        internal const int BufferedReadDefaultMaxBytesPerRead = Int32.MaxValue;
+        internal const int BufferedReadDefaultMaxNameTableCharCount = Int32.MaxValue;
 
-        public static readonly XmlDictionaryReaderQuotas ReaderQuotas = new XmlDictionaryReaderQuotas();
+        internal const CompressionFormat DefaultCompressionFormat = CompressionFormat.None;
 
-        public static bool IsDefaultReaderQuotas(XmlDictionaryReaderQuotas quotas)
+        internal static readonly XmlDictionaryReaderQuotas ReaderQuotas = new XmlDictionaryReaderQuotas();
+
+        internal static bool IsDefaultReaderQuotas(XmlDictionaryReaderQuotas quotas)
         {
             return quotas.ModifiedQuotas == 0x00;
         }
     }
 
-    public static class TextEncoderDefaults
+    static class TextEncoderDefaults
     {
-        public static readonly Encoding Encoding = Encoding.GetEncoding(TextEncoderDefaults.EncodingString);
-        public const string EncodingString = "utf-8";
-        public static readonly Encoding[] SupportedEncodings = new Encoding[] { Encoding.UTF8, Encoding.Unicode, Encoding.BigEndianUnicode };
-        public const string MessageVersionString = "Soap12WSAddressing10";
-        // Desktop: System.ServiceModel.Configuration.ConfigurationStrings.Soap12WSAddressing10;
-        public static readonly CharSetEncoding[] CharSetEncodings = new CharSetEncoding[]
+        internal static readonly Encoding Encoding = Encoding.GetEncoding(TextEncoderDefaults.EncodingString, new EncoderExceptionFallback(), new DecoderExceptionFallback());
+        internal const string EncodingString = "utf-8";
+        internal static readonly Encoding[] SupportedEncodings = new Encoding[] { Encoding.UTF8, Encoding.Unicode, Encoding.BigEndianUnicode };
+        internal const string MessageVersionString = System.ServiceModel.Configuration.ConfigurationStrings.Soap12WSAddressing10;
+        internal static readonly CharSetEncoding[] CharSetEncodings = new CharSetEncoding[]
         {
             new CharSetEncoding("utf-8", Encoding.UTF8),
             new CharSetEncoding("utf-16LE", Encoding.Unicode),
@@ -59,7 +66,7 @@ namespace System.ServiceModel.Channels
             new CharSetEncoding(null, null),       // CharSet omitted, so autodetect.
         };
 
-        public static void ValidateEncoding(Encoding encoding)
+        internal static void ValidateEncoding(Encoding encoding)
         {
             string charSet = encoding.WebName;
             Encoding[] supportedEncodings = SupportedEncodings;
@@ -68,10 +75,10 @@ namespace System.ServiceModel.Channels
                 if (charSet == supportedEncodings[i].WebName)
                     return;
             }
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.MessageTextEncodingNotSupported, charSet), "encoding"));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.MessageTextEncodingNotSupported, charSet), "encoding"));
         }
 
-        public static string EncodingToCharSet(Encoding encoding)
+        internal static string EncodingToCharSet(Encoding encoding)
         {
             string webName = encoding.WebName;
             CharSetEncoding[] charSetEncodings = CharSetEncodings;
@@ -87,7 +94,7 @@ namespace System.ServiceModel.Channels
             return null;
         }
 
-        public static bool TryGetEncoding(string charSet, out Encoding encoding)
+        internal static bool TryGetEncoding(string charSet, out Encoding encoding)
         {
             CharSetEncoding[] charSetEncodings = CharSetEncodings;
 
@@ -101,7 +108,7 @@ namespace System.ServiceModel.Channels
                 }
             }
 
-            // Check for case insensitive match
+            // Check for case insensative match
             for (int i = 0; i < charSetEncodings.Length; i++)
             {
                 string compare = charSetEncodings[i].CharSet;
@@ -119,12 +126,12 @@ namespace System.ServiceModel.Channels
             return false;
         }
 
-        public class CharSetEncoding
+        internal class CharSetEncoding
         {
-            public string CharSet;
-            public Encoding Encoding;
+            internal string CharSet;
+            internal Encoding Encoding;
 
-            public CharSetEncoding(string charSet, Encoding enc)
+            internal CharSetEncoding(string charSet, Encoding enc)
             {
                 CharSet = charSet;
                 Encoding = enc;
@@ -132,140 +139,206 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    public static class BinaryEncoderDefaults
+    static class MtomEncoderDefaults
     {
-        public static EnvelopeVersion EnvelopeVersion { get { return EnvelopeVersion.Soap12; } }
-        public static BinaryVersion BinaryVersion { get { return BinaryVersion.Version1; } }
-        public const int MaxSessionSize = 2048;
+        internal const int MaxBufferSize = 65536;
     }
 
-    public static class TransportDefaults
+    static class BinaryEncoderDefaults
     {
-        public const bool ExtractGroupsForWindowsAccounts = SspiSecurityTokenProvider.DefaultExtractWindowsGroupClaims;
-        public const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.Exact;
-        public const TokenImpersonationLevel ImpersonationLevel = TokenImpersonationLevel.Identification;
-        public const bool ManualAddressing = false;
-        public const long MaxReceivedMessageSize = 65536;
-        public const int MaxDrainSize = (int)MaxReceivedMessageSize;
-        public const long MaxBufferPoolSize = 512 * 1024;
-        public const int MaxBufferSize = (int)MaxReceivedMessageSize;
-        public const bool RequireClientCertificate = false;
-        public const int MaxFaultSize = MaxBufferSize;
-        public const int MaxSecurityFaultSize = 16384;
-        public const SslProtocols SslProtocols = 
-                                           // SSL3 is not supported in CoreFx.
-                                           System.Security.Authentication.SslProtocols.Tls |
-                                           System.Security.Authentication.SslProtocols.Tls11 |
-                                           System.Security.Authentication.SslProtocols.Tls12;
+        internal static EnvelopeVersion EnvelopeVersion { get { return EnvelopeVersion.Soap12; } }
+        internal static BinaryVersion BinaryVersion { get { return BinaryVersion.Version1; } }
+        internal const int MaxSessionSize = 2048;
+    }
+
+    static class MsmqDefaults
+    {
+        internal const MessageCredentialType DefaultClientCredentialType = MessageCredentialType.Windows;
+        internal const Uri CustomDeadLetterQueue = null;
+        internal const DeadLetterQueue DeadLetterQueue = System.ServiceModel.DeadLetterQueue.System;
+        internal const bool Durable = true;
+        internal const bool ExactlyOnce = true;
+        internal const bool ReceiveContextEnabled = true;
+        internal const int MaxRetryCycles = 2;
+        internal const int MaxPoolSize = 8;
+        internal const MsmqAuthenticationMode MsmqAuthenticationMode = System.ServiceModel.MsmqAuthenticationMode.WindowsDomain;
+        internal const MsmqEncryptionAlgorithm MsmqEncryptionAlgorithm = System.ServiceModel.MsmqEncryptionAlgorithm.RC4Stream;
+        internal const MsmqSecureHashAlgorithm MsmqSecureHashAlgorithm = System.ServiceModel.MsmqSecureHashAlgorithm.Sha1;
+        internal const ProtectionLevel MsmqProtectionLevel = ProtectionLevel.Sign;
+        internal const ReceiveErrorHandling ReceiveErrorHandling = System.ServiceModel.ReceiveErrorHandling.Fault;
+        internal const int ReceiveRetryCount = 5;
+        internal const QueueTransferProtocol QueueTransferProtocol = System.ServiceModel.QueueTransferProtocol.Native;
+        internal static TimeSpan RetryCycleDelay { get { return TimeSpanHelper.FromMinutes(30, MsmqDefaults.RetryCycleDelayString); } }
+        internal const string RetryCycleDelayString = "00:30:00";
+        internal static TimeSpan TimeToLive { get { return TimeSpanHelper.FromDays(1, MsmqDefaults.TimeToLiveString); } }
+        internal const string TimeToLiveString = "1.00:00:00";
+        internal const bool UseActiveDirectory = false;
+        internal const bool UseSourceJournal = false;
+        internal const bool UseMsmqTracing = false;
+        internal static TimeSpan ValidityDuration { get { return TimeSpanHelper.FromMinutes(5, MsmqDefaults.ValidityDurationString); } }
+        internal const string ValidityDurationString = "00:05:00";
+        internal static SecurityAlgorithmSuite MessageSecurityAlgorithmSuite
+        {
+            get { return SecurityAlgorithmSuite.Default; }
+        }
+    }
+
+    static class MsmqIntegrationDefaults
+    {
+        internal const System.ServiceModel.MsmqIntegration.MsmqMessageSerializationFormat SerializationFormat =
+            System.ServiceModel.MsmqIntegration.MsmqMessageSerializationFormat.Xml;
+    }
+
+    static class TransportDefaults
+    {
+        internal const bool ExtractGroupsForWindowsAccounts = SspiSecurityTokenProvider.DefaultExtractWindowsGroupClaims;
+        internal const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.Exact;
+        internal const TokenImpersonationLevel ImpersonationLevel = TokenImpersonationLevel.Identification;
+        internal const bool ManualAddressing = false;
+        internal const long MaxReceivedMessageSize = 65536;
+        internal const int MaxDrainSize = (int)MaxReceivedMessageSize;
+        internal const long MaxBufferPoolSize = 512 * 1024;
+        internal const int MaxBufferSize = (int)MaxReceivedMessageSize;
+        internal const bool RequireClientCertificate = false;
+        internal const int MaxFaultSize = MaxBufferSize;
+        internal const int MaxSecurityFaultSize = 16384;
+        internal const SslProtocols SslProtocols = System.Security.Authentication.SslProtocols.Ssl3 |
+                                                   System.Security.Authentication.SslProtocols.Tls |
+                                                   System.Security.Authentication.SslProtocols.Tls11 |
+                                                   System.Security.Authentication.SslProtocols.Tls12;
 
         // Calling CreateFault on an incoming message can expose some DoS-related security 
         // vulnerabilities when a service is in streaming mode.  See MB 47592 for more details. 
         // The RM protocol service does not use streaming mode on any of its bindings, so the
-        // message we have in hand has already passed the binding’s MaxReceivedMessageSize check.
+        // message we have in hand has already passed the binding�s MaxReceivedMessageSize check.
         // Custom transports can use RM so int.MaxValue is dangerous.
-        public const int MaxRMFaultSize = (int)MaxReceivedMessageSize;
+        internal const int MaxRMFaultSize = (int)MaxReceivedMessageSize;
 
-        public static MessageEncoderFactory GetDefaultMessageEncoderFactory()
+        internal static MessageEncoderFactory GetDefaultMessageEncoderFactory()
         {
             return new BinaryMessageEncodingBindingElement().CreateMessageEncoderFactory();
         }
     }
 
-    public static class ConnectionOrientedTransportDefaults
+    static class ConnectionOrientedTransportDefaults
     {
-        public const bool AllowNtlm = SspiSecurityTokenProvider.DefaultAllowNtlm;
-        public const int ConnectionBufferSize = 8192;
-        public const string ConnectionPoolGroupName = "default";
-        public const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.StrongWildcard;
-        public static TimeSpan IdleTimeout { get { return TimeSpanHelper.FromMinutes(2, IdleTimeoutString); } }
-        public const string IdleTimeoutString = "00:02:00";
-        public static TimeSpan ChannelInitializationTimeout { get { return TimeSpanHelper.FromSeconds(30, ChannelInitializationTimeoutString); } }
-        public const string ChannelInitializationTimeoutString = "00:00:30";
-        public const int MaxContentTypeSize = 256;
-        public const int MaxOutboundConnectionsPerEndpoint = 10;
-        public const int MaxPendingConnectionsConst = 0;
-        public static TimeSpan MaxOutputDelay { get { return TimeSpanHelper.FromMilliseconds(200, MaxOutputDelayString); } }
-        public const string MaxOutputDelayString = "00:00:00.2";
-        public const int MaxPendingAcceptsConst = 0;
-        public const int MaxViaSize = 2048;
-        public const ProtectionLevel ProtectionLevel = System.Net.Security.ProtectionLevel.EncryptAndSign;
-        public const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
+        internal const bool AllowNtlm = SspiSecurityTokenProvider.DefaultAllowNtlm;
+        internal const int ConnectionBufferSize = 8192;
+        internal const string ConnectionPoolGroupName = "default";
+        internal const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.StrongWildcard;
+        internal static TimeSpan IdleTimeout { get { return TimeSpanHelper.FromMinutes(2, IdleTimeoutString); } }
+        internal const string IdleTimeoutString = "00:02:00";
+        internal static TimeSpan ChannelInitializationTimeout { get { return TimeSpanHelper.FromSeconds(30, ChannelInitializationTimeoutString); } }
+        internal const string ChannelInitializationTimeoutString = "00:00:30";
+        internal const int MaxContentTypeSize = 256;
+        internal const int MaxOutboundConnectionsPerEndpoint = 10;
+        internal const int MaxPendingConnectionsConst = 0;
+        internal static TimeSpan MaxOutputDelay { get { return TimeSpanHelper.FromMilliseconds(200, MaxOutputDelayString); } }
+        internal const string MaxOutputDelayString = "00:00:00.2";
+        internal const int MaxPendingAcceptsConst = 0;
+        internal const int MaxViaSize = 2048;
+        internal const ProtectionLevel ProtectionLevel = System.Net.Security.ProtectionLevel.EncryptAndSign;
+        internal const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
 
-        public static int GetMaxConnections()
+        private const int MaxPendingConnectionsPre45 = 10;
+        private const int MaxPendingAcceptsPre45 = 1;
+
+        internal static int GetMaxConnections()
         {
             return GetMaxPendingConnections();
         }
 
-        public static int GetMaxPendingConnections()
+        internal static int GetMaxPendingConnections()
         {
-            return 12 * Environment.ProcessorCount;
+            // OSEnvironmentHelper.IsApplicationTargeting45 checks for whether target Fx version is >= 4.5 despite its name
+            if (OSEnvironmentHelper.IsApplicationTargeting45)
+            {
+                return 12 * OSEnvironmentHelper.ProcessorCount;
+            }
+
+            return MaxPendingConnectionsPre45;
         }
 
-        public static int GetMaxPendingAccepts()
+        internal static int GetMaxPendingAccepts()
         {
-            return 2 * Environment.ProcessorCount;
+            // OSEnvironmentHelper.IsApplicationTargeting45 checks for whether target Fx version is >= 4.5 despite its name
+            if (OSEnvironmentHelper.IsApplicationTargeting45)
+            {
+                return 2 * OSEnvironmentHelper.ProcessorCount;
+            }
+
+            return MaxPendingAcceptsPre45;
         }
     }
 
-    public static class TcpTransportDefaults
+    static class TcpTransportDefaults
     {
-        public const int ListenBacklogConst = 0;
-        public static TimeSpan ConnectionLeaseTimeout { get { return TimeSpanHelper.FromMinutes(5, TcpTransportDefaults.ConnectionLeaseTimeoutString); } }
-        public const string ConnectionLeaseTimeoutString = "00:05:00";
-        public const bool PortSharingEnabled = false;
-        public const bool TeredoEnabled = false;
-
+        internal const int ListenBacklogConst = 0;
+        internal static TimeSpan ConnectionLeaseTimeout { get { return TimeSpanHelper.FromMinutes(5, TcpTransportDefaults.ConnectionLeaseTimeoutString); } }
+        internal const string ConnectionLeaseTimeoutString = "00:05:00";
+        internal const bool PortSharingEnabled = false;
+        internal const bool TeredoEnabled = false;
+        
         private const int ListenBacklogPre45 = 10;
 
-        public static int GetListenBacklog()
+        internal static int GetListenBacklog()
         {
-            return 12 * Environment.ProcessorCount;
+            // OSEnvironmentHelper.IsApplicationTargeting45 checks for whether target Fx version is >= 4.5 despite its name
+            if (OSEnvironmentHelper.IsApplicationTargeting45)
+            {
+                return 12 * OSEnvironmentHelper.ProcessorCount;
+            }
+
+            return ListenBacklogPre45;
         }
     }
 
-    public static class ApplicationContainerSettingsDefaults
+    static class ApplicationContainerSettingsDefaults
     {
-        public const string CurrentUserSessionDefaultString = "CurrentSession";
-        public const string Session0ServiceSessionString = "ServiceSession";
-        public const string PackageFullNameDefaultString = null;
+        internal const string CurrentUserSessionDefaultString = "CurrentSession";
+        internal const string Session0ServiceSessionString = "ServiceSession";
+        internal const string PackageFullNameDefaultString = null;
 
         /// <summary>
         /// The current session will be used for resource lookup.
         /// </summary>
-        public const int CurrentSession = -1;
+        internal const int CurrentSession = -1;
 
         /// <summary>
         /// Session 0 is the NT Service session
         /// </summary>
-        public const int ServiceSession = 0;
+        internal const int ServiceSession = 0;
     }
 
-    public static class HttpTransportDefaults
+    static class HttpTransportDefaults
     {
-        public const bool AllowCookies = false;
-        public const AuthenticationSchemes AuthenticationScheme = AuthenticationSchemes.Anonymous;
-        public const bool DecompressionEnabled = true;
-        public const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.StrongWildcard;
-        public const bool KeepAliveEnabled = true;
-        public const string Realm = "";
-        public const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
-        public const bool UnsafeConnectionNtlmAuthentication = false;
-        public const bool UseDefaultWebProxy = true;
-        public const string UpgradeHeader = "Upgrade";
-        public const string ConnectionHeader = "Connection";
-        public const HttpMessageHandlerFactory MessageHandlerFactory = null;
+        internal const bool AllowCookies = false;
+        internal const AuthenticationSchemes AuthenticationScheme = AuthenticationSchemes.Anonymous;
+        internal const bool BypassProxyOnLocal = false;
+        internal const bool DecompressionEnabled = true;
+        internal const HostNameComparisonMode HostNameComparisonMode = System.ServiceModel.HostNameComparisonMode.StrongWildcard;
+        internal const bool KeepAliveEnabled = true;
+        internal const Uri ProxyAddress = null;
+        internal const AuthenticationSchemes ProxyAuthenticationScheme = AuthenticationSchemes.Anonymous;
+        internal const string Realm = "";
+        internal const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
+        internal const bool UnsafeConnectionNtlmAuthentication = false;
+        internal const bool UseDefaultWebProxy = true;
+        internal const string UpgradeHeader = "Upgrade";
+        internal const string ConnectionHeader = "Connection";
+        internal const HttpMessageHandlerFactory MessageHandlerFactory = null;
 
-        public static TimeSpan RequestInitializationTimeout { get { return TimeSpanHelper.FromMilliseconds(0, RequestInitializationTimeoutString); } }
-        public const string RequestInitializationTimeoutString = "00:00:00";
+        internal static TimeSpan RequestInitializationTimeout { get { return TimeSpanHelper.FromMilliseconds(0, RequestInitializationTimeoutString); } }
+        internal const string RequestInitializationTimeoutString = "00:00:00";
 
         // We use 0 as the default value of the MaxPendingAccepts property on HttpTransportBindingElement. In 4.5 we always
         // use 10 under the hood if the default value is picked. In future releases, we could adjust the underlying default
         // value when we have the dynamic expending pattern of BeginGetContext call implemented and the heap fragmentation issue
         // from NCL layer solved.
-        private const int PendingAcceptsConstant = 10;
-        public const int DefaultMaxPendingAccepts = 0;
-        public const int MaxPendingAcceptsUpperLimit = 100000;
-        public static int GetEffectiveMaxPendingAccepts(int maxPendingAccepts)
+        const int PendingAcceptsConstant = 10;
+        internal const int DefaultMaxPendingAccepts = 0;
+        internal const int MaxPendingAcceptsUpperLimit = 100000;
+        internal static int GetEffectiveMaxPendingAccepts(int maxPendingAccepts)
         {
             return maxPendingAccepts == HttpTransportDefaults.DefaultMaxPendingAccepts ?
                                         PendingAcceptsConstant :
@@ -273,65 +346,162 @@ namespace System.ServiceModel.Channels
         }
 
 
-        public static WebSocketTransportSettings GetDefaultWebSocketTransportSettings()
+        internal static WebSocketTransportSettings GetDefaultWebSocketTransportSettings()
         {
             return new WebSocketTransportSettings();
         }
 
-        public static MessageEncoderFactory GetDefaultMessageEncoderFactory()
+        internal static MessageEncoderFactory GetDefaultMessageEncoderFactory()
         {
             return new TextMessageEncoderFactory(MessageVersion.Default, TextEncoderDefaults.Encoding, EncoderDefaults.MaxReadPoolSize, EncoderDefaults.MaxWritePoolSize, EncoderDefaults.ReaderQuotas);
         }
+
+        internal static SecurityAlgorithmSuite MessageSecurityAlgorithmSuite
+        {
+            get { return SecurityAlgorithmSuite.Default; }
+        }
     }
 
-    public static class NetTcpDefaults
+    static class NetTcpDefaults
     {
-        public const MessageCredentialType MessageSecurityClientCredentialType = MessageCredentialType.Windows;
+        internal const MessageCredentialType MessageSecurityClientCredentialType = MessageCredentialType.Windows;
+        internal const bool TransactionsEnabled = false;
+
+        internal static TransactionProtocol TransactionProtocol
+        {
+            get { return TransactionProtocol.Default; }
+        }
+
+        internal static SecurityAlgorithmSuite MessageSecurityAlgorithmSuite
+        {
+            get { return SecurityAlgorithmSuite.Default; }
+        }
     }
 
-    public static class OneWayDefaults
+    static class NetHttpDefaults
     {
-        public static TimeSpan IdleTimeout { get { return TimeSpanHelper.FromMinutes(2, IdleTimeoutString); } }
-        public const string IdleTimeoutString = "00:02:00";
-        public const int MaxOutboundChannelsPerEndpoint = 10;
-        public static TimeSpan LeaseTimeout { get { return TimeSpanHelper.FromMinutes(10, LeaseTimeoutString); } }
-        public const string LeaseTimeoutString = "00:10:00";
-        public const int MaxAcceptedChannels = 10;
-        public const bool PacketRoutable = false;
+        internal static TransactionProtocol TransactionProtocol
+        {
+            get { return TransactionProtocol.Default; }
+        }
     }
 
-    public static class BasicHttpBindingDefaults
+    static class PeerTransportDefaults
     {
-        public const BasicHttpMessageCredentialType MessageSecurityClientCredentialType = BasicHttpMessageCredentialType.UserName;
-        public const WSMessageEncoding MessageEncoding = WSMessageEncoding.Text;
-        public const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
-        public static Encoding TextEncoding
+        internal const IPAddress ListenIPAddress = null;
+        internal const int Port = 0;
+        internal const string ResolverTypeString = null;
+        internal const PeerAuthenticationMode PeerNodeAuthenticationMode = PeerAuthenticationMode.Password;
+        internal const bool MessageAuthentication = false;
+
+        internal static bool ResolverAvailable
+        {
+            get { return PnrpPeerResolver.IsPnrpAvailable; }
+        }
+
+        internal static bool ResolverInstalled
+        {
+            get { return PnrpPeerResolver.IsPnrpInstalled; }
+        }
+
+        internal static Type ResolverType
+        {
+            get { return typeof(PnrpPeerResolver); }
+        }
+
+        internal static Type ResolverBindingElementType
+        {
+            get { return typeof(PnrpPeerResolverBindingElement); }
+        }
+
+        internal static PeerResolver CreateResolver()
+        {
+            return new PnrpPeerResolver();
+        }
+
+    }
+
+    static class OneWayDefaults
+    {
+        internal static TimeSpan IdleTimeout { get { return TimeSpanHelper.FromMinutes(2, IdleTimeoutString); } }
+        internal const string IdleTimeoutString = "00:02:00";
+        internal const int MaxOutboundChannelsPerEndpoint = 10;
+        internal static TimeSpan LeaseTimeout { get { return TimeSpanHelper.FromMinutes(10, LeaseTimeoutString); } }
+        internal const string LeaseTimeoutString = "00:10:00";
+        internal const int MaxAcceptedChannels = 10;
+        internal const bool PacketRoutable = false;
+    }
+
+    static class ReliableSessionDefaults
+    {
+        internal const string AcknowledgementIntervalString = "00:00:00.2";
+        internal static TimeSpan AcknowledgementInterval { get { return TimeSpanHelper.FromMilliseconds(200, AcknowledgementIntervalString); } }
+        internal const bool Enabled = false;
+        internal const bool FlowControlEnabled = true;
+        internal const string InactivityTimeoutString = "00:10:00";
+        internal static TimeSpan InactivityTimeout { get { return TimeSpanHelper.FromMinutes(10, InactivityTimeoutString); } }
+        internal const int MaxPendingChannels = 4;
+        internal const int MaxRetryCount = 8;
+        internal const int MaxTransferWindowSize = 8;
+        internal const bool Ordered = true;
+        internal static ReliableMessagingVersion ReliableMessagingVersion { get { return System.ServiceModel.ReliableMessagingVersion.WSReliableMessagingFebruary2005; } }
+        internal const string ReliableMessagingVersionString = System.ServiceModel.Configuration.ConfigurationStrings.WSReliableMessagingFebruary2005;
+    }
+
+    static class BasicHttpBindingDefaults
+    {
+        internal const BasicHttpMessageCredentialType MessageSecurityClientCredentialType = BasicHttpMessageCredentialType.UserName;
+        internal const WSMessageEncoding MessageEncoding = WSMessageEncoding.Text;
+        internal const TransferMode TransferMode = System.ServiceModel.TransferMode.Buffered;
+        internal static Encoding TextEncoding
         {
             get { return TextEncoderDefaults.Encoding; }
         }
     }
 
-    public static class WebSocketDefaults
+    static class WSHttpBindingDefaults
     {
-        public const WebSocketTransportUsage TransportUsage = WebSocketTransportUsage.Never;
-        public const bool CreateNotificationOnConnection = false;
-        public const string DefaultKeepAliveIntervalString = "00:00:00";
-        public static readonly TimeSpan DefaultKeepAliveInterval = TimeSpanHelper.FromSeconds(0, DefaultKeepAliveIntervalString);
-
-        public const int BufferSize = 16 * 1024;
-        public const int MinReceiveBufferSize = 256;
-        public const int MinSendBufferSize = 16;
-        internal const WebSocketMessageType DefaultWebSocketMessageType = WebSocketMessageType.Binary;
-
-        public const string SubProtocol = null;
-
-        public const string WebSocketConnectionHeaderValue = "Upgrade";
-        public const string WebSocketUpgradeHeaderValue = "websocket";
+        internal const WSMessageEncoding MessageEncoding = WSMessageEncoding.Text;
     }
 
-    public static class NetHttpBindingDefaults
+    static class WSDualHttpBindingDefaults
     {
-        public const NetHttpMessageEncoding MessageEncoding = NetHttpMessageEncoding.Binary;
-        public const WebSocketTransportUsage TransportUsage = WebSocketTransportUsage.WhenDuplex;
+        internal const WSMessageEncoding MessageEncoding = WSMessageEncoding.Text;
+    }
+
+    static class WebSocketDefaults
+    {
+        internal const WebSocketTransportUsage TransportUsage = WebSocketTransportUsage.Never;
+        internal const bool CreateNotificationOnConnection = false;
+        internal const string DefaultKeepAliveIntervalString = "00:00:00";
+        internal static readonly TimeSpan DefaultKeepAliveInterval = TimeSpanHelper.FromSeconds(0, DefaultKeepAliveIntervalString);
+
+        internal const int BufferSize = 16 * 1024;
+        internal const int MinReceiveBufferSize = 256;
+        internal const int MinSendBufferSize = 16;
+        internal const bool DisablePayloadMasking = false;
+        internal const WebSocketMessageType DefaultWebSocketMessageType = WebSocketMessageType.Binary;
+        internal const string SubProtocol = null;
+
+        internal const int DefaultMaxPendingConnections = 0;
+        // We set this number larger than that in TCP transport because in WebSocket cases, the connection is already authenticated
+        // after we create the half-open channel. The default value is set as the default one as MaxConcurrentSessions to make it work
+        // well in burst scenarios.
+        internal static readonly int MaxPendingConnectionsCpuCount = ServiceThrottle.DefaultMaxConcurrentSessionsCpuCount;
+
+        internal const string WebSocketConnectionHeaderValue = "Upgrade";
+        internal const string WebSocketUpgradeHeaderValue = "websocket";
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(FxCop.Category.Globalization, "CA1303",
+                            Justification = "These strings don't need to be localized.")]
+        static WebSocketDefaults()
+        {
+        }
+    }
+
+    static class NetHttpBindingDefaults
+    {
+        internal const NetHttpMessageEncoding MessageEncoding = NetHttpMessageEncoding.Binary;
+        internal const WebSocketTransportUsage TransportUsage = WebSocketTransportUsage.WhenDuplex;
     }
 }

@@ -1,49 +1,57 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Text;
-using System.ServiceModel.Channels;
-using System.IdentityModel.Selectors;
-using System.Globalization;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security.Tokens
 {
+    using System;
+    using System.Text;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Xml;
+    using System.ServiceModel.Security;
+    using System.Collections.Generic;
+    using System.IdentityModel.Tokens;
+    using System.IdentityModel.Selectors;
+    using System.Globalization;
+
     public abstract class ServiceModelSecurityTokenRequirement : SecurityTokenRequirement
     {
         protected const string Namespace = "http://schemas.microsoft.com/ws/2006/05/servicemodel/securitytokenrequirement";
-        private const string securityAlgorithmSuiteProperty = Namespace + "/SecurityAlgorithmSuite";
-        private const string securityBindingElementProperty = Namespace + "/SecurityBindingElement";
-        private const string issuerAddressProperty = Namespace + "/IssuerAddress";
-        private const string issuerBindingProperty = Namespace + "/IssuerBinding";
-        private const string secureConversationSecurityBindingElementProperty = Namespace + "/SecureConversationSecurityBindingElement";
-        private const string supportSecurityContextCancellationProperty = Namespace + "/SupportSecurityContextCancellation";
-        private const string messageSecurityVersionProperty = Namespace + "/MessageSecurityVersion";
-        private const string defaultMessageSecurityVersionProperty = Namespace + "/DefaultMessageSecurityVersion";
-        private const string issuerBindingContextProperty = Namespace + "/IssuerBindingContext";
-        private const string transportSchemeProperty = Namespace + "/TransportScheme";
-        private const string isInitiatorProperty = Namespace + "/IsInitiator";
-        private const string targetAddressProperty = Namespace + "/TargetAddress";
-        private const string viaProperty = Namespace + "/Via";
-        private const string listenUriProperty = Namespace + "/ListenUri";
-        private const string auditLogLocationProperty = Namespace + "/AuditLogLocation";
-        private const string suppressAuditFailureProperty = Namespace + "/SuppressAuditFailure";
-        private const string messageAuthenticationAuditLevelProperty = Namespace + "/MessageAuthenticationAuditLevel";
-        private const string isOutOfBandTokenProperty = Namespace + "/IsOutOfBandToken";
-        private const string preferSslCertificateAuthenticatorProperty = Namespace + "/PreferSslCertificateAuthenticator";
+        const string securityAlgorithmSuiteProperty = Namespace + "/SecurityAlgorithmSuite";
+        const string securityBindingElementProperty = Namespace + "/SecurityBindingElement";
+        const string issuerAddressProperty = Namespace + "/IssuerAddress";
+        const string issuerBindingProperty = Namespace + "/IssuerBinding";
+        const string secureConversationSecurityBindingElementProperty = Namespace + "/SecureConversationSecurityBindingElement";
+        const string supportSecurityContextCancellationProperty = Namespace + "/SupportSecurityContextCancellation";
+        const string messageSecurityVersionProperty = Namespace + "/MessageSecurityVersion";
+        const string defaultMessageSecurityVersionProperty = Namespace + "/DefaultMessageSecurityVersion";
+        const string issuerBindingContextProperty = Namespace + "/IssuerBindingContext";
+        const string transportSchemeProperty = Namespace + "/TransportScheme";
+        const string isInitiatorProperty = Namespace + "/IsInitiator";
+        const string targetAddressProperty = Namespace + "/TargetAddress";
+        const string viaProperty = Namespace + "/Via";
+        const string listenUriProperty = Namespace + "/ListenUri";
+        const string auditLogLocationProperty = Namespace + "/AuditLogLocation";
+        const string suppressAuditFailureProperty = Namespace + "/SuppressAuditFailure";
+        const string messageAuthenticationAuditLevelProperty = Namespace + "/MessageAuthenticationAuditLevel";
+        const string isOutOfBandTokenProperty = Namespace + "/IsOutOfBandToken";
+        const string preferSslCertificateAuthenticatorProperty = Namespace + "/PreferSslCertificateAuthenticator";
 
         // the following properties dont have top level OM properties but are part of the property bag
-        private const string supportingTokenAttachmentModeProperty = Namespace + "/SupportingTokenAttachmentMode";
-        private const string messageDirectionProperty = Namespace + "/MessageDirection";
-        private const string httpAuthenticationSchemeProperty = Namespace + "/HttpAuthenticationScheme";
-        private const string issuedSecurityTokenParametersProperty = Namespace + "/IssuedSecurityTokenParameters";
-        private const string privacyNoticeUriProperty = Namespace + "/PrivacyNoticeUri";
-        private const string privacyNoticeVersionProperty = Namespace + "/PrivacyNoticeVersion";
-        private const string duplexClientLocalAddressProperty = Namespace + "/DuplexClientLocalAddress";
-        private const string endpointFilterTableProperty = Namespace + "/EndpointFilterTable";
-        private const string channelParametersCollectionProperty = Namespace + "/ChannelParametersCollection";
-        private const string extendedProtectionPolicy = Namespace + "/ExtendedProtectionPolicy";
+        const string supportingTokenAttachmentModeProperty = Namespace + "/SupportingTokenAttachmentMode";
+        const string messageDirectionProperty = Namespace + "/MessageDirection";
+        const string httpAuthenticationSchemeProperty = Namespace + "/HttpAuthenticationScheme";
+        const string issuedSecurityTokenParametersProperty = Namespace + "/IssuedSecurityTokenParameters";
+        const string privacyNoticeUriProperty = Namespace + "/PrivacyNoticeUri";
+        const string privacyNoticeVersionProperty = Namespace + "/PrivacyNoticeVersion";
+        const string duplexClientLocalAddressProperty = Namespace + "/DuplexClientLocalAddress";
+        const string endpointFilterTableProperty = Namespace + "/EndpointFilterTable";
+        const string channelParametersCollectionProperty = Namespace + "/ChannelParametersCollection";
+        const string extendedProtectionPolicy = Namespace + "/ExtendedProtectionPolicy";
 
-        private const bool defaultSupportSecurityContextCancellation = false;
+        const bool defaultSupportSecurityContextCancellation = false;
 
         protected ServiceModelSecurityTokenRequirement()
             : base()

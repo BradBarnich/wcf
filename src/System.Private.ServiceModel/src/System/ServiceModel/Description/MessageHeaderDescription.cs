@@ -1,21 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
+    using System;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.Xml;
+    using System.Collections.Generic;
+    using System.Text;
+    using System.Runtime.Serialization;
+    using System.ComponentModel;
+
     public class MessageHeaderDescription : MessagePartDescription
     {
-        private bool _mustUnderstand;
-        private bool _relay;
-        private string _actor;
-        private bool _typedHeader;
-        private bool _isUnknownHeader;
+        bool mustUnderstand;
+        bool relay;
+        string actor;
+        bool typedHeader;
+        bool isUnknownHeader;
 
         public MessageHeaderDescription(string name, string ns)
             : base(name, ns)
         {
+
         }
 
         internal MessageHeaderDescription(MessageHeaderDescription other)
@@ -36,40 +45,40 @@ namespace System.ServiceModel.Description
         [DefaultValue(null)]
         public string Actor
         {
-            get { return _actor; }
-            set { _actor = value; }
+            get { return this.actor; }
+            set { this.actor = value; }
         }
 
         [DefaultValue(false)]
         public bool MustUnderstand
         {
-            get { return _mustUnderstand; }
-            set { _mustUnderstand = value; }
+            get { return this.mustUnderstand; }
+            set { this.mustUnderstand = value; }
         }
 
         [DefaultValue(false)]
         public bool Relay
         {
-            get { return _relay; }
-            set { _relay = value; }
+            get { return this.relay; }
+            set { this.relay = value; }
         }
 
         [DefaultValue(false)]
         public bool TypedHeader
         {
-            get { return _typedHeader; }
-            set { _typedHeader = value; }
+            get { return this.typedHeader; }
+            set { this.typedHeader = value; }
         }
 
         internal bool IsUnknownHeaderCollection
         {
             get
             {
-                return _isUnknownHeader;
+                return isUnknownHeader || Multiple && (Type == typeof(XmlElement));
             }
             set
             {
-                _isUnknownHeader = value;
+                isUnknownHeader = value;
             }
         }
     }

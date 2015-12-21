@@ -33,6 +33,14 @@
       <Link>Common\System\NotImplemented.cs</Link>
     </Compile>
     <Compile Include="$(MsBuildThisFileDirectory)\**\*.cs" />
+    <Compile Include="System\IdentityModel\Selectors\UserNamePasswordValidator.cs" />
+    <Compile Include="System\ServiceModel\Description\ServiceAuthenticationBehavior.cs" />
+    <Compile Include="System\ServiceModel\Description\ServiceDebugBehavior.cs" />
+    <Compile Include="System\ServiceModel\Dispatcher\ServiceThrottle.cs" />
+    <Compile Include="System\ServiceModel\Security\Tokens\AuthorizationPolicy.cs" />
+    <Compile Include="System\ServiceModel\Security\UserNamePasswordValidationMode.cs" />
+    <Compile Include="System\ServiceModel\ServiceAuthenticationManager.cs" />
+    <Compile Include="System\ServiceModel\ServiceConfiguration.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="project.json" />

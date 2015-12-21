@@ -1,26 +1,26 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+using System;
+using System.Collections.Generic;
+using System.Text;
 using System.Xml;
 
 namespace System.ServiceModel.Security
 {
     public abstract class SecureConversationVersion
     {
-        private readonly XmlDictionaryString _scNamespace;
-        private readonly XmlDictionaryString _prefix;
-
+        readonly XmlDictionaryString scNamespace;
+        readonly XmlDictionaryString prefix;
+        
         internal SecureConversationVersion(XmlDictionaryString ns, XmlDictionaryString prefix)
         {
-            _scNamespace = ns;
-            _prefix = prefix;
+            this.scNamespace = ns;
+            this.prefix = prefix;
         }
 
         public XmlDictionaryString Namespace
         {
             get
             {
-                return _scNamespace;
+                return this.scNamespace;
             }
         }
 
@@ -28,7 +28,7 @@ namespace System.ServiceModel.Security
         {
             get
             {
-                return _prefix;
+                return this.prefix;
             }
         }
 
@@ -47,9 +47,9 @@ namespace System.ServiceModel.Security
             get { return WSSecureConversationVersion13.Instance; }
         }
 
-        internal class WSSecureConversationVersionFeb2005 : SecureConversationVersion
+        class WSSecureConversationVersionFeb2005 : SecureConversationVersion
         {
-            private static readonly WSSecureConversationVersionFeb2005 s_instance = new WSSecureConversationVersionFeb2005();
+            static readonly WSSecureConversationVersionFeb2005 instance = new WSSecureConversationVersionFeb2005();
 
             protected WSSecureConversationVersionFeb2005()
                 : base(XD.SecureConversationFeb2005Dictionary.Namespace, XD.SecureConversationFeb2005Dictionary.Prefix)
@@ -60,14 +60,14 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
 
-        internal class WSSecureConversationVersion13 : SecureConversationVersion
+        class WSSecureConversationVersion13 : SecureConversationVersion
         {
-            private static readonly WSSecureConversationVersion13 s_instance = new WSSecureConversationVersion13();
+            static readonly WSSecureConversationVersion13 instance = new WSSecureConversationVersion13();
 
             protected WSSecureConversationVersion13()
                 : base(DXD.SecureConversationDec2005Dictionary.Namespace, DXD.SecureConversationDec2005Dictionary.Prefix)
@@ -78,9 +78,10 @@ namespace System.ServiceModel.Security
             {
                 get
                 {
-                    return s_instance;
+                    return instance;
                 }
             }
         }
+
     }
 }

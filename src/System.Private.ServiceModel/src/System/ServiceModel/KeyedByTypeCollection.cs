@@ -1,11 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel;
-using System.Collections.ObjectModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.Collections.Generic
 {
+    using System.Xml;
+    using System.ServiceModel;
+    using System.Collections.ObjectModel;
+    using System.Runtime.Serialization;
+
     public class KeyedByTypeCollection<TItem> : KeyedCollection<Type, TItem>
     {
         public KeyedByTypeCollection()
@@ -35,7 +38,7 @@ namespace System.Collections.Generic
             return this.Find<T>(true);
         }
 
-        private T Find<T>(bool remove)
+        T Find<T>(bool remove)
         {
             for (int i = 0; i < this.Count; i++)
             {
@@ -62,7 +65,7 @@ namespace System.Collections.Generic
             return this.FindAll<T>(true);
         }
 
-        private Collection<T> FindAll<T>(bool remove)
+        Collection<T> FindAll<T>(bool remove)
         {
             Collection<T> result = new Collection<T>();
             foreach (TItem settings in this)
@@ -103,7 +106,7 @@ namespace System.Collections.Generic
 
             if (this.Contains(item.GetType()))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.Format(SR.DuplicateBehavior1, item.GetType().FullName));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("item", SR.GetString(SR.DuplicateBehavior1, item.GetType().FullName));
             }
 
             base.InsertItem(index, item);

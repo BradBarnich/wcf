@@ -1,37 +1,47 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Runtime;
-using System.Runtime.CompilerServices;
-using System.Runtime.Diagnostics;
-using System.Security;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
-using System.Xml;
-using System.ServiceModel.Diagnostics.Application;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal delegate void MessageRpcProcessor(ref MessageRpc rpc);
+    using System;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.Runtime.CompilerServices;
+    using System.Runtime.Diagnostics;
+    using System.Security;
+    using System.ServiceModel;
+    using System.ServiceModel.Activation;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.Threading;
+    using System.Xml;
+    using System.Transactions;
+    using System.ServiceModel.Diagnostics.Application;
 
-    internal struct MessageRpc
+    delegate void MessageRpcProcessor(ref MessageRpc rpc);
+
+    struct MessageRpc
     {
         internal readonly ServiceChannel Channel;
         internal readonly ChannelHandler channelHandler;
         internal readonly object[] Correlation;
+        internal readonly ServiceHostBase Host;
         internal readonly OperationContext OperationContext;
         internal ServiceModelActivity Activity;
         internal Guid ResponseActivityId;
         internal IAsyncResult AsyncResult;
         internal bool CanSendReply;
         internal bool SuccessfullySendReply;
+        internal CorrelationCallbackMessageProperty CorrelationCallback;
         internal object[] InputParameters;
         internal object[] OutputParameters;
         internal object ReturnParameter;
         internal bool ParametersDisposed;
         internal bool DidDeserializeRequestBody;
+        internal TransactionMessageProperty TransactionMessageProperty;
+        internal TransactedBatchContext TransactedBatchContext;
         internal Exception Error;
         internal MessageRpcProcessor ErrorProcessor;
         internal ErrorHandlerFaultInfo FaultInfo;
@@ -54,41 +64,52 @@ namespace System.ServiceModel.Dispatcher
         internal bool SuccessfullyBoundInstance;
         internal bool SuccessfullyIncrementedActivity;
         internal bool SuccessfullyLockedInstance;
+        internal ReceiveContextRPCFacet ReceiveContext;
+        internal TransactionRpcFacet transaction;
+        internal IAspNetMessageProperty HostingProperty;
         internal MessageRpcInvokeNotification InvokeNotification;
         internal EventTraceActivity EventTraceActivity;
 
-        private bool _paused;
-        private bool _switchedThreads;
-        private bool _isInstanceContextSingleton;
-        private SignalGate<IAsyncResult> _invokeContinueGate;
+        static AsyncCallback handleEndComplete = Fx.ThunkCallback(new AsyncCallback(HandleEndComplete));
+        static AsyncCallback handleEndAbandon = Fx.ThunkCallback(new AsyncCallback(HandleEndAbandon));
+
+        bool paused;
+        bool switchedThreads;
+        bool isInstanceContextSingleton;
+        SignalGate<IAsyncResult> invokeContinueGate;
 
         internal MessageRpc(RequestContext requestContext, Message request, DispatchOperationRuntime operation,
-            ServiceChannel channel, ChannelHandler channelHandler, bool cleanThread,
+            ServiceChannel channel, ServiceHostBase host, ChannelHandler channelHandler, bool cleanThread,
             OperationContext operationContext, InstanceContext instanceContext, EventTraceActivity eventTraceActivity)
         {
             Fx.Assert((operationContext != null), "System.ServiceModel.Dispatcher.MessageRpc.MessageRpc(), operationContext == null");
             Fx.Assert(channelHandler != null, "System.ServiceModel.Dispatcher.MessageRpc.MessageRpc(), channelHandler == null");
 
             this.Activity = null;
-            this.EventTraceActivity = eventTraceActivity;
+            this.EventTraceActivity = eventTraceActivity;            
             this.AsyncResult = null;
             this.CanSendReply = true;
             this.Channel = channel;
             this.channelHandler = channelHandler;
-            this.Correlation = EmptyArray<object>.Allocate(operation.Parent.CorrelationCount);
+            this.Correlation = EmptyArray.Allocate(operation.Parent.CorrelationCount);
+            this.CorrelationCallback = null;
             this.DidDeserializeRequestBody = false;
+            this.TransactionMessageProperty = null;
+            this.TransactedBatchContext = null;
             this.Error = null;
             this.ErrorProcessor = null;
             this.FaultInfo = new ErrorHandlerFaultInfo(request.Version.Addressing.DefaultFaultAction);
             this.HasSecurityContext = false;
+            this.Host = host;
             this.Instance = null;
             this.MessageRpcOwnsInstanceContextThrottle = false;
             this.NextProcessor = null;
             this.NotUnderstoodHeaders = null;
             this.Operation = operation;
             this.OperationContext = operationContext;
-            _paused = false;
+            this.paused = false;
             this.ParametersDisposed = false;
+            this.ReceiveContext = null;
             this.Request = request;
             this.RequestContext = requestContext;
             this.RequestContextThrewOnReply = false;
@@ -101,12 +122,13 @@ namespace System.ServiceModel.Dispatcher
             this.SuccessfullyBoundInstance = false;
             this.SuccessfullyIncrementedActivity = false;
             this.SuccessfullyLockedInstance = false;
-            _switchedThreads = !cleanThread;
+            this.switchedThreads = !cleanThread;
+            this.transaction = null;
             this.InputParameters = null;
             this.OutputParameters = null;
             this.ReturnParameter = null;
-            _isInstanceContextSingleton = false;
-            _invokeContinueGate = null;
+            this.isInstanceContextSingleton = InstanceContextProviderBase.IsProviderSingleton(this.Channel.DispatchRuntime.InstanceContextProvider);
+            this.invokeContinueGate = null;
 
             if (!operation.IsOneWay && !operation.Parent.ManualAddressing)
             {
@@ -118,6 +140,8 @@ namespace System.ServiceModel.Dispatcher
                 this.RequestID = null;
                 this.ReplyToInfo = new RequestReplyCorrelator.ReplyToInfo();
             }
+
+            this.HostingProperty = AspNetEnvironment.Current.GetHostingProperty(request, true);
 
             if (DiagnosticUtility.ShouldUseActivity)
             {
@@ -144,16 +168,40 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        internal bool FinalizeCorrelationImplicitly
+        {
+            get { return this.CorrelationCallback != null && this.CorrelationCallback.IsFullyDefined; }
+        }
+
         internal bool IsPaused
         {
-            get { return _paused; }
+            get { return this.paused; }
         }
 
         internal bool SwitchedThreads
         {
-            get { return _switchedThreads; }
+            get { return this.switchedThreads; }
         }
 
+        internal bool IsInstanceContextSingleton
+        {
+            set
+            {
+                this.isInstanceContextSingleton = value;
+            }
+        }
+
+        internal TransactionRpcFacet Transaction
+        {
+            get
+            {
+                if (this.transaction == null)
+                {
+                    this.transaction = new TransactionRpcFacet(ref this);
+                }
+                return this.transaction;
+            }
+        }
 
         internal void Abort()
         {
@@ -162,11 +210,31 @@ namespace System.ServiceModel.Dispatcher
             this.AbortInstanceContext();
         }
 
-        private void AbortRequestContext(RequestContext requestContext)
+        void AbortRequestContext(RequestContext requestContext)
         {
             try
             {
                 requestContext.Abort();
+
+                ReceiveContextRPCFacet receiveContext = this.ReceiveContext;
+
+                if (receiveContext != null)
+                {
+                    this.ReceiveContext = null;
+                    IAsyncResult result = receiveContext.BeginAbandon(
+                        TimeSpan.MaxValue,
+                        handleEndAbandon,
+                        new CallbackState
+                        {
+                            ReceiveContext = receiveContext,
+                            ChannelHandler = this.channelHandler
+                        });
+
+                    if (result.CompletedSynchronously)
+                    {
+                        receiveContext.EndAbandon(result);
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -191,8 +259,20 @@ namespace System.ServiceModel.Dispatcher
             TraceCallDurationInDispatcherIfNecessary(false);
         }
 
-        private void TraceCallDurationInDispatcherIfNecessary(bool requestContextWasClosedSuccessfully)
+        void TraceCallDurationInDispatcherIfNecessary(bool requestContextWasClosedSuccessfully)
         {
+            // only need to trace once (either for the failure or success case)
+            if (TD.DispatchFailedIsEnabled())
+            {
+                if (requestContextWasClosedSuccessfully)
+                {
+                    TD.DispatchSuccessful(this.EventTraceActivity, this.Operation.Name);
+                }
+                else
+                {
+                    TD.DispatchFailed(this.EventTraceActivity, this.Operation.Name);
+                }
+            }
         }
 
         internal void CloseRequestContext()
@@ -208,11 +288,34 @@ namespace System.ServiceModel.Dispatcher
             TraceCallDurationInDispatcherIfNecessary(true);
         }
 
-        private void DisposeRequestContext(RequestContext context)
+        void DisposeRequestContext(RequestContext context)
         {
             try
             {
                 context.Close();
+
+                ReceiveContextRPCFacet receiveContext = this.ReceiveContext;
+
+                if (receiveContext != null)
+                {
+                    this.ReceiveContext = null;
+                    IAsyncResult result = receiveContext.BeginComplete(
+                        TimeSpan.MaxValue,
+                        null,
+                        this.channelHandler,
+                        handleEndComplete,
+                        new CallbackState
+                        {
+                            ChannelHandler = this.channelHandler,
+                            ReceiveContext = receiveContext
+                        });
+
+                    if (result.CompletedSynchronously)
+                    {
+                        receiveContext.EndComplete(result);
+                    }
+
+                }
             }
             catch (Exception e)
             {
@@ -222,6 +325,52 @@ namespace System.ServiceModel.Dispatcher
                 }
                 this.AbortRequestContext(context);
                 this.channelHandler.HandleError(e);
+            }
+        }
+
+        static void HandleEndAbandon(IAsyncResult result)
+        {
+            if (result.CompletedSynchronously)
+            {
+                return;
+            }
+
+            CallbackState callbackState = (CallbackState)result.AsyncState;
+
+            try
+            {
+                callbackState.ReceiveContext.EndAbandon(result);
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+                callbackState.ChannelHandler.HandleError(e);
+            }
+        }
+
+        static void HandleEndComplete(IAsyncResult result)
+        {
+            if (result.CompletedSynchronously)
+            {
+                return;
+            }
+
+            CallbackState callbackState = (CallbackState)result.AsyncState;
+
+            try
+            {
+                callbackState.ReceiveContext.EndComplete(result);
+            }
+            catch (Exception e)
+            {
+                if (Fx.IsFatal(e))
+                {
+                    throw;
+                }
+                callbackState.ChannelHandler.HandleError(e);
             }
         }
 
@@ -265,7 +414,7 @@ namespace System.ServiceModel.Dispatcher
 
         internal void AbortInstanceContext()
         {
-            if (this.InstanceContext != null && !_isInstanceContextSingleton)
+            if (this.InstanceContext != null && !this.isInstanceContextSingleton)
             {
                 try
                 {
@@ -290,11 +439,22 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private bool ProcessError(Exception e)
+        bool ProcessError(Exception e)
         {
             MessageRpcProcessor handler = this.ErrorProcessor;
             try
             {
+                Type exceptionType = e.GetType();
+
+                if (exceptionType.IsAssignableFrom(typeof(FaultException)))
+                {
+                    DiagnosticUtility.TraceHandledException(e, TraceEventType.Information);
+                }
+                else
+                {
+                    DiagnosticUtility.TraceHandledException(e, TraceEventType.Error);
+                }
+
                 if (TraceUtility.MessageFlowTracingOnly)
                 {
                     TraceUtility.SetActivityId(this.Request.Properties);
@@ -401,8 +561,32 @@ namespace System.ServiceModel.Dispatcher
         internal IResumeMessageRpc Pause()
         {
             Wrapper wrapper = new Wrapper(ref this);
-            _paused = true;
+            this.paused = true;
             return wrapper;
+        }
+
+        [Fx.Tag.SecurityNote(Critical = "Calls SecurityCritical method ApplyHostingIntegrationContextNoInline. Caller must ensure that"
+            + "function is called appropriately and result is guarded and Dispose()'d correctly.")]
+        [SecurityCritical]
+        IDisposable ApplyHostingIntegrationContext()
+        {
+            if (this.HostingProperty != null)
+            {
+                return this.ApplyHostingIntegrationContextNoInline();
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        [Fx.Tag.SecurityNote(Critical = "Calls SecurityCritical method HostingMessageProperty.ApplyIntegrationContext. Caller must ensure that"
+            + "function is called appropriately and result is guarded and Dispose()'d correctly.")]
+        [SecurityCritical]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        IDisposable ApplyHostingIntegrationContextNoInline()
+        {
+            return this.HostingProperty.ApplyIntegrationContext();
         }
 
         [Fx.Tag.SecurityNote(Critical = "Calls SecurityCritical method ApplyHostingIntegrationContext.",
@@ -433,6 +617,8 @@ namespace System.ServiceModel.Dispatcher
                     }
                     IncrementBusyCount();
 
+                    IDisposable hostedIntegrationContext = this.ApplyHostingIntegrationContext();
+
                     try
                     {
                         if (!isOperationContextSet)
@@ -442,7 +628,7 @@ namespace System.ServiceModel.Dispatcher
 
                         processor(ref this);
 
-                        if (!_paused)
+                        if (!this.paused)
                         {
                             this.OperationContext.SetClientReply(null, false);
                         }
@@ -465,12 +651,17 @@ namespace System.ServiceModel.Dispatcher
                         {
                             DecrementBusyCount();
 
+                            if (hostedIntegrationContext != null)
+                            {
+                                hostedIntegrationContext.Dispose();
+                            }
+
                             if (!isOperationContextSet)
                             {
                                 contextHolder.Context = originalContext;
                             }
 
-                            completed = !_paused;
+                            completed = !this.paused;
                             if (completed)
                             {
                                 this.channelHandler.DispatchDone();
@@ -497,30 +688,54 @@ namespace System.ServiceModel.Dispatcher
         // Since the copy is ignored, Decrement the BusyCount
         internal void UnPause()
         {
-            _paused = false;
+            this.paused = false;
             DecrementBusyCount();
+
         }
 
         internal bool UnlockInvokeContinueGate(out IAsyncResult result)
         {
-            return _invokeContinueGate.Unlock(out result);
+            return this.invokeContinueGate.Unlock(out result);
         }
 
         internal void PrepareInvokeContinueGate()
         {
-            _invokeContinueGate = new SignalGate<IAsyncResult>();
+            this.invokeContinueGate = new SignalGate<IAsyncResult>();
         }
 
-        private void IncrementBusyCount()
+        void IncrementBusyCount()
         {
+            // Only increment the counter on the service side.
+            if (this.Host != null)
+            {
+                this.Host.IncrementBusyCount();
+                if (AspNetEnvironment.Current.TraceIncrementBusyCountIsEnabled())
+                {
+                    AspNetEnvironment.Current.TraceIncrementBusyCount(SR.GetString(SR.ServiceBusyCountTrace, this.Operation.Action));
+                }
+            }
         }
 
-        private void DecrementBusyCount()
+        void DecrementBusyCount()
         {
+            if (this.Host != null)
+            {
+                this.Host.DecrementBusyCount();
+                if (AspNetEnvironment.Current.TraceDecrementBusyCountIsEnabled())
+                {
+                    AspNetEnvironment.Current.TraceDecrementBusyCount(SR.GetString(SR.ServiceBusyCountTrace, this.Operation.Action));
+                }
+            }
         }
 
-        private class CallbackState
+        class CallbackState
         {
+            public ReceiveContextRPCFacet ReceiveContext
+            {
+                get;
+                set;
+            }
+
             public ChannelHandler ChannelHandler
             {
                 get;
@@ -528,24 +743,25 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        internal class Wrapper : IResumeMessageRpc
+        class Wrapper : IResumeMessageRpc
         {
-            private MessageRpc _rpc;
-            private bool _alreadyResumed;
+            MessageRpc rpc;
+            bool alreadyResumed;
 
             internal Wrapper(ref MessageRpc rpc)
             {
-                _rpc = rpc;
+                this.rpc = rpc;
                 if (rpc.NextProcessor == null)
                 {
                     Fx.Assert("MessageRpc.Wrapper.Wrapper: (rpc.NextProcessor != null)");
                 }
-                _rpc.IncrementBusyCount();
+                this.rpc.IncrementBusyCount();
+
             }
 
             public InstanceContext GetMessageInstanceContext()
             {
-                return _rpc.InstanceContext;
+                return this.rpc.InstanceContext;
             }
 
             // Resume is called on the copy on some completing thread, whereupon work continues on that thread.
@@ -554,43 +770,43 @@ namespace System.ServiceModel.Dispatcher
             {
                 try
                 {
-                    alreadyResumedNoLock = _alreadyResumed;
-                    _alreadyResumed = true;
+                    alreadyResumedNoLock = this.alreadyResumed;
+                    this.alreadyResumed = true;
 
-                    _rpc._switchedThreads = true;
-                    if (_rpc.Process(false) && !_rpc.InvokeNotification.DidInvokerEnsurePump)
+                    this.rpc.switchedThreads = true;
+                    if (this.rpc.Process(false) && !rpc.InvokeNotification.DidInvokerEnsurePump)
                     {
-                        _rpc.EnsureReceive();
+                        this.rpc.EnsureReceive();
                     }
                 }
                 finally
                 {
-                    _rpc.DecrementBusyCount();
+                    this.rpc.DecrementBusyCount();
+
                 }
             }
 
             public void Resume(IAsyncResult result)
             {
-                _rpc.AsyncResult = result;
+                this.rpc.AsyncResult = result;
                 this.Resume();
             }
 
             public void Resume(object instance)
             {
-                _rpc.Instance = instance;
+                this.rpc.Instance = instance;
                 this.Resume();
             }
 
             public void Resume()
             {
-                using (ServiceModelActivity.BoundOperation(_rpc.Activity, true))
+                using (ServiceModelActivity.BoundOperation(this.rpc.Activity, true))
                 {
                     bool alreadyResumedNoLock;
                     this.Resume(out alreadyResumedNoLock);
                     if (alreadyResumedNoLock)
                     {
-                        string text = SR.Format(SR.SFxMultipleCallbackFromAsyncOperation,
-                            String.Empty);
+                        string text = SR.GetString(SR.SFxMultipleCallbackFromAsyncOperation, rpc.Operation.Name);
                         Exception error = new InvalidOperationException(text);
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(error);
                     }
@@ -599,42 +815,43 @@ namespace System.ServiceModel.Dispatcher
 
             public void SignalConditionalResume(IAsyncResult result)
             {
-                if (_rpc._invokeContinueGate.Signal(result))
+                if (this.rpc.invokeContinueGate.Signal(result))
                 {
-                    _rpc.AsyncResult = result;
+                    this.rpc.AsyncResult = result;
                     Resume();
                 }
             }
         }
+
     }
 
-    internal class MessageRpcInvokeNotification : IInvokeReceivedNotification
+    class MessageRpcInvokeNotification : IInvokeReceivedNotification
     {
-        private ServiceModelActivity _activity;
-        private ChannelHandler _handler;
+        ServiceModelActivity activity;
+        ChannelHandler handler;
 
         public MessageRpcInvokeNotification(ServiceModelActivity activity, ChannelHandler handler)
         {
-            _activity = activity;
-            _handler = handler;
+            this.activity = activity;
+            this.handler = handler;
         }
 
         public bool DidInvokerEnsurePump { get; set; }
 
         public void NotifyInvokeReceived()
         {
-            using (ServiceModelActivity.BoundOperation(_activity))
+            using (ServiceModelActivity.BoundOperation(this.activity))
             {
-                ChannelHandler.Register(_handler);
+                ChannelHandler.Register(this.handler);
             }
             this.DidInvokerEnsurePump = true;
         }
 
         public void NotifyInvokeReceived(RequestContext request)
         {
-            using (ServiceModelActivity.BoundOperation(_activity))
+            using (ServiceModelActivity.BoundOperation(this.activity))
             {
-                ChannelHandler.Register(_handler, request);
+                ChannelHandler.Register(this.handler, request);
             }
             this.DidInvokerEnsurePump = true;
         }

@@ -1,17 +1,25 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Threading;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    public interface IMessageSource
+    using System.Threading;
+
+    enum AsyncReceiveResult
     {
-        Task<Message> ReceiveAsync(TimeSpan timeout);
+        Completed,
+        Pending,
+    }
+
+    interface IMessageSource
+    {
+        AsyncReceiveResult BeginReceive(TimeSpan timeout, WaitCallback callback, object state);
+        Message EndReceive();
         Message Receive(TimeSpan timeout);
 
-        Task<bool> WaitForMessageAsync(TimeSpan timeout);
+        AsyncReceiveResult BeginWaitForMessage(TimeSpan timeout, WaitCallback callback, object state);
+        bool EndWaitForMessage();
         bool WaitForMessage(TimeSpan timeout);
     }
 }

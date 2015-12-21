@@ -1,16 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics.Contracts;
-using System.ServiceModel.Channels;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System;
+    using System.Runtime;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Channels;
+
+    [Serializable]
     public class MessageHeaderException : ProtocolException
     {
-        private string _headerName;
-        private string _headerNamespace;
-        private bool _isDuplicate;
+        [NonSerialized]
+        string headerName;
+        [NonSerialized]
+        string headerNamespace;
+        [NonSerialized]
+        bool isDuplicate;
 
         public MessageHeaderException(string message)
             : this(message, null, null)
@@ -39,21 +45,21 @@ namespace System.ServiceModel
         public MessageHeaderException(string message, string headerName, string ns, bool isDuplicate, Exception innerException)
             : base(message, innerException)
         {
-            _headerName = headerName;
-            _headerNamespace = ns;
-            _isDuplicate = isDuplicate;
+            this.headerName = headerName;
+            this.headerNamespace = ns;
+            this.isDuplicate = isDuplicate;
         }
 
-        public string HeaderName { get { return _headerName; } }
+        public string HeaderName { get { return this.headerName; } }
 
-        public string HeaderNamespace { get { return _headerNamespace; } }
+        public string HeaderNamespace { get { return this.headerNamespace; } }
 
         // IsDuplicate==true means there was more than one; IsDuplicate==false means there were zero
-        public bool IsDuplicate { get { return _isDuplicate; } }
+        public bool IsDuplicate { get { return this.isDuplicate; } }
 
         internal Message ProvideFault(MessageVersion messageVersion)
         {
-            Contract.Assert(messageVersion.Addressing == AddressingVersion.WSAddressing10);
+            Fx.Assert(messageVersion.Addressing == AddressingVersion.WSAddressing10, "");
             WSAddressing10ProblemHeaderQNameFault phf = new WSAddressing10ProblemHeaderQNameFault(this);
             Message message = System.ServiceModel.Channels.Message.CreateMessage(messageVersion, phf, AddressingVersion.WSAddressing10.FaultAction);
             phf.AddHeaders(message.Headers);
@@ -62,5 +68,6 @@ namespace System.ServiceModel
 
         // for serialization
         public MessageHeaderException() { }
+        protected MessageHeaderException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 }

@@ -1,19 +1,20 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Contracts;
-using System.Net;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Security;
-using System.Xml;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
+    using System;
+    using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics.CodeAnalysis;
+    using System.Net;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Security;
+    using System.Xml;
+
     [SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Compat", Justification = "Compat is an accepted abbreviation")]
     [EditorBrowsable(EditorBrowsableState.Never)]
     public class ClientRuntimeCompatBase
@@ -46,24 +47,24 @@ namespace System.ServiceModel.Dispatcher
 
     public sealed class ClientRuntime : ClientRuntimeCompatBase
     {
-        private bool _addTransactionFlowProperties = true;
-        private Type _callbackProxyType;
-        private ProxyBehaviorCollection<IChannelInitializer> _channelInitializers;
-        private string _contractName;
-        private string _contractNamespace;
-        private Type _contractProxyType;
-        private DispatchRuntime _dispatchRuntime;
-        private IdentityVerifier _identityVerifier;
-        private ProxyBehaviorCollection<IInteractiveChannelInitializer> _interactiveChannelInitializers;
+        bool addTransactionFlowProperties = true;
+        Type callbackProxyType;
+        ProxyBehaviorCollection<IChannelInitializer> channelInitializers;
+        string contractName;
+        string contractNamespace;
+        Type contractProxyType;
+        DispatchRuntime dispatchRuntime;
+        IdentityVerifier identityVerifier;
+        ProxyBehaviorCollection<IInteractiveChannelInitializer> interactiveChannelInitializers;
 
-        private IClientOperationSelector _operationSelector;
-        private ImmutableClientRuntime _runtime;
-        private ClientOperation _unhandled;
-        private bool _useSynchronizationContext = true;
-        private Uri _via;
-        private SharedRuntimeState _shared;
-        private int _maxFaultSize;
-        private bool _messageVersionNoneFaultsEnabled;
+        IClientOperationSelector operationSelector;
+        ImmutableClientRuntime runtime;
+        ClientOperation unhandled;
+        bool useSynchronizationContext = true;
+        Uri via;
+        SharedRuntimeState shared;
+        int maxFaultSize;
+        bool messageVersionNoneFaultsEnabled;
 
         internal ClientRuntime(DispatchRuntime dispatchRuntime, SharedRuntimeState shared)
             : this(dispatchRuntime.EndpointDispatcher.ContractName,
@@ -73,8 +74,8 @@ namespace System.ServiceModel.Dispatcher
             if (dispatchRuntime == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("dispatchRuntime");
 
-            _dispatchRuntime = dispatchRuntime;
-            _shared = shared;
+            this.dispatchRuntime = dispatchRuntime;
+            this.shared = shared;
 
             Fx.Assert(shared.IsOnServer, "Server constructor called on client?");
         }
@@ -82,77 +83,77 @@ namespace System.ServiceModel.Dispatcher
         internal ClientRuntime(string contractName, string contractNamespace)
             : this(contractName, contractNamespace, new SharedRuntimeState(false))
         {
-            Fx.Assert(!_shared.IsOnServer, "Client constructor called on server?");
+            Fx.Assert(!shared.IsOnServer, "Client constructor called on server?");
         }
 
-        private ClientRuntime(string contractName, string contractNamespace, SharedRuntimeState shared)
+        ClientRuntime(string contractName, string contractNamespace, SharedRuntimeState shared)
         {
-            _contractName = contractName;
-            _contractNamespace = contractNamespace;
-            _shared = shared;
+            this.contractName = contractName;
+            this.contractNamespace = contractNamespace;
+            this.shared = shared;
 
             OperationCollection operations = new OperationCollection(this);
             this.operations = operations;
             this.compatOperations = new OperationCollectionWrapper(operations);
-            _channelInitializers = new ProxyBehaviorCollection<IChannelInitializer>(this);
+            this.channelInitializers = new ProxyBehaviorCollection<IChannelInitializer>(this);
             this.messageInspectors = new ProxyBehaviorCollection<IClientMessageInspector>(this);
-            _interactiveChannelInitializers = new ProxyBehaviorCollection<IInteractiveChannelInitializer>(this);
+            this.interactiveChannelInitializers = new ProxyBehaviorCollection<IInteractiveChannelInitializer>(this);
 
-            _unhandled = new ClientOperation(this, "*", MessageHeaders.WildcardAction, MessageHeaders.WildcardAction);
-            _unhandled.InternalFormatter = new MessageOperationFormatter();
-            _maxFaultSize = TransportDefaults.MaxFaultSize;
+            this.unhandled = new ClientOperation(this, "*", MessageHeaders.WildcardAction, MessageHeaders.WildcardAction);
+            this.unhandled.InternalFormatter = new MessageOperationFormatter();
+            this.maxFaultSize = TransportDefaults.MaxFaultSize;
         }
 
         internal bool AddTransactionFlowProperties
         {
-            get { return _addTransactionFlowProperties; }
+            get { return this.addTransactionFlowProperties; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _addTransactionFlowProperties = value;
+                    this.addTransactionFlowProperties = value;
                 }
             }
         }
 
         public Type CallbackClientType
         {
-            get { return _callbackProxyType; }
+            get { return this.callbackProxyType; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _callbackProxyType = value;
+                    this.callbackProxyType = value;
                 }
             }
         }
 
         public SynchronizedCollection<IChannelInitializer> ChannelInitializers
         {
-            get { return _channelInitializers; }
+            get { return this.channelInitializers; }
         }
 
         public string ContractName
         {
-            get { return _contractName; }
+            get { return this.contractName; }
         }
 
         public string ContractNamespace
         {
-            get { return _contractNamespace; }
+            get { return this.contractNamespace; }
         }
 
         public Type ContractClientType
         {
-            get { return _contractProxyType; }
+            get { return this.contractProxyType; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _contractProxyType = value;
+                    this.contractProxyType = value;
                 }
             }
         }
@@ -161,12 +162,12 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                if (_identityVerifier == null)
+                if (this.identityVerifier == null)
                 {
-                    _identityVerifier = IdentityVerifier.CreateDefault();
+                    this.identityVerifier = IdentityVerifier.CreateDefault();
                 }
 
-                return _identityVerifier;
+                return this.identityVerifier;
             }
             set
             {
@@ -176,32 +177,32 @@ namespace System.ServiceModel.Dispatcher
                 }
                 this.InvalidateRuntime();
 
-                _identityVerifier = value;
+                this.identityVerifier = value;
             }
         }
 
         public Uri Via
         {
-            get { return _via; }
+            get { return this.via; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _via = value;
+                    this.via = value;
                 }
             }
         }
 
         public bool ValidateMustUnderstand
         {
-            get { return _shared.ValidateMustUnderstand; }
+            get { return this.shared.ValidateMustUnderstand; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _shared.ValidateMustUnderstand = value;
+                    this.shared.ValidateMustUnderstand = value;
                 }
             }
         }
@@ -210,28 +211,28 @@ namespace System.ServiceModel.Dispatcher
         {
             get
             {
-                return _messageVersionNoneFaultsEnabled;
+                return this.messageVersionNoneFaultsEnabled;
             }
             set
             {
                 this.InvalidateRuntime();
-                _messageVersionNoneFaultsEnabled = value;
+                this.messageVersionNoneFaultsEnabled = value;
             }
         }
 
-        public DispatchRuntime DispatchRuntime
+        internal DispatchRuntime DispatchRuntime
         {
-            get { return _dispatchRuntime; }
+            get { return this.dispatchRuntime; }
         }
 
         public DispatchRuntime CallbackDispatchRuntime
         {
             get
             {
-                if (_dispatchRuntime == null)
-                    _dispatchRuntime = new DispatchRuntime(this, _shared);
+                if (this.dispatchRuntime == null)
+                    this.dispatchRuntime = new DispatchRuntime(this, this.shared);
 
-                return _dispatchRuntime;
+                return this.dispatchRuntime;
             }
         }
 
@@ -241,11 +242,11 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (this.IsOnServer)
                 {
-                    return _dispatchRuntime.EnableFaults;
+                    return this.dispatchRuntime.EnableFaults;
                 }
                 else
                 {
-                    return _shared.EnableFaults;
+                    return this.shared.EnableFaults;
                 }
             }
             set
@@ -254,13 +255,13 @@ namespace System.ServiceModel.Dispatcher
                 {
                     if (this.IsOnServer)
                     {
-                        string text = SR.SFxSetEnableFaultsOnChannelDispatcher0;
+                        string text = SR.GetString(SR.SFxSetEnableFaultsOnChannelDispatcher0);
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(text));
                     }
                     else
                     {
                         this.InvalidateRuntime();
-                        _shared.EnableFaults = value;
+                        this.shared.EnableFaults = value;
                     }
                 }
             }
@@ -268,25 +269,25 @@ namespace System.ServiceModel.Dispatcher
 
         public SynchronizedCollection<IInteractiveChannelInitializer> InteractiveChannelInitializers
         {
-            get { return _interactiveChannelInitializers; }
+            get { return this.interactiveChannelInitializers; }
         }
 
         public int MaxFaultSize
         {
             get
             {
-                return _maxFaultSize;
+                return this.maxFaultSize;
             }
             set
             {
                 this.InvalidateRuntime();
-                _maxFaultSize = value;
+                this.maxFaultSize = value;
             }
         }
 
         internal bool IsOnServer
         {
-            get { return _shared.IsOnServer; }
+            get { return this.shared.IsOnServer; }
         }
 
         public bool ManualAddressing
@@ -295,11 +296,11 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (this.IsOnServer)
                 {
-                    return _dispatchRuntime.ManualAddressing;
+                    return this.dispatchRuntime.ManualAddressing;
                 }
                 else
                 {
-                    return _shared.ManualAddressing;
+                    return this.shared.ManualAddressing;
                 }
             }
             set
@@ -308,13 +309,13 @@ namespace System.ServiceModel.Dispatcher
                 {
                     if (this.IsOnServer)
                     {
-                        string text = SR.SFxSetManualAddresssingOnChannelDispatcher0;
+                        string text = SR.GetString(SR.SFxSetManualAddresssingOnChannelDispatcher0);
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(text));
                     }
                     else
                     {
                         this.InvalidateRuntime();
-                        _shared.ManualAddressing = value;
+                        this.shared.ManualAddressing = value;
                     }
                 }
             }
@@ -360,36 +361,36 @@ namespace System.ServiceModel.Dispatcher
 
         public IClientOperationSelector OperationSelector
         {
-            get { return _operationSelector; }
+            get { return this.operationSelector; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _operationSelector = value;
+                    this.operationSelector = value;
                 }
             }
         }
 
         internal object ThisLock
         {
-            get { return _shared; }
+            get { return this.shared; }
         }
 
         public ClientOperation UnhandledClientOperation
         {
-            get { return _unhandled; }
+            get { return this.unhandled; }
         }
 
         internal bool UseSynchronizationContext
         {
-            get { return _useSynchronizationContext; }
+            get { return this.useSynchronizationContext; }
             set
             {
                 lock (this.ThisLock)
                 {
                     this.InvalidateRuntime();
-                    _useSynchronizationContext = value;
+                    this.useSynchronizationContext = value;
                 }
             }
         }
@@ -400,7 +401,7 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (collection.Count == 0)
                 {
-                    return Array.Empty<T>();
+                    return EmptyArray<T>.Instance;
                 }
                 else
                 {
@@ -415,10 +416,10 @@ namespace System.ServiceModel.Dispatcher
         {
             lock (this.ThisLock)
             {
-                if (_runtime == null)
-                    _runtime = new ImmutableClientRuntime(this);
+                if (this.runtime == null)
+                    this.runtime = new ImmutableClientRuntime(this);
 
-                return _runtime;
+                return this.runtime;
             }
         }
 
@@ -426,14 +427,14 @@ namespace System.ServiceModel.Dispatcher
         {
             lock (this.ThisLock)
             {
-                _shared.ThrowIfImmutable();
-                _runtime = null;
+                this.shared.ThrowIfImmutable();
+                this.runtime = null;
             }
         }
 
         internal void LockDownProperties()
         {
-            _shared.LockDownProperties();
+            this.shared.LockDownProperties();
         }
 
         internal SynchronizedCollection<T> NewBehaviorCollection<T>()
@@ -484,19 +485,19 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        internal class ProxyBehaviorCollection<T> : SynchronizedCollection<T>
+        class ProxyBehaviorCollection<T> : SynchronizedCollection<T>
         {
-            private ClientRuntime _outer;
+            ClientRuntime outer;
 
             internal ProxyBehaviorCollection(ClientRuntime outer)
                 : base(outer.ThisLock)
             {
-                _outer = outer;
+                this.outer = outer;
             }
 
             protected override void ClearItems()
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.ClearItems();
             }
 
@@ -507,13 +508,13 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.InsertItem(index, item);
             }
 
             protected override void RemoveItem(int index)
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.RemoveItem(index);
             }
 
@@ -524,24 +525,24 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
                 }
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.SetItem(index, item);
             }
         }
 
-        internal class OperationCollection : SynchronizedKeyedCollection<string, ClientOperation>
+        class OperationCollection : SynchronizedKeyedCollection<string, ClientOperation>
         {
-            private ClientRuntime _outer;
+            ClientRuntime outer;
 
             internal OperationCollection(ClientRuntime outer)
                 : base(outer.ThisLock)
             {
-                _outer = outer;
+                this.outer = outer;
             }
 
             protected override void ClearItems()
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.ClearItems();
             }
 
@@ -554,16 +555,16 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (item == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
-                if (item.Parent != _outer)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.SFxMismatchedOperationParent);
+                if (item.Parent != this.outer)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxMismatchedOperationParent));
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.InsertItem(index, item);
             }
 
             protected override void RemoveItem(int index)
             {
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.RemoveItem(index);
             }
 
@@ -571,10 +572,10 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (item == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("item");
-                if (item.Parent != _outer)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.SFxMismatchedOperationParent);
+                if (item.Parent != this.outer)
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument(SR.GetString(SR.SFxMismatchedOperationParent));
 
-                _outer.InvalidateRuntime();
+                this.outer.InvalidateRuntime();
                 base.SetItem(index, item);
             }
 
@@ -586,15 +587,16 @@ namespace System.ServiceModel.Dispatcher
         }
 
 
-        internal class OperationCollectionWrapper : KeyedCollection<string, ClientOperation>
+        class OperationCollectionWrapper : KeyedCollection<string, ClientOperation>
         {
-            private OperationCollection _inner;
-            internal OperationCollectionWrapper(OperationCollection inner) { _inner = inner; }
-            protected override void ClearItems() { _inner.InternalClearItems(); }
-            protected override string GetKeyForItem(ClientOperation item) { return _inner.InternalGetKeyForItem(item); }
-            protected override void InsertItem(int index, ClientOperation item) { _inner.InternalInsertItem(index, item); }
-            protected override void RemoveItem(int index) { _inner.InternalRemoveItem(index); }
-            protected override void SetItem(int index, ClientOperation item) { _inner.InternalSetItem(index, item); }
+            OperationCollection inner;
+            internal OperationCollectionWrapper(OperationCollection inner) { this.inner = inner; }
+            protected override void ClearItems() { this.inner.InternalClearItems(); }
+            protected override string GetKeyForItem(ClientOperation item) { return this.inner.InternalGetKeyForItem(item); }
+            protected override void InsertItem(int index, ClientOperation item) { this.inner.InternalInsertItem(index, item); }
+            protected override void RemoveItem(int index) { this.inner.InternalRemoveItem(index); }
+            protected override void SetItem(int index, ClientOperation item) { this.inner.InternalSetItem(index, item); }
         }
+
     }
 }

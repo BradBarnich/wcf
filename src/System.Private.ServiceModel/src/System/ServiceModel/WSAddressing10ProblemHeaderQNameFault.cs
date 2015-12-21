@@ -1,27 +1,33 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Globalization;
-using System.Xml;
-using System.ServiceModel.Channels;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
-    internal class WSAddressing10ProblemHeaderQNameFault : MessageFault
+    using System.Globalization;
+    using System.Xml;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.Text;
+    using System.Collections.Generic;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Diagnostics;
+
+    class WSAddressing10ProblemHeaderQNameFault : MessageFault
     {
-        private FaultCode _code;
-        private FaultReason _reason;
-        private string _actor;
-        private string _node;
-        private string _invalidHeaderName;
+        FaultCode code;
+        FaultReason reason;
+        string actor;
+        string node;
+        string invalidHeaderName;
 
         public WSAddressing10ProblemHeaderQNameFault(MessageHeaderException e)
         {
-            _invalidHeaderName = e.HeaderName;
+            this.invalidHeaderName = e.HeaderName;
 
             if (e.IsDuplicate)
             {
-                _code = FaultCode.CreateSenderFaultCode(
+                this.code = FaultCode.CreateSenderFaultCode(
                     new FaultCode(Addressing10Strings.InvalidAddressingHeader,
                                   AddressingVersion.WSAddressing10.Namespace,
                                   new FaultCode(Addressing10Strings.InvalidCardinality,
@@ -29,31 +35,31 @@ namespace System.ServiceModel
             }
             else
             {
-                _code = FaultCode.CreateSenderFaultCode(
+                this.code = FaultCode.CreateSenderFaultCode(
                     new FaultCode(Addressing10Strings.MessageAddressingHeaderRequired,
                                   AddressingVersion.WSAddressing10.Namespace));
             }
 
-            _reason = new FaultReason(e.Message, CultureInfo.CurrentCulture);
-            _actor = "";
-            _node = "";
+            this.reason = new FaultReason(e.Message, CultureInfo.CurrentCulture);
+            this.actor = "";
+            this.node = "";
         }
 
         public WSAddressing10ProblemHeaderQNameFault(ActionMismatchAddressingException e)
         {
-            _invalidHeaderName = AddressingStrings.Action;
-            _code = FaultCode.CreateSenderFaultCode(
+            this.invalidHeaderName = AddressingStrings.Action;
+            this.code = FaultCode.CreateSenderFaultCode(
                 new FaultCode(Addressing10Strings.ActionMismatch, AddressingVersion.WSAddressing10.Namespace));
-            _reason = new FaultReason(e.Message, CultureInfo.CurrentCulture);
-            _actor = "";
-            _node = "";
+            this.reason = new FaultReason(e.Message, CultureInfo.CurrentCulture);
+            this.actor = "";
+            this.node = "";
         }
 
         public override string Actor
         {
             get
             {
-                return _actor;
+                return actor;
             }
         }
 
@@ -61,7 +67,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _code;
+                return code;
             }
         }
 
@@ -77,7 +83,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _node;
+                return node;
             }
         }
 
@@ -85,7 +91,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _reason;
+                return reason;
             }
         }
 
@@ -102,7 +108,7 @@ namespace System.ServiceModel
         protected override void OnWriteDetailContents(XmlDictionaryWriter writer)
         {
             writer.WriteStartElement(Addressing10Strings.ProblemHeaderQName, AddressingVersion.WSAddressing10.Namespace);
-            writer.WriteQualifiedName(_invalidHeaderName, AddressingVersion.WSAddressing10.Namespace);
+            writer.WriteQualifiedName(this.invalidHeaderName, AddressingVersion.WSAddressing10.Namespace);
             writer.WriteEndElement();
         }
 
@@ -110,17 +116,17 @@ namespace System.ServiceModel
         {
             if (headers.MessageVersion.Envelope == EnvelopeVersion.Soap11)
             {
-                headers.Add(new WSAddressing10ProblemHeaderQNameHeader(_invalidHeaderName));
+                headers.Add(new WSAddressing10ProblemHeaderQNameHeader(this.invalidHeaderName));
             }
         }
 
-        internal class WSAddressing10ProblemHeaderQNameHeader : MessageHeader
+        class WSAddressing10ProblemHeaderQNameHeader : MessageHeader
         {
-            private string _invalidHeaderName;
+            string invalidHeaderName;
 
             public WSAddressing10ProblemHeaderQNameHeader(string invalidHeaderName)
             {
-                _invalidHeaderName = invalidHeaderName;
+                this.invalidHeaderName = invalidHeaderName;
             }
 
             public override string Name
@@ -141,7 +147,7 @@ namespace System.ServiceModel
             protected override void OnWriteHeaderContents(XmlDictionaryWriter writer, MessageVersion messageVersion)
             {
                 writer.WriteStartElement(Addressing10Strings.ProblemHeaderQName, this.Namespace);
-                writer.WriteQualifiedName(_invalidHeaderName, this.Namespace);
+                writer.WriteQualifiedName(this.invalidHeaderName, this.Namespace);
                 writer.WriteEndElement();
             }
         }

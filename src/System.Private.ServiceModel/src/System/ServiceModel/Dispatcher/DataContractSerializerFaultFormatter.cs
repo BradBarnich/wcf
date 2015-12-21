@@ -1,11 +1,19 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
+using System;
 using System.Collections.Generic;
+using System.Text;
+using System.ServiceModel.Channels;
+using System.ServiceModel.Description;
+using System.Runtime.Serialization;
+using System.Xml;
+using System.Reflection;
+using System.Diagnostics;
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class DataContractSerializerFaultFormatter : FaultFormatter
+    class DataContractSerializerFaultFormatter : FaultFormatter
     {
         internal DataContractSerializerFaultFormatter(Type[] detailTypes)
             : base(detailTypes)

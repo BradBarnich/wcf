@@ -1,39 +1,60 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 // NOTE: this file was generated from 'xd.xml'
 
-using System.Xml;
-
 namespace System.ServiceModel
 {
+    using System.Xml;
+    using System.Runtime.CompilerServices;
+
     // Static Xml Dictionary
-    internal static class XD
+    static class XD
     {
         static public ServiceModelDictionary Dictionary { get { return ServiceModelDictionary.CurrentVersion; } }
 
-        private static ActivityIdFlowDictionary s_activityIdFlowDictionary;
-        private static AddressingDictionary s_addressingDictionary;
-        private static Addressing10Dictionary s_addressing10Dictionary;
-        private static AddressingNoneDictionary s_addressingNoneDictionary;
-        private static MessageDictionary s_messageDictionary;
-        private static Message11Dictionary s_message11Dictionary;
-        private static Message12Dictionary s_message12Dictionary;
-        private static SecureConversationFeb2005Dictionary s_secureConversationFeb2005Dictionary;
-        private static SecurityAlgorithmDictionary s_securityAlgorithmDictionary;
-        private static SecurityJan2004Dictionary s_securityJan2004Dictionary;
-        private static SecurityXXX2005Dictionary s_securityXXX2005Dictionary;
-        private static TrustFeb2005Dictionary s_trustFeb2005Dictionary;
-        private static UtilityDictionary s_utilityDictionary;
-        private static XmlSignatureDictionary s_xmlSignatureDictionary;
+        static ActivityIdFlowDictionary activityIdFlowDictionary;
+        static AddressingDictionary addressingDictionary;
+        static Addressing10Dictionary addressing10Dictionary;
+        static Addressing200408Dictionary addressing200408Dictionary;
+        static AddressingNoneDictionary addressingNoneDictionary;
+        static AtomicTransactionExternalDictionary atomicTransactionExternalDictionary;
+        static AtomicTransactionExternal10Dictionary atomicTransactionExternal10Dictionary;
+        static CoordinationExternalDictionary coordinationExternalDictionary;
+        static CoordinationExternal10Dictionary coordinationExternal10Dictionary;
+        static DotNetAddressingDictionary dotNetAddressingDictionary;
+        static DotNetAtomicTransactionExternalDictionary dotNetAtomicTransactionExternalDictionary;
+        static DotNetOneWayDictionary dotNetOneWayDictionary;
+        static DotNetSecurityDictionary dotNetSecurityDictionary;
+        static ExclusiveC14NDictionary exclusiveC14NDictionary;
+        static MessageDictionary messageDictionary;
+        static Message11Dictionary message11Dictionary;
+        static Message12Dictionary message12Dictionary;
+        static OleTxTransactionExternalDictionary oleTxTransactionExternalDictionary;
+        static PeerWireStringsDictionary peerWireStringsDictionary;
+        static PolicyDictionary policyDictionary;
+        static SamlDictionary samlDictionary;
+        static SecureConversationApr2004Dictionary secureConversationApr2004Dictionary;
+        static SecureConversationFeb2005Dictionary secureConversationFeb2005Dictionary;
+        static SecurityAlgorithmDictionary securityAlgorithmDictionary;
+        static SecurityJan2004Dictionary securityJan2004Dictionary;
+        static SecurityXXX2005Dictionary securityXXX2005Dictionary;
+        static SerializationDictionary serializationDictionary;
+        static TrustApr2004Dictionary trustApr2004Dictionary;
+        static TrustFeb2005Dictionary trustFeb2005Dictionary;
+        static UtilityDictionary utilityDictionary;
+        static WsrmFeb2005Dictionary wsrmFeb2005Dictionary;
+        static XmlEncryptionDictionary xmlEncryptionDictionary;
+        static XmlSignatureDictionary xmlSignatureDictionary;
 
         static public ActivityIdFlowDictionary ActivityIdFlowDictionary
         {
             get
             {
-                if (s_activityIdFlowDictionary == null)
-                    s_activityIdFlowDictionary = new ActivityIdFlowDictionary(Dictionary);
-                return s_activityIdFlowDictionary;
+                if (activityIdFlowDictionary == null)
+                    activityIdFlowDictionary = new ActivityIdFlowDictionary(Dictionary);
+                return activityIdFlowDictionary;
             }
         }
 
@@ -41,9 +62,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_addressingDictionary == null)
-                    s_addressingDictionary = new AddressingDictionary(Dictionary);
-                return s_addressingDictionary;
+                if (addressingDictionary == null)
+                    addressingDictionary = new AddressingDictionary(Dictionary);
+                return addressingDictionary;
             }
         }
 
@@ -51,9 +72,19 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_addressing10Dictionary == null)
-                    s_addressing10Dictionary = new Addressing10Dictionary(Dictionary);
-                return s_addressing10Dictionary;
+                if (addressing10Dictionary == null)
+                    addressing10Dictionary = new Addressing10Dictionary(Dictionary);
+                return addressing10Dictionary;
+            }
+        }
+
+        static public Addressing200408Dictionary Addressing200408Dictionary
+        {
+            get
+            {
+                if (addressing200408Dictionary == null)
+                    addressing200408Dictionary = new Addressing200408Dictionary(Dictionary);
+                return addressing200408Dictionary;
             }
         }
 
@@ -61,9 +92,99 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_addressingNoneDictionary == null)
-                    s_addressingNoneDictionary = new AddressingNoneDictionary(Dictionary);
-                return s_addressingNoneDictionary;
+                if (addressingNoneDictionary == null)
+                    addressingNoneDictionary = new AddressingNoneDictionary(Dictionary);
+                return addressingNoneDictionary;
+            }
+        }
+
+        static public AtomicTransactionExternalDictionary AtomicTransactionExternalDictionary
+        {
+            get
+            {
+                if (atomicTransactionExternalDictionary == null)
+                    atomicTransactionExternalDictionary = new AtomicTransactionExternalDictionary(Dictionary);
+                return atomicTransactionExternalDictionary;
+            }
+        }
+
+        static public AtomicTransactionExternal10Dictionary AtomicTransactionExternal10Dictionary
+        {
+            get
+            {
+                if (atomicTransactionExternal10Dictionary == null)
+                    atomicTransactionExternal10Dictionary = new AtomicTransactionExternal10Dictionary(Dictionary);
+                return atomicTransactionExternal10Dictionary;
+            }
+        }
+
+        static public CoordinationExternalDictionary CoordinationExternalDictionary
+        {
+            get
+            {
+                if (coordinationExternalDictionary == null)
+                    coordinationExternalDictionary = new CoordinationExternalDictionary(Dictionary);
+                return coordinationExternalDictionary;
+            }
+        }
+
+        static public CoordinationExternal10Dictionary CoordinationExternal10Dictionary
+        {
+            get
+            {
+                if (coordinationExternal10Dictionary == null)
+                    coordinationExternal10Dictionary = new CoordinationExternal10Dictionary(Dictionary);
+                return coordinationExternal10Dictionary;
+            }
+        }
+
+        static public DotNetAddressingDictionary DotNetAddressingDictionary
+        {
+            get
+            {
+                if (dotNetAddressingDictionary == null)
+                    dotNetAddressingDictionary = new DotNetAddressingDictionary(Dictionary);
+                return dotNetAddressingDictionary;
+            }
+        }
+
+        static public DotNetAtomicTransactionExternalDictionary DotNetAtomicTransactionExternalDictionary
+        {
+            get
+            {
+                if (dotNetAtomicTransactionExternalDictionary == null)
+                    dotNetAtomicTransactionExternalDictionary = new DotNetAtomicTransactionExternalDictionary(Dictionary);
+                return dotNetAtomicTransactionExternalDictionary;
+            }
+        }
+
+        static public DotNetOneWayDictionary DotNetOneWayDictionary
+        {
+            get
+            {
+                if (dotNetOneWayDictionary == null)
+                    dotNetOneWayDictionary = new DotNetOneWayDictionary(Dictionary);
+                return dotNetOneWayDictionary;
+            }
+        }
+
+        static public DotNetSecurityDictionary DotNetSecurityDictionary
+        {
+            get
+            {
+                if (dotNetSecurityDictionary == null)
+                    dotNetSecurityDictionary = new DotNetSecurityDictionary(Dictionary);
+                return dotNetSecurityDictionary;
+            }
+        }
+
+        static public ExclusiveC14NDictionary ExclusiveC14NDictionary
+        {
+            get
+            {
+                if (exclusiveC14NDictionary == null)
+                    exclusiveC14NDictionary = new ExclusiveC14NDictionary(Dictionary);
+                return exclusiveC14NDictionary;
             }
         }
 
@@ -71,9 +192,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_messageDictionary == null)
-                    s_messageDictionary = new MessageDictionary(Dictionary);
-                return s_messageDictionary;
+                if (messageDictionary == null)
+                    messageDictionary = new MessageDictionary(Dictionary);
+                return messageDictionary;
             }
         }
 
@@ -81,9 +202,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_message11Dictionary == null)
-                    s_message11Dictionary = new Message11Dictionary(Dictionary);
-                return s_message11Dictionary;
+                if (message11Dictionary == null)
+                    message11Dictionary = new Message11Dictionary(Dictionary);
+                return message11Dictionary;
             }
         }
 
@@ -91,9 +212,59 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_message12Dictionary == null)
-                    s_message12Dictionary = new Message12Dictionary(Dictionary);
-                return s_message12Dictionary;
+                if (message12Dictionary == null)
+                    message12Dictionary = new Message12Dictionary(Dictionary);
+                return message12Dictionary;
+            }
+        }
+
+        static public OleTxTransactionExternalDictionary OleTxTransactionExternalDictionary
+        {
+            get
+            {
+                if (oleTxTransactionExternalDictionary == null)
+                    oleTxTransactionExternalDictionary = new OleTxTransactionExternalDictionary(Dictionary);
+                return oleTxTransactionExternalDictionary;
+            }
+        }
+
+        static public PeerWireStringsDictionary PeerWireStringsDictionary
+        {
+            get
+            {
+                if (peerWireStringsDictionary == null)
+                    peerWireStringsDictionary = new PeerWireStringsDictionary(Dictionary);
+                return peerWireStringsDictionary;
+            }
+        }
+
+        static public PolicyDictionary PolicyDictionary
+        {
+            get
+            {
+                if (policyDictionary == null)
+                    policyDictionary = new PolicyDictionary(Dictionary);
+                return policyDictionary;
+            }
+        }
+
+        static public SamlDictionary SamlDictionary
+        {
+            get
+            {
+                if (samlDictionary == null)
+                    samlDictionary = new SamlDictionary(Dictionary);
+                return samlDictionary;
+            }
+        }
+
+        static public SecureConversationApr2004Dictionary SecureConversationApr2004Dictionary
+        {
+            get
+            {
+                if (secureConversationApr2004Dictionary == null)
+                    secureConversationApr2004Dictionary = new SecureConversationApr2004Dictionary(Dictionary);
+                return secureConversationApr2004Dictionary;
             }
         }
 
@@ -101,9 +272,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_secureConversationFeb2005Dictionary == null)
-                    s_secureConversationFeb2005Dictionary = new SecureConversationFeb2005Dictionary(Dictionary);
-                return s_secureConversationFeb2005Dictionary;
+                if (secureConversationFeb2005Dictionary == null)
+                    secureConversationFeb2005Dictionary = new SecureConversationFeb2005Dictionary(Dictionary);
+                return secureConversationFeb2005Dictionary;
             }
         }
 
@@ -111,9 +282,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_securityAlgorithmDictionary == null)
-                    s_securityAlgorithmDictionary = new SecurityAlgorithmDictionary(Dictionary);
-                return s_securityAlgorithmDictionary;
+                if (securityAlgorithmDictionary == null)
+                    securityAlgorithmDictionary = new SecurityAlgorithmDictionary(Dictionary);
+                return securityAlgorithmDictionary;
             }
         }
 
@@ -121,9 +292,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_securityJan2004Dictionary == null)
-                    s_securityJan2004Dictionary = new SecurityJan2004Dictionary(Dictionary);
-                return s_securityJan2004Dictionary;
+                if (securityJan2004Dictionary == null)
+                    securityJan2004Dictionary = new SecurityJan2004Dictionary(Dictionary);
+                return securityJan2004Dictionary;
             }
         }
 
@@ -131,9 +302,29 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_securityXXX2005Dictionary == null)
-                    s_securityXXX2005Dictionary = new SecurityXXX2005Dictionary(Dictionary);
-                return s_securityXXX2005Dictionary;
+                if (securityXXX2005Dictionary == null)
+                    securityXXX2005Dictionary = new SecurityXXX2005Dictionary(Dictionary);
+                return securityXXX2005Dictionary;
+            }
+        }
+
+        static public SerializationDictionary SerializationDictionary
+        {
+            get
+            {
+                if (serializationDictionary == null)
+                    serializationDictionary = new SerializationDictionary(Dictionary);
+                return serializationDictionary;
+            }
+        }
+
+        static public TrustApr2004Dictionary TrustApr2004Dictionary
+        {
+            get
+            {
+                if (trustApr2004Dictionary == null)
+                    trustApr2004Dictionary = new TrustApr2004Dictionary(Dictionary);
+                return trustApr2004Dictionary;
             }
         }
 
@@ -141,9 +332,9 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_trustFeb2005Dictionary == null)
-                    s_trustFeb2005Dictionary = new TrustFeb2005Dictionary(Dictionary);
-                return s_trustFeb2005Dictionary;
+                if (trustFeb2005Dictionary == null)
+                    trustFeb2005Dictionary = new TrustFeb2005Dictionary(Dictionary);
+                return trustFeb2005Dictionary;
             }
         }
 
@@ -151,9 +342,29 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_utilityDictionary == null)
-                    s_utilityDictionary = new UtilityDictionary(Dictionary);
-                return s_utilityDictionary;
+                if (utilityDictionary == null)
+                    utilityDictionary = new UtilityDictionary(Dictionary);
+                return utilityDictionary;
+            }
+        }
+
+        static public WsrmFeb2005Dictionary WsrmFeb2005Dictionary
+        {
+            get
+            {
+                if (wsrmFeb2005Dictionary == null)
+                    wsrmFeb2005Dictionary = new WsrmFeb2005Dictionary(Dictionary);
+                return wsrmFeb2005Dictionary;
+            }
+        }
+
+        static public XmlEncryptionDictionary XmlEncryptionDictionary
+        {
+            get
+            {
+                if (xmlEncryptionDictionary == null)
+                    xmlEncryptionDictionary = new XmlEncryptionDictionary(Dictionary);
+                return xmlEncryptionDictionary;
             }
         }
 
@@ -161,14 +372,15 @@ namespace System.ServiceModel
         {
             get
             {
-                if (s_xmlSignatureDictionary == null)
-                    s_xmlSignatureDictionary = new XmlSignatureDictionary(Dictionary);
-                return s_xmlSignatureDictionary;
+                if (xmlSignatureDictionary == null)
+                    xmlSignatureDictionary = new XmlSignatureDictionary(Dictionary);
+                return xmlSignatureDictionary;
             }
         }
+
     }
 
-    internal class ActivityIdFlowDictionary
+    class ActivityIdFlowDictionary
     {
         public XmlDictionaryString ActivityId;
         public XmlDictionaryString ActivityIdNamespace;
@@ -180,7 +392,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class AddressingDictionary
+    class AddressingDictionary
     {
         public XmlDictionaryString Action;
         public XmlDictionaryString To;
@@ -240,7 +452,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class Addressing10Dictionary
+    class Addressing10Dictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString Anonymous;
@@ -260,7 +472,21 @@ namespace System.ServiceModel
         }
     }
 
-    internal class AddressingNoneDictionary
+    class Addressing200408Dictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString Anonymous;
+        public XmlDictionaryString FaultAction;
+
+        public Addressing200408Dictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String105, 105);
+            this.Anonymous = dictionary.CreateString(ServiceModelStringsVersion1.String106, 106);
+            this.FaultAction = dictionary.CreateString(ServiceModelStringsVersion1.String107, 107);
+        }
+    }
+
+    class AddressingNoneDictionary
     {
         public XmlDictionaryString Namespace;
 
@@ -270,7 +496,245 @@ namespace System.ServiceModel
         }
     }
 
-    internal class MessageDictionary
+    class AtomicTransactionExternalDictionary
+    {
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString Prepare;
+        public XmlDictionaryString Prepared;
+        public XmlDictionaryString ReadOnly;
+        public XmlDictionaryString Commit;
+        public XmlDictionaryString Rollback;
+        public XmlDictionaryString Committed;
+        public XmlDictionaryString Aborted;
+        public XmlDictionaryString Replay;
+        public XmlDictionaryString CompletionCoordinatorPortType;
+        public XmlDictionaryString CompletionParticipantPortType;
+        public XmlDictionaryString CoordinatorPortType;
+        public XmlDictionaryString ParticipantPortType;
+        public XmlDictionaryString InconsistentInternalState;
+
+        public AtomicTransactionExternalDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String383, 383);
+            this.Prepare = dictionary.CreateString(ServiceModelStringsVersion1.String387, 387);
+            this.Prepared = dictionary.CreateString(ServiceModelStringsVersion1.String388, 388);
+            this.ReadOnly = dictionary.CreateString(ServiceModelStringsVersion1.String389, 389);
+            this.Commit = dictionary.CreateString(ServiceModelStringsVersion1.String390, 390);
+            this.Rollback = dictionary.CreateString(ServiceModelStringsVersion1.String391, 391);
+            this.Committed = dictionary.CreateString(ServiceModelStringsVersion1.String392, 392);
+            this.Aborted = dictionary.CreateString(ServiceModelStringsVersion1.String393, 393);
+            this.Replay = dictionary.CreateString(ServiceModelStringsVersion1.String394, 394);
+            this.CompletionCoordinatorPortType = dictionary.CreateString(ServiceModelStringsVersion1.String404, 404);
+            this.CompletionParticipantPortType = dictionary.CreateString(ServiceModelStringsVersion1.String405, 405);
+            this.CoordinatorPortType = dictionary.CreateString(ServiceModelStringsVersion1.String406, 406);
+            this.ParticipantPortType = dictionary.CreateString(ServiceModelStringsVersion1.String407, 407);
+            this.InconsistentInternalState = dictionary.CreateString(ServiceModelStringsVersion1.String408, 408);
+        }
+    }
+
+    class AtomicTransactionExternal10Dictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString CompletionUri;
+        public XmlDictionaryString Durable2PCUri;
+        public XmlDictionaryString Volatile2PCUri;
+        public XmlDictionaryString CommitAction;
+        public XmlDictionaryString RollbackAction;
+        public XmlDictionaryString CommittedAction;
+        public XmlDictionaryString AbortedAction;
+        public XmlDictionaryString PrepareAction;
+        public XmlDictionaryString PreparedAction;
+        public XmlDictionaryString ReadOnlyAction;
+        public XmlDictionaryString ReplayAction;
+        public XmlDictionaryString FaultAction;
+
+        public AtomicTransactionExternal10Dictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String382, 382);
+            this.CompletionUri = dictionary.CreateString(ServiceModelStringsVersion1.String384, 384);
+            this.Durable2PCUri = dictionary.CreateString(ServiceModelStringsVersion1.String385, 385);
+            this.Volatile2PCUri = dictionary.CreateString(ServiceModelStringsVersion1.String386, 386);
+            this.CommitAction = dictionary.CreateString(ServiceModelStringsVersion1.String395, 395);
+            this.RollbackAction = dictionary.CreateString(ServiceModelStringsVersion1.String396, 396);
+            this.CommittedAction = dictionary.CreateString(ServiceModelStringsVersion1.String397, 397);
+            this.AbortedAction = dictionary.CreateString(ServiceModelStringsVersion1.String398, 398);
+            this.PrepareAction = dictionary.CreateString(ServiceModelStringsVersion1.String399, 399);
+            this.PreparedAction = dictionary.CreateString(ServiceModelStringsVersion1.String400, 400);
+            this.ReadOnlyAction = dictionary.CreateString(ServiceModelStringsVersion1.String401, 401);
+            this.ReplayAction = dictionary.CreateString(ServiceModelStringsVersion1.String402, 402);
+            this.FaultAction = dictionary.CreateString(ServiceModelStringsVersion1.String403, 403);
+        }
+    }
+
+    class CoordinationExternalDictionary
+    {
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString CreateCoordinationContext;
+        public XmlDictionaryString CreateCoordinationContextResponse;
+        public XmlDictionaryString CoordinationContext;
+        public XmlDictionaryString CurrentContext;
+        public XmlDictionaryString CoordinationType;
+        public XmlDictionaryString RegistrationService;
+        public XmlDictionaryString Register;
+        public XmlDictionaryString RegisterResponse;
+        public XmlDictionaryString Protocol;
+        public XmlDictionaryString CoordinatorProtocolService;
+        public XmlDictionaryString ParticipantProtocolService;
+        public XmlDictionaryString Expires;
+        public XmlDictionaryString Identifier;
+        public XmlDictionaryString ActivationCoordinatorPortType;
+        public XmlDictionaryString RegistrationCoordinatorPortType;
+        public XmlDictionaryString InvalidState;
+        public XmlDictionaryString InvalidProtocol;
+        public XmlDictionaryString InvalidParameters;
+        public XmlDictionaryString NoActivity;
+        public XmlDictionaryString ContextRefused;
+        public XmlDictionaryString AlreadyRegistered;
+
+        public CoordinationExternalDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String357, 357);
+            this.CreateCoordinationContext = dictionary.CreateString(ServiceModelStringsVersion1.String358, 358);
+            this.CreateCoordinationContextResponse = dictionary.CreateString(ServiceModelStringsVersion1.String359, 359);
+            this.CoordinationContext = dictionary.CreateString(ServiceModelStringsVersion1.String360, 360);
+            this.CurrentContext = dictionary.CreateString(ServiceModelStringsVersion1.String361, 361);
+            this.CoordinationType = dictionary.CreateString(ServiceModelStringsVersion1.String362, 362);
+            this.RegistrationService = dictionary.CreateString(ServiceModelStringsVersion1.String363, 363);
+            this.Register = dictionary.CreateString(ServiceModelStringsVersion1.String364, 364);
+            this.RegisterResponse = dictionary.CreateString(ServiceModelStringsVersion1.String365, 365);
+            this.Protocol = dictionary.CreateString(ServiceModelStringsVersion1.String366, 366);
+            this.CoordinatorProtocolService = dictionary.CreateString(ServiceModelStringsVersion1.String367, 367);
+            this.ParticipantProtocolService = dictionary.CreateString(ServiceModelStringsVersion1.String368, 368);
+            this.Expires = dictionary.CreateString(ServiceModelStringsVersion1.String55, 55);
+            this.Identifier = dictionary.CreateString(ServiceModelStringsVersion1.String15, 15);
+            this.ActivationCoordinatorPortType = dictionary.CreateString(ServiceModelStringsVersion1.String374, 374);
+            this.RegistrationCoordinatorPortType = dictionary.CreateString(ServiceModelStringsVersion1.String375, 375);
+            this.InvalidState = dictionary.CreateString(ServiceModelStringsVersion1.String376, 376);
+            this.InvalidProtocol = dictionary.CreateString(ServiceModelStringsVersion1.String377, 377);
+            this.InvalidParameters = dictionary.CreateString(ServiceModelStringsVersion1.String378, 378);
+            this.NoActivity = dictionary.CreateString(ServiceModelStringsVersion1.String379, 379);
+            this.ContextRefused = dictionary.CreateString(ServiceModelStringsVersion1.String380, 380);
+            this.AlreadyRegistered = dictionary.CreateString(ServiceModelStringsVersion1.String381, 381);
+        }
+    }
+
+    class CoordinationExternal10Dictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString CreateCoordinationContextAction;
+        public XmlDictionaryString CreateCoordinationContextResponseAction;
+        public XmlDictionaryString RegisterAction;
+        public XmlDictionaryString RegisterResponseAction;
+        public XmlDictionaryString FaultAction;
+
+        public CoordinationExternal10Dictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String356, 356);
+            this.CreateCoordinationContextAction = dictionary.CreateString(ServiceModelStringsVersion1.String369, 369);
+            this.CreateCoordinationContextResponseAction = dictionary.CreateString(ServiceModelStringsVersion1.String370, 370);
+            this.RegisterAction = dictionary.CreateString(ServiceModelStringsVersion1.String371, 371);
+            this.RegisterResponseAction = dictionary.CreateString(ServiceModelStringsVersion1.String372, 372);
+            this.FaultAction = dictionary.CreateString(ServiceModelStringsVersion1.String373, 373);
+        }
+    }
+
+    class DotNetAddressingDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString RedirectTo;
+        public XmlDictionaryString Via;
+
+        public DotNetAddressingDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String108, 108);
+            this.RedirectTo = dictionary.CreateString(ServiceModelStringsVersion1.String109, 109);
+            this.Via = dictionary.CreateString(ServiceModelStringsVersion1.String110, 110);
+        }
+    }
+
+    class DotNetAtomicTransactionExternalDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString Enlistment;
+        public XmlDictionaryString Protocol;
+        public XmlDictionaryString LocalTransactionId;
+        public XmlDictionaryString IsolationLevel;
+        public XmlDictionaryString IsolationFlags;
+        public XmlDictionaryString Description;
+        public XmlDictionaryString Loopback;
+        public XmlDictionaryString RegisterInfo;
+        public XmlDictionaryString ContextId;
+        public XmlDictionaryString TokenId;
+        public XmlDictionaryString AccessDenied;
+        public XmlDictionaryString InvalidPolicy;
+        public XmlDictionaryString CoordinatorRegistrationFailed;
+        public XmlDictionaryString TooManyEnlistments;
+        public XmlDictionaryString Disabled;
+
+        public DotNetAtomicTransactionExternalDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String65, 65);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String409, 409);
+            this.Enlistment = dictionary.CreateString(ServiceModelStringsVersion1.String410, 410);
+            this.Protocol = dictionary.CreateString(ServiceModelStringsVersion1.String411, 411);
+            this.LocalTransactionId = dictionary.CreateString(ServiceModelStringsVersion1.String412, 412);
+            this.IsolationLevel = dictionary.CreateString(ServiceModelStringsVersion1.String413, 413);
+            this.IsolationFlags = dictionary.CreateString(ServiceModelStringsVersion1.String414, 414);
+            this.Description = dictionary.CreateString(ServiceModelStringsVersion1.String415, 415);
+            this.Loopback = dictionary.CreateString(ServiceModelStringsVersion1.String416, 416);
+            this.RegisterInfo = dictionary.CreateString(ServiceModelStringsVersion1.String417, 417);
+            this.ContextId = dictionary.CreateString(ServiceModelStringsVersion1.String418, 418);
+            this.TokenId = dictionary.CreateString(ServiceModelStringsVersion1.String419, 419);
+            this.AccessDenied = dictionary.CreateString(ServiceModelStringsVersion1.String420, 420);
+            this.InvalidPolicy = dictionary.CreateString(ServiceModelStringsVersion1.String421, 421);
+            this.CoordinatorRegistrationFailed = dictionary.CreateString(ServiceModelStringsVersion1.String422, 422);
+            this.TooManyEnlistments = dictionary.CreateString(ServiceModelStringsVersion1.String423, 423);
+            this.Disabled = dictionary.CreateString(ServiceModelStringsVersion1.String424, 424);
+        }
+    }
+
+    class DotNetOneWayDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString HeaderName;
+
+        public DotNetOneWayDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String437, 437);
+            this.HeaderName = dictionary.CreateString(ServiceModelStringsVersion1.String438, 438);
+        }
+    }
+
+    class DotNetSecurityDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString Prefix;
+
+        public DotNetSecurityDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String162, 162);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String163, 163);
+        }
+    }
+
+    class ExclusiveC14NDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString PrefixList;
+        public XmlDictionaryString InclusiveNamespaces;
+        public XmlDictionaryString Prefix;
+
+        public ExclusiveC14NDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String111, 111);
+            this.PrefixList = dictionary.CreateString(ServiceModelStringsVersion1.String112, 112);
+            this.InclusiveNamespaces = dictionary.CreateString(ServiceModelStringsVersion1.String113, 113);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String114, 114);
+        }
+    }
+
+    class MessageDictionary
     {
         public XmlDictionaryString MustUnderstand;
         public XmlDictionaryString Envelope;
@@ -294,7 +758,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class Message12Dictionary
+    class Message12Dictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString Role;
@@ -328,7 +792,179 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecureConversationDictionary
+    class OleTxTransactionExternalDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString OleTxTransaction;
+        public XmlDictionaryString PropagationToken;
+
+        public OleTxTransactionExternalDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String352, 352);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String353, 353);
+            this.OleTxTransaction = dictionary.CreateString(ServiceModelStringsVersion1.String354, 354);
+            this.PropagationToken = dictionary.CreateString(ServiceModelStringsVersion1.String355, 355);
+        }
+    }
+
+    class PeerWireStringsDictionary
+    {
+        public XmlDictionaryString FloodAction;
+        public XmlDictionaryString LinkUtilityAction;
+        public XmlDictionaryString HopCount;
+        public XmlDictionaryString HopCountNamespace;
+        public XmlDictionaryString PeerVia;
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString Demuxer;
+        public XmlDictionaryString PeerTo;
+
+        public PeerWireStringsDictionary(ServiceModelDictionary dictionary)
+        {
+            this.FloodAction = dictionary.CreateString(ServiceModelStringsVersion1.String429, 429);
+            this.LinkUtilityAction = dictionary.CreateString(ServiceModelStringsVersion1.String430, 430);
+            this.HopCount = dictionary.CreateString(ServiceModelStringsVersion1.String431, 431);
+            this.HopCountNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String432, 432);
+            this.PeerVia = dictionary.CreateString(ServiceModelStringsVersion1.String433, 433);
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String434, 434);
+            this.Demuxer = dictionary.CreateString(ServiceModelStringsVersion1.String435, 435);
+            this.PeerTo = dictionary.CreateString(ServiceModelStringsVersion1.String436, 436);
+        }
+    }
+
+    class PolicyDictionary
+    {
+        public XmlDictionaryString Namespace;
+
+        public PolicyDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String428, 428);
+        }
+    }
+
+    class SamlDictionary
+    {
+        public XmlDictionaryString Access;
+        public XmlDictionaryString AccessDecision;
+        public XmlDictionaryString Action;
+        public XmlDictionaryString Advice;
+        public XmlDictionaryString Assertion;
+        public XmlDictionaryString AssertionId;
+        public XmlDictionaryString AssertionIdReference;
+        public XmlDictionaryString Attribute;
+        public XmlDictionaryString AttributeName;
+        public XmlDictionaryString AttributeNamespace;
+        public XmlDictionaryString AttributeStatement;
+        public XmlDictionaryString AttributeValue;
+        public XmlDictionaryString Audience;
+        public XmlDictionaryString AudienceRestrictionCondition;
+        public XmlDictionaryString AuthenticationInstant;
+        public XmlDictionaryString AuthenticationMethod;
+        public XmlDictionaryString AuthenticationStatement;
+        public XmlDictionaryString AuthorityBinding;
+        public XmlDictionaryString AuthorityKind;
+        public XmlDictionaryString AuthorizationDecisionStatement;
+        public XmlDictionaryString Binding;
+        public XmlDictionaryString Condition;
+        public XmlDictionaryString Conditions;
+        public XmlDictionaryString Decision;
+        public XmlDictionaryString DoNotCacheCondition;
+        public XmlDictionaryString Evidence;
+        public XmlDictionaryString IssueInstant;
+        public XmlDictionaryString Issuer;
+        public XmlDictionaryString Location;
+        public XmlDictionaryString MajorVersion;
+        public XmlDictionaryString MinorVersion;
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString NameIdentifier;
+        public XmlDictionaryString NameIdentifierFormat;
+        public XmlDictionaryString NameIdentifierNameQualifier;
+        public XmlDictionaryString ActionNamespaceAttribute;
+        public XmlDictionaryString NotBefore;
+        public XmlDictionaryString NotOnOrAfter;
+        public XmlDictionaryString PreferredPrefix;
+        public XmlDictionaryString Statement;
+        public XmlDictionaryString Subject;
+        public XmlDictionaryString SubjectConfirmation;
+        public XmlDictionaryString SubjectConfirmationData;
+        public XmlDictionaryString SubjectConfirmationMethod;
+        public XmlDictionaryString HolderOfKey;
+        public XmlDictionaryString SenderVouches;
+        public XmlDictionaryString SubjectLocality;
+        public XmlDictionaryString SubjectLocalityDNSAddress;
+        public XmlDictionaryString SubjectLocalityIPAddress;
+        public XmlDictionaryString SubjectStatement;
+        public XmlDictionaryString UnspecifiedAuthenticationMethod;
+        public XmlDictionaryString NamespaceAttributePrefix;
+        public XmlDictionaryString Resource;
+        public XmlDictionaryString UserName;
+        public XmlDictionaryString UserNameNamespace;
+        public XmlDictionaryString EmailName;
+        public XmlDictionaryString EmailNamespace;
+
+        public SamlDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Access = dictionary.CreateString(ServiceModelStringsVersion1.String251, 251);
+            this.AccessDecision = dictionary.CreateString(ServiceModelStringsVersion1.String252, 252);
+            this.Action = dictionary.CreateString(ServiceModelStringsVersion1.String5, 5);
+            this.Advice = dictionary.CreateString(ServiceModelStringsVersion1.String253, 253);
+            this.Assertion = dictionary.CreateString(ServiceModelStringsVersion1.String179, 179);
+            this.AssertionId = dictionary.CreateString(ServiceModelStringsVersion1.String254, 254);
+            this.AssertionIdReference = dictionary.CreateString(ServiceModelStringsVersion1.String255, 255);
+            this.Attribute = dictionary.CreateString(ServiceModelStringsVersion1.String256, 256);
+            this.AttributeName = dictionary.CreateString(ServiceModelStringsVersion1.String257, 257);
+            this.AttributeNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String258, 258);
+            this.AttributeStatement = dictionary.CreateString(ServiceModelStringsVersion1.String259, 259);
+            this.AttributeValue = dictionary.CreateString(ServiceModelStringsVersion1.String260, 260);
+            this.Audience = dictionary.CreateString(ServiceModelStringsVersion1.String261, 261);
+            this.AudienceRestrictionCondition = dictionary.CreateString(ServiceModelStringsVersion1.String262, 262);
+            this.AuthenticationInstant = dictionary.CreateString(ServiceModelStringsVersion1.String263, 263);
+            this.AuthenticationMethod = dictionary.CreateString(ServiceModelStringsVersion1.String264, 264);
+            this.AuthenticationStatement = dictionary.CreateString(ServiceModelStringsVersion1.String265, 265);
+            this.AuthorityBinding = dictionary.CreateString(ServiceModelStringsVersion1.String266, 266);
+            this.AuthorityKind = dictionary.CreateString(ServiceModelStringsVersion1.String267, 267);
+            this.AuthorizationDecisionStatement = dictionary.CreateString(ServiceModelStringsVersion1.String268, 268);
+            this.Binding = dictionary.CreateString(ServiceModelStringsVersion1.String269, 269);
+            this.Condition = dictionary.CreateString(ServiceModelStringsVersion1.String270, 270);
+            this.Conditions = dictionary.CreateString(ServiceModelStringsVersion1.String271, 271);
+            this.Decision = dictionary.CreateString(ServiceModelStringsVersion1.String272, 272);
+            this.DoNotCacheCondition = dictionary.CreateString(ServiceModelStringsVersion1.String273, 273);
+            this.Evidence = dictionary.CreateString(ServiceModelStringsVersion1.String274, 274);
+            this.IssueInstant = dictionary.CreateString(ServiceModelStringsVersion1.String275, 275);
+            this.Issuer = dictionary.CreateString(ServiceModelStringsVersion1.String276, 276);
+            this.Location = dictionary.CreateString(ServiceModelStringsVersion1.String277, 277);
+            this.MajorVersion = dictionary.CreateString(ServiceModelStringsVersion1.String278, 278);
+            this.MinorVersion = dictionary.CreateString(ServiceModelStringsVersion1.String279, 279);
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String180, 180);
+            this.NameIdentifier = dictionary.CreateString(ServiceModelStringsVersion1.String280, 280);
+            this.NameIdentifierFormat = dictionary.CreateString(ServiceModelStringsVersion1.String281, 281);
+            this.NameIdentifierNameQualifier = dictionary.CreateString(ServiceModelStringsVersion1.String282, 282);
+            this.ActionNamespaceAttribute = dictionary.CreateString(ServiceModelStringsVersion1.String283, 283);
+            this.NotBefore = dictionary.CreateString(ServiceModelStringsVersion1.String284, 284);
+            this.NotOnOrAfter = dictionary.CreateString(ServiceModelStringsVersion1.String285, 285);
+            this.PreferredPrefix = dictionary.CreateString(ServiceModelStringsVersion1.String286, 286);
+            this.Statement = dictionary.CreateString(ServiceModelStringsVersion1.String287, 287);
+            this.Subject = dictionary.CreateString(ServiceModelStringsVersion1.String288, 288);
+            this.SubjectConfirmation = dictionary.CreateString(ServiceModelStringsVersion1.String289, 289);
+            this.SubjectConfirmationData = dictionary.CreateString(ServiceModelStringsVersion1.String290, 290);
+            this.SubjectConfirmationMethod = dictionary.CreateString(ServiceModelStringsVersion1.String291, 291);
+            this.HolderOfKey = dictionary.CreateString(ServiceModelStringsVersion1.String292, 292);
+            this.SenderVouches = dictionary.CreateString(ServiceModelStringsVersion1.String293, 293);
+            this.SubjectLocality = dictionary.CreateString(ServiceModelStringsVersion1.String294, 294);
+            this.SubjectLocalityDNSAddress = dictionary.CreateString(ServiceModelStringsVersion1.String295, 295);
+            this.SubjectLocalityIPAddress = dictionary.CreateString(ServiceModelStringsVersion1.String296, 296);
+            this.SubjectStatement = dictionary.CreateString(ServiceModelStringsVersion1.String297, 297);
+            this.UnspecifiedAuthenticationMethod = dictionary.CreateString(ServiceModelStringsVersion1.String298, 298);
+            this.NamespaceAttributePrefix = dictionary.CreateString(ServiceModelStringsVersion1.String299, 299);
+            this.Resource = dictionary.CreateString(ServiceModelStringsVersion1.String300, 300);
+            this.UserName = dictionary.CreateString(ServiceModelStringsVersion1.String301, 301);
+            this.UserNameNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String302, 302);
+            this.EmailName = dictionary.CreateString(ServiceModelStringsVersion1.String303, 303);
+            this.EmailNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String304, 304);
+        }
+    }
+
+    class SecureConversationDictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString DerivedKeyToken;
@@ -360,7 +996,36 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecureConversationFeb2005Dictionary : SecureConversationDictionary
+    class SecureConversationApr2004Dictionary : SecureConversationDictionary
+    {
+
+        public SecureConversationApr2004Dictionary(ServiceModelDictionary dictionary)
+            : base(dictionary)
+        {
+            this.SecurityContextToken = dictionary.CreateString(ServiceModelStringsVersion1.String115, 115);
+            this.DerivedKeyToken = dictionary.CreateString(ServiceModelStringsVersion1.String39, 39);
+            this.AlgorithmAttribute = dictionary.CreateString(ServiceModelStringsVersion1.String8, 8);
+            this.Generation = dictionary.CreateString(ServiceModelStringsVersion1.String116, 116);
+            this.Label = dictionary.CreateString(ServiceModelStringsVersion1.String117, 117);
+            this.Length = dictionary.CreateString(ServiceModelStringsVersion1.String56, 56);
+            this.Nonce = dictionary.CreateString(ServiceModelStringsVersion1.String40, 40);
+            this.Offset = dictionary.CreateString(ServiceModelStringsVersion1.String118, 118);
+            this.Properties = dictionary.CreateString(ServiceModelStringsVersion1.String119, 119);
+            this.Identifier = dictionary.CreateString(ServiceModelStringsVersion1.String15, 15);
+            this.Cookie = dictionary.CreateString(ServiceModelStringsVersion1.String120, 120);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String121, 121);
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String122, 122);
+            this.DerivedKeyTokenType = dictionary.CreateString(ServiceModelStringsVersion1.String123, 123);
+            this.SecurityContextTokenType = dictionary.CreateString(ServiceModelStringsVersion1.String124, 124);
+            this.SecurityContextTokenReferenceValueType = dictionary.CreateString(ServiceModelStringsVersion1.String124, 124);
+            this.RequestSecurityContextIssuance = dictionary.CreateString(ServiceModelStringsVersion1.String125, 125);
+            this.RequestSecurityContextIssuanceResponse = dictionary.CreateString(ServiceModelStringsVersion1.String126, 126);
+            this.RenewNeededFaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String127, 127);
+            this.BadContextTokenFaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String128, 128);
+        }
+    }
+
+    class SecureConversationFeb2005Dictionary : SecureConversationDictionary
     {
         public XmlDictionaryString RequestSecurityContextRenew;
         public XmlDictionaryString RequestSecurityContextRenewResponse;
@@ -397,7 +1062,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecurityAlgorithmDictionary
+    class SecurityAlgorithmDictionary
     {
         public XmlDictionaryString Aes128Encryption;
         public XmlDictionaryString Aes128KeyWrap;
@@ -455,7 +1120,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecurityJan2004Dictionary
+    class SecurityJan2004Dictionary
     {
         public XmlDictionaryString SecurityTokenReference;
         public XmlDictionaryString Namespace;
@@ -523,7 +1188,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class SecurityXXX2005Dictionary
+    class SecurityXXX2005Dictionary
     {
         public XmlDictionaryString EncryptedHeader;
         public XmlDictionaryString Namespace;
@@ -555,7 +1220,93 @@ namespace System.ServiceModel
         }
     }
 
-    internal class TrustDictionary
+    class SerializationDictionary
+    {
+        public XmlDictionaryString XmlSchemaInstanceNamespace;
+        public XmlDictionaryString XmlSchemaNamespace;
+        public XmlDictionaryString Nil;
+        public XmlDictionaryString Type;
+        public XmlDictionaryString Char;
+        public XmlDictionaryString Boolean;
+        public XmlDictionaryString Byte;
+        public XmlDictionaryString UnsignedByte;
+        public XmlDictionaryString Short;
+        public XmlDictionaryString UnsignedShort;
+        public XmlDictionaryString Int;
+        public XmlDictionaryString UnsignedInt;
+        public XmlDictionaryString Long;
+        public XmlDictionaryString UnsignedLong;
+        public XmlDictionaryString Float;
+        public XmlDictionaryString Double;
+        public XmlDictionaryString Decimal;
+        public XmlDictionaryString DateTime;
+        public XmlDictionaryString String;
+        public XmlDictionaryString Base64Binary;
+        public XmlDictionaryString AnyType;
+        public XmlDictionaryString Duration;
+        public XmlDictionaryString Guid;
+        public XmlDictionaryString AnyURI;
+        public XmlDictionaryString QName;
+        public XmlDictionaryString Time;
+        public XmlDictionaryString Date;
+        public XmlDictionaryString HexBinary;
+        public XmlDictionaryString GYearMonth;
+        public XmlDictionaryString GYear;
+        public XmlDictionaryString GMonthDay;
+        public XmlDictionaryString GDay;
+        public XmlDictionaryString GMonth;
+        public XmlDictionaryString Integer;
+        public XmlDictionaryString PositiveInteger;
+        public XmlDictionaryString NegativeInteger;
+        public XmlDictionaryString NonPositiveInteger;
+        public XmlDictionaryString NonNegativeInteger;
+        public XmlDictionaryString NormalizedString;
+
+        public SerializationDictionary(ServiceModelDictionary dictionary)
+        {
+            this.XmlSchemaInstanceNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String441, 441);
+            this.XmlSchemaNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String442, 442);
+            this.Nil = dictionary.CreateString(ServiceModelStringsVersion1.String443, 443);
+            this.Type = dictionary.CreateString(ServiceModelStringsVersion1.String444, 444);
+            this.Char = dictionary.CreateString(ServiceModelStringsVersion1.String445, 445);
+            this.Boolean = dictionary.CreateString(ServiceModelStringsVersion1.String446, 446);
+            this.Byte = dictionary.CreateString(ServiceModelStringsVersion1.String447, 447);
+            this.UnsignedByte = dictionary.CreateString(ServiceModelStringsVersion1.String448, 448);
+            this.Short = dictionary.CreateString(ServiceModelStringsVersion1.String449, 449);
+            this.UnsignedShort = dictionary.CreateString(ServiceModelStringsVersion1.String450, 450);
+            this.Int = dictionary.CreateString(ServiceModelStringsVersion1.String451, 451);
+            this.UnsignedInt = dictionary.CreateString(ServiceModelStringsVersion1.String452, 452);
+            this.Long = dictionary.CreateString(ServiceModelStringsVersion1.String453, 453);
+            this.UnsignedLong = dictionary.CreateString(ServiceModelStringsVersion1.String454, 454);
+            this.Float = dictionary.CreateString(ServiceModelStringsVersion1.String455, 455);
+            this.Double = dictionary.CreateString(ServiceModelStringsVersion1.String456, 456);
+            this.Decimal = dictionary.CreateString(ServiceModelStringsVersion1.String457, 457);
+            this.DateTime = dictionary.CreateString(ServiceModelStringsVersion1.String458, 458);
+            this.String = dictionary.CreateString(ServiceModelStringsVersion1.String459, 459);
+            this.Base64Binary = dictionary.CreateString(ServiceModelStringsVersion1.String460, 460);
+            this.AnyType = dictionary.CreateString(ServiceModelStringsVersion1.String461, 461);
+            this.Duration = dictionary.CreateString(ServiceModelStringsVersion1.String462, 462);
+            this.Guid = dictionary.CreateString(ServiceModelStringsVersion1.String463, 463);
+            this.AnyURI = dictionary.CreateString(ServiceModelStringsVersion1.String464, 464);
+            this.QName = dictionary.CreateString(ServiceModelStringsVersion1.String465, 465);
+            this.Time = dictionary.CreateString(ServiceModelStringsVersion1.String466, 466);
+            this.Date = dictionary.CreateString(ServiceModelStringsVersion1.String467, 467);
+            this.HexBinary = dictionary.CreateString(ServiceModelStringsVersion1.String468, 468);
+            this.GYearMonth = dictionary.CreateString(ServiceModelStringsVersion1.String469, 469);
+            this.GYear = dictionary.CreateString(ServiceModelStringsVersion1.String470, 470);
+            this.GMonthDay = dictionary.CreateString(ServiceModelStringsVersion1.String471, 471);
+            this.GDay = dictionary.CreateString(ServiceModelStringsVersion1.String472, 472);
+            this.GMonth = dictionary.CreateString(ServiceModelStringsVersion1.String473, 473);
+            this.Integer = dictionary.CreateString(ServiceModelStringsVersion1.String474, 474);
+            this.PositiveInteger = dictionary.CreateString(ServiceModelStringsVersion1.String475, 475);
+            this.NegativeInteger = dictionary.CreateString(ServiceModelStringsVersion1.String476, 476);
+            this.NonPositiveInteger = dictionary.CreateString(ServiceModelStringsVersion1.String477, 477);
+            this.NonNegativeInteger = dictionary.CreateString(ServiceModelStringsVersion1.String478, 478);
+            this.NormalizedString = dictionary.CreateString(ServiceModelStringsVersion1.String479, 479);
+        }
+    }
+
+    class TrustDictionary
     {
         public XmlDictionaryString RequestSecurityTokenResponseCollection;
         public XmlDictionaryString Namespace;
@@ -619,8 +1370,61 @@ namespace System.ServiceModel
         }
     }
 
-    internal class TrustFeb2005Dictionary : TrustDictionary
+    class TrustApr2004Dictionary : TrustDictionary
     {
+
+        public TrustApr2004Dictionary(ServiceModelDictionary dictionary)
+            : base(dictionary)
+        {
+            this.CombinedHashLabel = dictionary.CreateString(ServiceModelStringsVersion1.String194, 194);
+            this.RequestSecurityTokenResponse = dictionary.CreateString(ServiceModelStringsVersion1.String195, 195);
+            this.TokenType = dictionary.CreateString(ServiceModelStringsVersion1.String187, 187);
+            this.KeySize = dictionary.CreateString(ServiceModelStringsVersion1.String196, 196);
+            this.RequestedTokenReference = dictionary.CreateString(ServiceModelStringsVersion1.String197, 197);
+            this.AppliesTo = dictionary.CreateString(ServiceModelStringsVersion1.String198, 198);
+            this.Authenticator = dictionary.CreateString(ServiceModelStringsVersion1.String199, 199);
+            this.CombinedHash = dictionary.CreateString(ServiceModelStringsVersion1.String200, 200);
+            this.BinaryExchange = dictionary.CreateString(ServiceModelStringsVersion1.String201, 201);
+            this.Lifetime = dictionary.CreateString(ServiceModelStringsVersion1.String202, 202);
+            this.RequestedSecurityToken = dictionary.CreateString(ServiceModelStringsVersion1.String203, 203);
+            this.Entropy = dictionary.CreateString(ServiceModelStringsVersion1.String204, 204);
+            this.RequestedProofToken = dictionary.CreateString(ServiceModelStringsVersion1.String205, 205);
+            this.ComputedKey = dictionary.CreateString(ServiceModelStringsVersion1.String206, 206);
+            this.RequestSecurityToken = dictionary.CreateString(ServiceModelStringsVersion1.String207, 207);
+            this.RequestType = dictionary.CreateString(ServiceModelStringsVersion1.String208, 208);
+            this.RequestSecurityTokenResponseCollection = dictionary.CreateString(ServiceModelStringsVersion1.String62, 62);
+            this.Context = dictionary.CreateString(ServiceModelStringsVersion1.String209, 209);
+            this.BinarySecret = dictionary.CreateString(ServiceModelStringsVersion1.String210, 210);
+            this.Type = dictionary.CreateString(ServiceModelStringsVersion1.String59, 59);
+            this.SpnegoValueTypeUri = dictionary.CreateString(ServiceModelStringsVersion1.String211, 211);
+            this.TlsnegoValueTypeUri = dictionary.CreateString(ServiceModelStringsVersion1.String212, 212);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String213, 213);
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String214, 214);
+            this.RequestSecurityTokenIssuance = dictionary.CreateString(ServiceModelStringsVersion1.String215, 215);
+            this.RequestSecurityTokenIssuanceResponse = dictionary.CreateString(ServiceModelStringsVersion1.String216, 216);
+            this.RequestTypeIssue = dictionary.CreateString(ServiceModelStringsVersion1.String217, 217);
+            this.Psha1ComputedKeyUri = dictionary.CreateString(ServiceModelStringsVersion1.String218, 218);
+            this.SymmetricKeyBinarySecret = dictionary.CreateString(ServiceModelStringsVersion1.String219, 219);
+            this.NonceBinarySecret = dictionary.CreateString(ServiceModelStringsVersion1.String220, 220);
+            this.KeyType = dictionary.CreateString(ServiceModelStringsVersion1.String221, 221);
+            this.SymmetricKeyType = dictionary.CreateString(ServiceModelStringsVersion1.String222, 222);
+            this.PublicKeyType = dictionary.CreateString(ServiceModelStringsVersion1.String223, 223);
+            this.Claims = dictionary.CreateString(ServiceModelStringsVersion1.String224, 224);
+            this.InvalidRequestFaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String225, 225);
+            this.FailedAuthenticationFaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String182, 182);
+            this.RequestFailedFaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String226, 226);
+            this.SignWith = dictionary.CreateString(ServiceModelStringsVersion1.String227, 227);
+            this.EncryptWith = dictionary.CreateString(ServiceModelStringsVersion1.String228, 228);
+            this.EncryptionAlgorithm = dictionary.CreateString(ServiceModelStringsVersion1.String229, 229);
+            this.CanonicalizationAlgorithm = dictionary.CreateString(ServiceModelStringsVersion1.String230, 230);
+            this.ComputedKeyAlgorithm = dictionary.CreateString(ServiceModelStringsVersion1.String231, 231);
+            this.UseKey = dictionary.CreateString(ServiceModelStringsVersion1.String232, 232);
+        }
+    }
+
+    class TrustFeb2005Dictionary : TrustDictionary
+    {
+
         public TrustFeb2005Dictionary(ServiceModelDictionary dictionary)
             : base(dictionary)
         {
@@ -678,7 +1482,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class UtilityDictionary
+    class UtilityDictionary
     {
         public XmlDictionaryString IdAttribute;
         public XmlDictionaryString Namespace;
@@ -702,7 +1506,137 @@ namespace System.ServiceModel
         }
     }
 
-    internal class XmlSignatureDictionary
+    class WsrmFeb2005Dictionary
+    {
+        public XmlDictionaryString Identifier;
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString SequenceAcknowledgement;
+        public XmlDictionaryString AcknowledgementRange;
+        public XmlDictionaryString Upper;
+        public XmlDictionaryString Lower;
+        public XmlDictionaryString BufferRemaining;
+        public XmlDictionaryString NETNamespace;
+        public XmlDictionaryString SequenceAcknowledgementAction;
+        public XmlDictionaryString Sequence;
+        public XmlDictionaryString MessageNumber;
+        public XmlDictionaryString AckRequested;
+        public XmlDictionaryString AckRequestedAction;
+        public XmlDictionaryString AcksTo;
+        public XmlDictionaryString Accept;
+        public XmlDictionaryString CreateSequence;
+        public XmlDictionaryString CreateSequenceAction;
+        public XmlDictionaryString CreateSequenceRefused;
+        public XmlDictionaryString CreateSequenceResponse;
+        public XmlDictionaryString CreateSequenceResponseAction;
+        public XmlDictionaryString Expires;
+        public XmlDictionaryString FaultCode;
+        public XmlDictionaryString InvalidAcknowledgement;
+        public XmlDictionaryString LastMessage;
+        public XmlDictionaryString LastMessageAction;
+        public XmlDictionaryString LastMessageNumberExceeded;
+        public XmlDictionaryString MessageNumberRollover;
+        public XmlDictionaryString Nack;
+        public XmlDictionaryString NETPrefix;
+        public XmlDictionaryString Offer;
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString SequenceFault;
+        public XmlDictionaryString SequenceTerminated;
+        public XmlDictionaryString TerminateSequence;
+        public XmlDictionaryString TerminateSequenceAction;
+        public XmlDictionaryString UnknownSequence;
+        public XmlDictionaryString ConnectionLimitReached;
+
+        public WsrmFeb2005Dictionary(ServiceModelDictionary dictionary)
+        {
+            this.Identifier = dictionary.CreateString(ServiceModelStringsVersion1.String15, 15);
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String16, 16);
+            this.SequenceAcknowledgement = dictionary.CreateString(ServiceModelStringsVersion1.String23, 23);
+            this.AcknowledgementRange = dictionary.CreateString(ServiceModelStringsVersion1.String24, 24);
+            this.Upper = dictionary.CreateString(ServiceModelStringsVersion1.String25, 25);
+            this.Lower = dictionary.CreateString(ServiceModelStringsVersion1.String26, 26);
+            this.BufferRemaining = dictionary.CreateString(ServiceModelStringsVersion1.String27, 27);
+            this.NETNamespace = dictionary.CreateString(ServiceModelStringsVersion1.String28, 28);
+            this.SequenceAcknowledgementAction = dictionary.CreateString(ServiceModelStringsVersion1.String29, 29);
+            this.Sequence = dictionary.CreateString(ServiceModelStringsVersion1.String31, 31);
+            this.MessageNumber = dictionary.CreateString(ServiceModelStringsVersion1.String32, 32);
+            this.AckRequested = dictionary.CreateString(ServiceModelStringsVersion1.String328, 328);
+            this.AckRequestedAction = dictionary.CreateString(ServiceModelStringsVersion1.String329, 329);
+            this.AcksTo = dictionary.CreateString(ServiceModelStringsVersion1.String330, 330);
+            this.Accept = dictionary.CreateString(ServiceModelStringsVersion1.String331, 331);
+            this.CreateSequence = dictionary.CreateString(ServiceModelStringsVersion1.String332, 332);
+            this.CreateSequenceAction = dictionary.CreateString(ServiceModelStringsVersion1.String333, 333);
+            this.CreateSequenceRefused = dictionary.CreateString(ServiceModelStringsVersion1.String334, 334);
+            this.CreateSequenceResponse = dictionary.CreateString(ServiceModelStringsVersion1.String335, 335);
+            this.CreateSequenceResponseAction = dictionary.CreateString(ServiceModelStringsVersion1.String336, 336);
+            this.Expires = dictionary.CreateString(ServiceModelStringsVersion1.String55, 55);
+            this.FaultCode = dictionary.CreateString(ServiceModelStringsVersion1.String337, 337);
+            this.InvalidAcknowledgement = dictionary.CreateString(ServiceModelStringsVersion1.String338, 338);
+            this.LastMessage = dictionary.CreateString(ServiceModelStringsVersion1.String339, 339);
+            this.LastMessageAction = dictionary.CreateString(ServiceModelStringsVersion1.String340, 340);
+            this.LastMessageNumberExceeded = dictionary.CreateString(ServiceModelStringsVersion1.String341, 341);
+            this.MessageNumberRollover = dictionary.CreateString(ServiceModelStringsVersion1.String342, 342);
+            this.Nack = dictionary.CreateString(ServiceModelStringsVersion1.String343, 343);
+            this.NETPrefix = dictionary.CreateString(ServiceModelStringsVersion1.String344, 344);
+            this.Offer = dictionary.CreateString(ServiceModelStringsVersion1.String345, 345);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String346, 346);
+            this.SequenceFault = dictionary.CreateString(ServiceModelStringsVersion1.String347, 347);
+            this.SequenceTerminated = dictionary.CreateString(ServiceModelStringsVersion1.String348, 348);
+            this.TerminateSequence = dictionary.CreateString(ServiceModelStringsVersion1.String349, 349);
+            this.TerminateSequenceAction = dictionary.CreateString(ServiceModelStringsVersion1.String350, 350);
+            this.UnknownSequence = dictionary.CreateString(ServiceModelStringsVersion1.String351, 351);
+            this.ConnectionLimitReached = dictionary.CreateString(ServiceModelStringsVersion1.String480, 480);
+        }
+    }
+
+    class XmlEncryptionDictionary
+    {
+        public XmlDictionaryString Namespace;
+        public XmlDictionaryString DataReference;
+        public XmlDictionaryString EncryptedData;
+        public XmlDictionaryString EncryptionMethod;
+        public XmlDictionaryString CipherData;
+        public XmlDictionaryString CipherValue;
+        public XmlDictionaryString ReferenceList;
+        public XmlDictionaryString Encoding;
+        public XmlDictionaryString MimeType;
+        public XmlDictionaryString Type;
+        public XmlDictionaryString Id;
+        public XmlDictionaryString CarriedKeyName;
+        public XmlDictionaryString Recipient;
+        public XmlDictionaryString EncryptedKey;
+        public XmlDictionaryString URI;
+        public XmlDictionaryString KeyReference;
+        public XmlDictionaryString Prefix;
+        public XmlDictionaryString ElementType;
+        public XmlDictionaryString ContentType;
+        public XmlDictionaryString AlgorithmAttribute;
+
+        public XmlEncryptionDictionary(ServiceModelDictionary dictionary)
+        {
+            this.Namespace = dictionary.CreateString(ServiceModelStringsVersion1.String37, 37);
+            this.DataReference = dictionary.CreateString(ServiceModelStringsVersion1.String46, 46);
+            this.EncryptedData = dictionary.CreateString(ServiceModelStringsVersion1.String47, 47);
+            this.EncryptionMethod = dictionary.CreateString(ServiceModelStringsVersion1.String48, 48);
+            this.CipherData = dictionary.CreateString(ServiceModelStringsVersion1.String49, 49);
+            this.CipherValue = dictionary.CreateString(ServiceModelStringsVersion1.String50, 50);
+            this.ReferenceList = dictionary.CreateString(ServiceModelStringsVersion1.String57, 57);
+            this.Encoding = dictionary.CreateString(ServiceModelStringsVersion1.String308, 308);
+            this.MimeType = dictionary.CreateString(ServiceModelStringsVersion1.String309, 309);
+            this.Type = dictionary.CreateString(ServiceModelStringsVersion1.String59, 59);
+            this.Id = dictionary.CreateString(ServiceModelStringsVersion1.String14, 14);
+            this.CarriedKeyName = dictionary.CreateString(ServiceModelStringsVersion1.String310, 310);
+            this.Recipient = dictionary.CreateString(ServiceModelStringsVersion1.String311, 311);
+            this.EncryptedKey = dictionary.CreateString(ServiceModelStringsVersion1.String312, 312);
+            this.URI = dictionary.CreateString(ServiceModelStringsVersion1.String11, 11);
+            this.KeyReference = dictionary.CreateString(ServiceModelStringsVersion1.String313, 313);
+            this.Prefix = dictionary.CreateString(ServiceModelStringsVersion1.String314, 314);
+            this.ElementType = dictionary.CreateString(ServiceModelStringsVersion1.String315, 315);
+            this.ContentType = dictionary.CreateString(ServiceModelStringsVersion1.String316, 316);
+            this.AlgorithmAttribute = dictionary.CreateString(ServiceModelStringsVersion1.String8, 8);
+        }
+    }
+
+    class XmlSignatureDictionary
     {
         public XmlDictionaryString Algorithm;
         public XmlDictionaryString URI;
@@ -766,7 +1700,7 @@ namespace System.ServiceModel
         }
     }
 
-    internal class Message11Dictionary
+    class Message11Dictionary
     {
         public XmlDictionaryString Namespace;
         public XmlDictionaryString Actor;
@@ -788,14 +1722,14 @@ namespace System.ServiceModel
         }
     }
 
-    internal static class ActivityIdFlowStrings
+    static class ActivityIdFlowStrings
     {
         // Main dictionary strings
         public const string ActivityId = ServiceModelStringsVersion1.String425;
         public const string ActivityIdNamespace = ServiceModelStringsVersion1.String426;
     }
 
-    internal static class AddressingStrings
+    static class AddressingStrings
     {
         // Main dictionary strings
         public const string Action = ServiceModelStringsVersion1.String5;
@@ -836,7 +1770,7 @@ namespace System.ServiceModel
         public const string ChannelTerminated = "ChannelTerminated";
     }
 
-    internal static class Addressing10Strings
+    static class Addressing10Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String3;
@@ -855,7 +1789,7 @@ namespace System.ServiceModel
         public const string DefaultFaultAction = "http://www.w3.org/2005/08/addressing/soap/fault";
     }
 
-    internal static class Addressing200408Strings
+    static class Addressing200408Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String105;
@@ -867,13 +1801,13 @@ namespace System.ServiceModel
         public const string DefaultFaultAction = "http://schemas.xmlsoap.org/ws/2004/08/addressing/fault";
     }
 
-    internal static class AddressingNoneStrings
+    static class AddressingNoneStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String439;
     }
 
-    internal static class AtomicTransactionExternalStrings
+    static class AtomicTransactionExternalStrings
     {
         // Main dictionary strings
         public const string Prefix = ServiceModelStringsVersion1.String383;
@@ -892,7 +1826,7 @@ namespace System.ServiceModel
         public const string InconsistentInternalState = ServiceModelStringsVersion1.String408;
     }
 
-    internal static class AtomicTransactionExternal10Strings
+    static class AtomicTransactionExternal10Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String382;
@@ -910,7 +1844,7 @@ namespace System.ServiceModel
         public const string FaultAction = ServiceModelStringsVersion1.String403;
     }
 
-    internal static class CoordinationExternalStrings
+    static class CoordinationExternalStrings
     {
         // Main dictionary strings
         public const string Prefix = ServiceModelStringsVersion1.String357;
@@ -937,7 +1871,7 @@ namespace System.ServiceModel
         public const string AlreadyRegistered = ServiceModelStringsVersion1.String381;
     }
 
-    internal static class CoordinationExternal10Strings
+    static class CoordinationExternal10Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String356;
@@ -948,7 +1882,7 @@ namespace System.ServiceModel
         public const string FaultAction = ServiceModelStringsVersion1.String373;
     }
 
-    internal static class DotNetAddressingStrings
+    static class DotNetAddressingStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String108;
@@ -956,7 +1890,7 @@ namespace System.ServiceModel
         public const string Via = ServiceModelStringsVersion1.String110;
     }
 
-    internal static class DotNetAtomicTransactionExternalStrings
+    static class DotNetAtomicTransactionExternalStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String65;
@@ -978,14 +1912,14 @@ namespace System.ServiceModel
         public const string Disabled = ServiceModelStringsVersion1.String424;
     }
 
-    internal static class DotNetOneWayStrings
+    static class DotNetOneWayStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String437;
         public const string HeaderName = ServiceModelStringsVersion1.String438;
     }
 
-    internal static class DotNetSecurityStrings
+    static class DotNetSecurityStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String162;
@@ -998,7 +1932,7 @@ namespace System.ServiceModel
         public const string SecureConversationCancelNotAllowedFault = "SecureConversationCancellationNotAllowed";
     }
 
-    internal static class ExclusiveC14NStrings
+    static class ExclusiveC14NStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String111;
@@ -1007,7 +1941,7 @@ namespace System.ServiceModel
         public const string Prefix = ServiceModelStringsVersion1.String114;
     }
 
-    internal static class MessageStrings
+    static class MessageStrings
     {
         // Main dictionary strings
         public const string MustUnderstand = ServiceModelStringsVersion1.String0;
@@ -1020,7 +1954,7 @@ namespace System.ServiceModel
         public const string Namespace = ServiceModelStringsVersion1.String440;
     }
 
-    internal static class Message11Strings
+    static class Message11Strings
     {
         // Text dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String481;
@@ -1032,7 +1966,7 @@ namespace System.ServiceModel
         public const string FaultNamespace = ServiceModelStringsVersion1.String81;
     }
 
-    internal static class Message12Strings
+    static class Message12Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String2;
@@ -1050,7 +1984,7 @@ namespace System.ServiceModel
         public const string QName = ServiceModelStringsVersion1.String80;
     }
 
-    internal static class OleTxTransactionExternalStrings
+    static class OleTxTransactionExternalStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String352;
@@ -1059,7 +1993,7 @@ namespace System.ServiceModel
         public const string PropagationToken = ServiceModelStringsVersion1.String355;
     }
 
-    internal static class PeerWireStringsStrings
+    static class PeerWireStringsStrings
     {
         // Main dictionary strings
         public const string FloodAction = ServiceModelStringsVersion1.String429;
@@ -1072,13 +2006,13 @@ namespace System.ServiceModel
         public const string PeerTo = ServiceModelStringsVersion1.String436;
     }
 
-    internal static class PolicyStrings
+    static class PolicyStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String428;
     }
 
-    internal static class SamlStrings
+    static class SamlStrings
     {
         // Main dictionary strings
         public const string Access = ServiceModelStringsVersion1.String251;
@@ -1140,11 +2074,11 @@ namespace System.ServiceModel
         public const string EmailNamespace = ServiceModelStringsVersion1.String304;
     }
 
-    internal static class SecureConversationStrings
+    static class SecureConversationStrings
     {
     }
 
-    internal static class SecureConversationApr2004Strings
+    static class SecureConversationApr2004Strings
     {
         // Main dictionary strings
         public const string SecurityContextToken = ServiceModelStringsVersion1.String115;
@@ -1169,7 +2103,7 @@ namespace System.ServiceModel
         public const string BadContextTokenFaultCode = ServiceModelStringsVersion1.String128;
     }
 
-    internal static class SecureConversationFeb2005Strings
+    static class SecureConversationFeb2005Strings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String38;
@@ -1198,7 +2132,7 @@ namespace System.ServiceModel
         public const string RequestSecurityContextCloseResponse = ServiceModelStringsVersion1.String137;
     }
 
-    internal static class SecurityAlgorithmStrings
+    static class SecurityAlgorithmStrings
     {
         // Main dictionary strings
         public const string Aes128Encryption = ServiceModelStringsVersion1.String138;
@@ -1230,7 +2164,7 @@ namespace System.ServiceModel
         public const string StrTransform = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#STR-Transform";
     }
 
-    internal static class SecurityJan2004Strings
+    static class SecurityJan2004Strings
     {
         // Main dictionary strings
         public const string SecurityTokenReference = ServiceModelStringsVersion1.String30;
@@ -1274,7 +2208,7 @@ namespace System.ServiceModel
         public const string UPTokenPasswordTextValue = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText";
     }
 
-    internal static class SecurityXXX2005Strings
+    static class SecurityXXX2005Strings
     {
         // Main dictionary strings
         public const string EncryptedHeader = ServiceModelStringsVersion1.String60;
@@ -1295,7 +2229,7 @@ namespace System.ServiceModel
         public const string X509TokenProfileNamespace = "http://docs.oasis-open.org/wss/2004/xx/oasis-2004xx-wss-x509-token-profile-1.1";
     }
 
-    internal static class SerializationStrings
+    static class SerializationStrings
     {
         // Main dictionary strings
         public const string XmlSchemaInstanceNamespace = ServiceModelStringsVersion1.String441;
@@ -1339,11 +2273,11 @@ namespace System.ServiceModel
         public const string NormalizedString = ServiceModelStringsVersion1.String479;
     }
 
-    internal static class TrustStrings
+    static class TrustStrings
     {
     }
 
-    internal static class TrustApr2004Strings
+    static class TrustApr2004Strings
     {
         // Main dictionary strings
         public const string CombinedHashLabel = ServiceModelStringsVersion1.String194;
@@ -1391,7 +2325,7 @@ namespace System.ServiceModel
         public const string UseKey = ServiceModelStringsVersion1.String232;
     }
 
-    internal static class TrustFeb2005Strings
+    static class TrustFeb2005Strings
     {
         // Main dictionary strings
         public const string RequestSecurityTokenResponseCollection = ServiceModelStringsVersion1.String62;
@@ -1447,7 +2381,7 @@ namespace System.ServiceModel
         public const string ComputedKeyAlgorithm = ServiceModelStringsVersion1.String231;
     }
 
-    internal static class UtilityStrings
+    static class UtilityStrings
     {
         // Main dictionary strings
         public const string IdAttribute = ServiceModelStringsVersion1.String14;
@@ -1460,7 +2394,7 @@ namespace System.ServiceModel
         public const string UniqueEndpointHeaderNamespace = ServiceModelStringsVersion1.String307;
     }
 
-    internal static class WsrmFeb2005Strings
+    static class WsrmFeb2005Strings
     {
         // Main dictionary strings
         public const string Identifier = ServiceModelStringsVersion1.String15;
@@ -1502,7 +2436,7 @@ namespace System.ServiceModel
         public const string ConnectionLimitReached = ServiceModelStringsVersion1.String480;
     }
 
-    internal static class XmlEncryptionStrings
+    static class XmlEncryptionStrings
     {
         // Main dictionary strings
         public const string Namespace = ServiceModelStringsVersion1.String37;
@@ -1527,7 +2461,7 @@ namespace System.ServiceModel
         public const string AlgorithmAttribute = ServiceModelStringsVersion1.String8;
     }
 
-    internal static class XmlSignatureStrings
+    static class XmlSignatureStrings
     {
         // Main dictionary strings
         public const string Algorithm = ServiceModelStringsVersion1.String8;

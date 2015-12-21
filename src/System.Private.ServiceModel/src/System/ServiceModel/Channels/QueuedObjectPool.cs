@@ -1,12 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics.Contracts;
-using System.Runtime;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.Runtime;
+
     // This is the base object pool class which manages objects in a FIFO queue. The objects are 
     // created through the provided Func<T> createObjectFunc. The main purpose for this class is
     // to get better memory usage for Garbage Collection (GC) when part or all of an object is
@@ -25,12 +24,12 @@ namespace System.ServiceModel.Channels
     // maxFreeCount: max number of free objects the queue can store. This is to make sure the memory
     //     usage is bounded.
     //
-    internal abstract class QueuedObjectPool<T>
+    abstract class QueuedObjectPool<T>
     {
-        private Queue<T> _objectQueue;
-        private bool _isClosed;
-        private int _batchAllocCount;
-        private int _maxFreeCount;
+        Queue<T> objectQueue;
+        bool isClosed;
+        int batchAllocCount;
+        int maxFreeCount;
 
         protected void Initialize(int batchAllocCount, int maxFreeCount)
         {
@@ -39,17 +38,17 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("batchAllocCount"));
             }
 
-            Contract.Assert(batchAllocCount <= maxFreeCount, "batchAllocCount cannot be greater than maxFreeCount");
-            _batchAllocCount = batchAllocCount;
-            _maxFreeCount = maxFreeCount;
-            _objectQueue = new Queue<T>(batchAllocCount);
+            Fx.Assert(batchAllocCount <= maxFreeCount, "batchAllocCount cannot be greater than maxFreeCount");
+            this.batchAllocCount = batchAllocCount;
+            this.maxFreeCount = maxFreeCount;
+            this.objectQueue = new Queue<T>(batchAllocCount);
         }
 
-        private object ThisLock
+        object ThisLock
         {
             get
             {
-                return _objectQueue;
+                return this.objectQueue;
             }
         }
 
@@ -57,9 +56,9 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (_objectQueue.Count < _maxFreeCount && !_isClosed)
+                if (this.objectQueue.Count < this.maxFreeCount && ! this.isClosed)
                 {
-                    _objectQueue.Enqueue(value);
+                    this.objectQueue.Enqueue(value);
                     return true;
                 }
 
@@ -71,14 +70,14 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                Contract.Assert(!_isClosed, "Cannot take an item from closed QueuedObjectPool");
+                Fx.Assert(!this.isClosed, "Cannot take an item from closed QueuedObjectPool");
 
-                if (_objectQueue.Count == 0)
+                if (this.objectQueue.Count == 0)
                 {
                     AllocObjects();
                 }
 
-                return _objectQueue.Dequeue();
+                return this.objectQueue.Dequeue();
             }
         }
 
@@ -86,7 +85,7 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                foreach (T item in _objectQueue)
+                foreach (T item in this.objectQueue)
                 {
                     if (item != null)
                     {
@@ -94,8 +93,8 @@ namespace System.ServiceModel.Channels
                     }
                 }
 
-                _objectQueue.Clear();
-                _isClosed = true;
+                this.objectQueue.Clear();
+                this.isClosed = true;
             }
         }
 
@@ -105,12 +104,12 @@ namespace System.ServiceModel.Channels
 
         protected abstract T Create();
 
-        private void AllocObjects()
+        void AllocObjects()
         {
-            Contract.Assert(_objectQueue.Count == 0, "The object queue must be empty for new allocations");
-            for (int i = 0; i < _batchAllocCount; i++)
+            Fx.Assert(this.objectQueue.Count == 0, "The object queue must be empty for new allocations");
+            for (int i = 0; i < batchAllocCount; i++)
             {
-                _objectQueue.Enqueue(Create());
+                this.objectQueue.Enqueue(Create());
             }
         }
     }

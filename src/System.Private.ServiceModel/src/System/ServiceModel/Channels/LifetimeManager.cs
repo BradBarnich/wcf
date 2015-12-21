@@ -1,67 +1,80 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
-    internal enum LifetimeState
+    using System.Runtime;
+    using System.Threading;
+
+    enum LifetimeState
     {
         Opened,
         Closing,
         Closed
     }
 
-    internal class LifetimeManager
+    class LifetimeManager
     {
-        private bool _aborted;
-        private int _busyCount;
-        private ICommunicationWaiter _busyWaiter;
-        private int _busyWaiterCount;
-        private object _mutex;
-        private LifetimeState _state;
+#if DEBUG_EXPENSIVE
+        StackTrace closeStack;
+#endif
+        bool aborted;
+        int busyCount;
+        ICommunicationWaiter busyWaiter;
+        int busyWaiterCount;
+        object mutex;
+        LifetimeState state;
 
         public LifetimeManager(object mutex)
         {
-            _mutex = mutex;
-            _state = LifetimeState.Opened;
+            this.mutex = mutex;
+            this.state = LifetimeState.Opened;
         }
 
         public int BusyCount
         {
-            get { return _busyCount; }
+            get { return this.busyCount; }
         }
 
         protected LifetimeState State
         {
-            get { return _state; }
+            get { return this.state; }
         }
 
         protected object ThisLock
         {
-            get { return _mutex; }
+            get { return this.mutex; }
         }
 
         public void Abort()
         {
             lock (this.ThisLock)
             {
-                if (this.State == LifetimeState.Closed || _aborted)
+                if (this.State == LifetimeState.Closed || this.aborted)
                     return;
-                _aborted = true;
-                _state = LifetimeState.Closing;
+#if DEBUG_EXPENSIVE
+                if (closeStack == null)
+                    closeStack = new StackTrace();
+#endif
+                this.aborted = true;
+                this.state = LifetimeState.Closing;
             }
 
             this.OnAbort();
-            _state = LifetimeState.Closed;
+            this.state = LifetimeState.Closed;
         }
 
-        private void ThrowIfNotOpened()
+        void ThrowIfNotOpened()
         {
-            if (!_aborted && _state != LifetimeState.Opened)
+            if (!this.aborted && this.state != LifetimeState.Opened)
             {
+#if DEBUG_EXPENSIVE
+                String originalStack = closeStack.ToString().Replace("\r\n", "\r\n    ");
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().ToString() + ", Object already closed:\r\n    " + originalStack));
+#else
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().ToString()));
+#endif
             }
         }
 
@@ -70,7 +83,11 @@ namespace System.ServiceModel.Channels
             lock (this.ThisLock)
             {
                 this.ThrowIfNotOpened();
-                _state = LifetimeState.Closing;
+#if DEBUG_EXPENSIVE
+                if (closeStack == null)
+                    closeStack = new StackTrace();
+#endif
+                this.state = LifetimeState.Closing;
             }
 
             return this.OnBeginClose(timeout, callback, state);
@@ -81,44 +98,48 @@ namespace System.ServiceModel.Channels
             lock (this.ThisLock)
             {
                 this.ThrowIfNotOpened();
-                _state = LifetimeState.Closing;
+#if DEBUG_EXPENSIVE
+                if (closeStack == null)
+                    closeStack = new StackTrace();
+#endif
+                this.state = LifetimeState.Closing;
             }
 
             this.OnClose(timeout);
-            _state = LifetimeState.Closed;
+            this.state = LifetimeState.Closed;
         }
 
-        private CommunicationWaitResult CloseCore(TimeSpan timeout, bool aborting)
+        CommunicationWaitResult CloseCore(TimeSpan timeout, bool aborting)
         {
             ICommunicationWaiter busyWaiter = null;
             CommunicationWaitResult result = CommunicationWaitResult.Succeeded;
 
             lock (this.ThisLock)
             {
-                if (_busyCount > 0)
+                if (this.busyCount > 0)
                 {
-                    if (_busyWaiter != null)
+                    if (this.busyWaiter != null)
                     {
-                        if (!aborting && _aborted)
+                        if (!aborting && this.aborted)
                             return CommunicationWaitResult.Aborted;
-                        busyWaiter = _busyWaiter;
+                        busyWaiter = this.busyWaiter;
                     }
                     else
                     {
                         busyWaiter = new SyncCommunicationWaiter(this.ThisLock);
-                        _busyWaiter = busyWaiter;
+                        this.busyWaiter = busyWaiter;
                     }
-                    Interlocked.Increment(ref _busyWaiterCount);
+                    Interlocked.Increment(ref busyWaiterCount);
                 }
             }
 
             if (busyWaiter != null)
             {
                 result = busyWaiter.Wait(timeout, aborting);
-                if (Interlocked.Decrement(ref _busyWaiterCount) == 0)
+                if (Interlocked.Decrement(ref busyWaiterCount) == 0)
                 {
                     busyWaiter.Dispose();
-                    _busyWaiter = null;
+                    this.busyWaiter = null;
                 }
             }
 
@@ -132,16 +153,16 @@ namespace System.ServiceModel.Channels
 
             lock (this.ThisLock)
             {
-                if (_busyCount <= 0)
+                if (this.busyCount <= 0)
                 {
                     throw Fx.AssertAndThrow("LifetimeManager.DecrementBusyCount: (this.busyCount > 0)");
                 }
-                if (--_busyCount == 0)
+                if (--this.busyCount == 0)
                 {
-                    if (_busyWaiter != null)
+                    if (this.busyWaiter != null)
                     {
-                        busyWaiter = _busyWaiter;
-                        Interlocked.Increment(ref _busyWaiterCount);
+                        busyWaiter = this.busyWaiter;
+                        Interlocked.Increment(ref this.busyWaiterCount);
                     }
                     empty = true;
                 }
@@ -150,10 +171,10 @@ namespace System.ServiceModel.Channels
             if (busyWaiter != null)
             {
                 busyWaiter.Signal();
-                if (Interlocked.Decrement(ref _busyWaiterCount) == 0)
+                if (Interlocked.Decrement(ref this.busyWaiterCount) == 0)
                 {
                     busyWaiter.Dispose();
-                    _busyWaiter = null;
+                    this.busyWaiter = null;
                 }
             }
 
@@ -164,7 +185,7 @@ namespace System.ServiceModel.Channels
         public void EndClose(IAsyncResult result)
         {
             this.OnEndClose(result);
-            _state = LifetimeState.Closed;
+            this.state = LifetimeState.Closed;
         }
 
         protected virtual void IncrementBusyCount()
@@ -172,14 +193,14 @@ namespace System.ServiceModel.Channels
             lock (this.ThisLock)
             {
                 Fx.Assert(this.State == LifetimeState.Opened, "LifetimeManager.IncrementBusyCount: (this.State == LifetimeState.Opened)");
-                _busyCount++;
+                this.busyCount++;
             }
         }
 
         protected virtual void IncrementBusyCountWithoutLock()
         {
             Fx.Assert(this.State == LifetimeState.Opened, "LifetimeManager.IncrementBusyCountWithoutLock: (this.State == LifetimeState.Opened)");
-            _busyCount++;
+            this.busyCount++;
         }
 
         protected virtual void OnAbort()
@@ -194,19 +215,19 @@ namespace System.ServiceModel.Channels
 
             lock (this.ThisLock)
             {
-                if (_busyCount > 0)
+                if (this.busyCount > 0)
                 {
-                    if (_busyWaiter != null)
+                    if (this.busyWaiter != null)
                     {
-                        Fx.Assert(_aborted, "LifetimeManager.OnBeginClose: (this.aborted == true)");
+                        Fx.Assert(this.aborted, "LifetimeManager.OnBeginClose: (this.aborted == true)");
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().ToString()));
                     }
                     else
                     {
                         closeResult = new CloseCommunicationAsyncResult(timeout, callback, state, this.ThisLock);
-                        Fx.Assert(_busyWaiter == null, "LifetimeManager.OnBeginClose: (this.busyWaiter == null)");
-                        _busyWaiter = closeResult;
-                        Interlocked.Increment(ref _busyWaiterCount);
+                        Fx.Assert(this.busyWaiter == null, "LifetimeManager.OnBeginClose: (this.busyWaiter == null)");
+                        this.busyWaiter = closeResult;
+                        Interlocked.Increment(ref this.busyWaiterCount);
                     }
                 }
             }
@@ -226,7 +247,7 @@ namespace System.ServiceModel.Channels
             switch (CloseCore(timeout, false))
             {
                 case CommunicationWaitResult.Expired:
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new TimeoutException(SR.Format(SR.SFxCloseTimedOut1, timeout)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new TimeoutException(SR.GetString(SR.SFxCloseTimedOut1, timeout)));
                 case CommunicationWaitResult.Aborted:
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ObjectDisposedException(this.GetType().ToString()));
             }
@@ -241,10 +262,10 @@ namespace System.ServiceModel.Channels
             if (result is CloseCommunicationAsyncResult)
             {
                 CloseCommunicationAsyncResult.End(result);
-                if (Interlocked.Decrement(ref _busyWaiterCount) == 0)
+                if (Interlocked.Decrement(ref this.busyWaiterCount) == 0)
                 {
-                    _busyWaiter.Dispose();
-                    _busyWaiter = null;
+                    this.busyWaiter.Dispose();
+                    this.busyWaiter = null;
                 }
             }
             else
@@ -252,7 +273,7 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal enum CommunicationWaitResult
+    enum CommunicationWaitResult
     {
         Waiting,
         Succeeded,
@@ -260,36 +281,37 @@ namespace System.ServiceModel.Channels
         Aborted
     }
 
-    internal interface ICommunicationWaiter : IDisposable
+    interface ICommunicationWaiter : IDisposable
     {
         void Signal();
         CommunicationWaitResult Wait(TimeSpan timeout, bool aborting);
     }
 
-    internal class CloseCommunicationAsyncResult : AsyncResult, ICommunicationWaiter
+    class CloseCommunicationAsyncResult : AsyncResult, ICommunicationWaiter
     {
-        private object _mutex;
-        private CommunicationWaitResult _result;
-        private Timer _timer;
-        private TimeoutHelper _timeoutHelper;
-        private TimeSpan _timeout;
+        object mutex;
+        CommunicationWaitResult result;
+        IOThreadTimer timer;
+        TimeoutHelper timeoutHelper;
+        TimeSpan timeout;
 
         public CloseCommunicationAsyncResult(TimeSpan timeout, AsyncCallback callback, object state, object mutex)
             : base(callback, state)
         {
-            _timeout = timeout;
-            _timeoutHelper = new TimeoutHelper(timeout);
-            _mutex = mutex;
+            this.timeout = timeout;
+            this.timeoutHelper = new TimeoutHelper(timeout);
+            this.mutex = mutex;
 
             if (timeout < TimeSpan.Zero)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new TimeoutException(SR.Format(SR.SFxCloseTimedOut1, timeout)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new TimeoutException(SR.GetString(SR.SFxCloseTimedOut1, timeout)));
 
-            _timer = new Timer(new TimerCallback(new Action<object>(TimeoutCallback)), this, timeout, TimeSpan.FromMilliseconds(-1));
+            this.timer = new IOThreadTimer(new Action<object>(TimeoutCallback), this, true);
+            this.timer.Set(timeout);
         }
 
-        private object ThisLock
+        object ThisLock
         {
-            get { return _mutex; }
+            get { return mutex; }
         }
 
         public void Dispose()
@@ -305,26 +327,26 @@ namespace System.ServiceModel.Channels
         {
             lock (this.ThisLock)
             {
-                if (_result != CommunicationWaitResult.Waiting)
+                if (this.result != CommunicationWaitResult.Waiting)
                     return;
-                _result = CommunicationWaitResult.Succeeded;
+                this.result = CommunicationWaitResult.Succeeded;
             }
-            _timer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
+            this.timer.Cancel();
             this.Complete(false);
         }
 
-        private void Timeout()
+        void Timeout()
         {
             lock (this.ThisLock)
             {
-                if (_result != CommunicationWaitResult.Waiting)
+                if (this.result != CommunicationWaitResult.Waiting)
                     return;
-                _result = CommunicationWaitResult.Expired;
+                this.result = CommunicationWaitResult.Expired;
             }
-            this.Complete(false, new TimeoutException(SR.Format(SR.SFxCloseTimedOut1, _timeout)));
+            this.Complete(false, new TimeoutException(SR.GetString(SR.SFxCloseTimedOut1, this.timeout)));
         }
 
-        private static void TimeoutCallback(object state)
+        static void TimeoutCallback(object state)
         {
             CloseCommunicationAsyncResult closeResult = (CloseCommunicationAsyncResult)state;
             closeResult.Timeout();
@@ -342,47 +364,47 @@ namespace System.ServiceModel.Channels
 
             lock (this.ThisLock)
             {
-                if (_result != CommunicationWaitResult.Waiting)
+                if (this.result != CommunicationWaitResult.Waiting)
                 {
-                    return _result;
+                    return this.result;
                 }
-                _result = CommunicationWaitResult.Aborted;
+                this.result = CommunicationWaitResult.Aborted;
             }
-            _timer.Change(TimeSpan.FromMilliseconds(-1), TimeSpan.FromMilliseconds(-1));
+            this.timer.Cancel();
 
             TimeoutHelper.WaitOne(this.AsyncWaitHandle, timeout);
 
             this.Complete(false, new ObjectDisposedException(this.GetType().ToString()));
-            return _result;
+            return this.result;
         }
     }
 
     internal class SyncCommunicationWaiter : ICommunicationWaiter
     {
-        private bool _closed;
-        private object _mutex;
-        private CommunicationWaitResult _result;
-        private ManualResetEvent _waitHandle;
+        bool closed;
+        object mutex;
+        CommunicationWaitResult result;
+        ManualResetEvent waitHandle;
 
         public SyncCommunicationWaiter(object mutex)
         {
-            _mutex = mutex;
-            _waitHandle = new ManualResetEvent(false);
+            this.mutex = mutex;
+            this.waitHandle = new ManualResetEvent(false);
         }
 
-        private object ThisLock
+        object ThisLock
         {
-            get { return _mutex; }
+            get { return this.mutex; }
         }
 
         public void Dispose()
         {
             lock (this.ThisLock)
             {
-                if (_closed)
+                if (this.closed)
                     return;
-                _closed = true;
-                _waitHandle.Dispose();
+                this.closed = true;
+                this.waitHandle.Close();
             }
         }
 
@@ -390,15 +412,15 @@ namespace System.ServiceModel.Channels
         {
             lock (this.ThisLock)
             {
-                if (_closed)
+                if (this.closed)
                     return;
-                _waitHandle.Set();
+                this.waitHandle.Set();
             }
         }
 
         public CommunicationWaitResult Wait(TimeSpan timeout, bool aborting)
         {
-            if (_closed)
+            if (this.closed)
             {
                 return CommunicationWaitResult.Aborted;
             }
@@ -409,26 +431,26 @@ namespace System.ServiceModel.Channels
 
             if (aborting)
             {
-                _result = CommunicationWaitResult.Aborted;
+                this.result = CommunicationWaitResult.Aborted;
             }
 
-            bool expired = !TimeoutHelper.WaitOne(_waitHandle, timeout);
+            bool expired = !TimeoutHelper.WaitOne(this.waitHandle, timeout);
 
             lock (this.ThisLock)
             {
-                if (_result == CommunicationWaitResult.Waiting)
+                if (this.result == CommunicationWaitResult.Waiting)
                 {
-                    _result = (expired ? CommunicationWaitResult.Expired : CommunicationWaitResult.Succeeded);
+                    this.result = (expired ? CommunicationWaitResult.Expired : CommunicationWaitResult.Succeeded);
                 }
             }
 
             lock (this.ThisLock)
             {
-                if (!_closed)
-                    _waitHandle.Set();  // unblock other waiters if there are any
+                if (!this.closed)
+                    this.waitHandle.Set();  // unblock other waiters if there are any
             }
 
-            return _result;
+            return this.result;
         }
     }
 }

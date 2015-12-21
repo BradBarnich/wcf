@@ -1,14 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime.CompilerServices;
-using System.IdentityModel.Selectors;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Security.Tokens
 {
-    internal class SecurityTokenProviderContainer
+    using System;
+    using System.Security.Cryptography.X509Certificates;
+    using System.Runtime.CompilerServices;
+    using System.IdentityModel.Selectors;
+    using System.IdentityModel.Tokens;
+
+    class SecurityTokenProviderContainer
     {
-        private SecurityTokenProvider _tokenProvider;
+        SecurityTokenProvider tokenProvider;
 
         public SecurityTokenProviderContainer(SecurityTokenProvider tokenProvider)
         {
@@ -16,30 +19,44 @@ namespace System.ServiceModel.Security.Tokens
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("tokenProvider");
             }
-            _tokenProvider = tokenProvider;
+            this.tokenProvider = tokenProvider;
         }
 
         public SecurityTokenProvider TokenProvider
         {
-            get { return _tokenProvider; }
+            get { return this.tokenProvider; }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Close(TimeSpan timeout)
         {
-            SecurityUtils.CloseTokenProviderIfRequired(_tokenProvider, timeout);
+            SecurityUtils.CloseTokenProviderIfRequired(this.tokenProvider, timeout);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Open(TimeSpan timeout)
         {
-            SecurityUtils.OpenTokenProviderIfRequired(_tokenProvider, timeout);
+            SecurityUtils.OpenTokenProviderIfRequired(this.tokenProvider, timeout);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Abort()
         {
-            SecurityUtils.AbortTokenProviderIfRequired(_tokenProvider);
+            SecurityUtils.AbortTokenProviderIfRequired(this.tokenProvider);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public X509Certificate2 GetCertificate(TimeSpan timeout)
+        {
+            X509SecurityToken token = this.tokenProvider.GetToken(timeout) as X509SecurityToken;
+            if (token != null)
+            {
+                return token.Certificate;
+            }
+            else
+            {
+                return null;
+            }
         }
     }
 }

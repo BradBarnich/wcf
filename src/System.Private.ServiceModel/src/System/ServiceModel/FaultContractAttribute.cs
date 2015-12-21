@@ -1,68 +1,70 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Security;
-using System.Net.Security;
-using System.ServiceModel.Description;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Reflection;
+    using System.ServiceModel.Security;
+    using System.Net.Security;
+    using System.ServiceModel.Description;
+
     [AttributeUsage(ServiceModelAttributeTargets.OperationContract, AllowMultiple = true, Inherited = false)]
     public sealed class FaultContractAttribute : Attribute
     {
-        private string _action;
-        private string _name;
-        private string _ns;
-        private Type _type;
-        private ProtectionLevel _protectionLevel = ProtectionLevel.None;
-        private bool _hasProtectionLevel = false;
+        string action;
+        string name;
+        string ns;
+        Type type;
+        ProtectionLevel protectionLevel = ProtectionLevel.None;
+        bool hasProtectionLevel = false;
 
         public FaultContractAttribute(Type detailType)
         {
             if (detailType == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("detailType"));
 
-            _type = detailType;
+            this.type = detailType;
         }
 
         public Type DetailType
         {
-            get { return _type; }
+            get { return this.type; }
         }
 
         public string Action
         {
-            get { return _action; }
+            get { return this.action; }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                _action = value;
+                this.action = value;
             }
         }
 
         public string Name
         {
-            get { return _name; }
+            get { return this.name; }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 if (value == string.Empty)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxNameCannotBeEmpty));
-                _name = value;
+                        SR.GetString(SR.SFxNameCannotBeEmpty)));
+                this.name = value;
             }
         }
 
         public string Namespace
         {
-            get { return _ns; }
+            get { return this.ns; }
             set
             {
                 if (!string.IsNullOrEmpty(value))
                     NamingHelper.CheckUriProperty(value, "Namespace");
-                _ns = value;
+                this.ns = value;
             }
         }
 
@@ -71,20 +73,20 @@ namespace System.ServiceModel
         {
             get
             {
-                return _protectionLevel;
+                return this.protectionLevel;
             }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
     }
 }

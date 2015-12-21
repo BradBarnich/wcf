@@ -1,16 +1,22 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Description;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Xml;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Xml.Schema;
+    using System.Xml.Serialization;
+    using System.Runtime.Serialization;
+
     public class FaultCode
     {
-        private FaultCode _subCode;
-        private string _name;
-        private string _ns;
-        private EnvelopeVersion _version;
+        FaultCode subCode;
+        string name;
+        string ns;
+        EnvelopeVersion version;
 
         public FaultCode(string name)
             : this(name, "", null)
@@ -37,25 +43,25 @@ namespace System.ServiceModel
             if (!string.IsNullOrEmpty(ns))
                 NamingHelper.CheckUriParameter(ns, "ns");
 
-            _name = name;
-            _ns = ns;
-            _subCode = subCode;
+            this.name = name;
+            this.ns = ns;
+            this.subCode = subCode;
 
             if (ns == Message12Strings.Namespace)
-                _version = EnvelopeVersion.Soap12;
+                this.version = EnvelopeVersion.Soap12;
             else if (ns == Message11Strings.Namespace)
-                _version = EnvelopeVersion.Soap11;
+                this.version = EnvelopeVersion.Soap11;
             else if (ns == MessageStrings.Namespace)
-                _version = EnvelopeVersion.None;
+                this.version = EnvelopeVersion.None;
             else
-                _version = null;
+                this.version = null;
         }
 
         public bool IsPredefinedFault
         {
             get
             {
-                return _ns.Length == 0 || _version != null;
+                return ns.Length == 0 || version != null;
             }
         }
 
@@ -64,7 +70,7 @@ namespace System.ServiceModel
             get
             {
                 if (IsPredefinedFault)
-                    return _name == (_version ?? EnvelopeVersion.Soap12).SenderFaultName;
+                    return name == (this.version ?? EnvelopeVersion.Soap12).SenderFaultName;
 
                 return false;
             }
@@ -75,7 +81,7 @@ namespace System.ServiceModel
             get
             {
                 if (IsPredefinedFault)
-                    return _name == (_version ?? EnvelopeVersion.Soap12).ReceiverFaultName;
+                    return name == (this.version ?? EnvelopeVersion.Soap12).ReceiverFaultName;
 
                 return false;
             }
@@ -85,7 +91,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _ns;
+                return ns;
             }
         }
 
@@ -93,7 +99,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _name;
+                return name;
             }
         }
 
@@ -101,7 +107,7 @@ namespace System.ServiceModel
         {
             get
             {
-                return _subCode;
+                return subCode;
             }
         }
 

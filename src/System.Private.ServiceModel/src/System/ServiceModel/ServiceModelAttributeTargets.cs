@@ -1,9 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
-    internal static class ServiceModelAttributeTargets
+    using System;
+    using System.Reflection;
+
+    static class ServiceModelAttributeTargets
     {
         public const AttributeTargets ServiceContract = AttributeTargets.Interface | AttributeTargets.Class;
         public const AttributeTargets OperationContract = AttributeTargets.Method;

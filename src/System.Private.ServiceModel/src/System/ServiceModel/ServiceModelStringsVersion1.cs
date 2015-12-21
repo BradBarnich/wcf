@@ -1,13 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 // NOTE: this file was generated from 'xd.xml'
 
-using System.Diagnostics.Contracts;
-
 namespace System.ServiceModel
 {
-    internal class ServiceModelStringsVersion1 : ServiceModelStrings
+    using System.Xml;
+    using System.Runtime.CompilerServices;
+
+    class ServiceModelStringsVersion1 : ServiceModelStrings
     {
         public const string String0 = "mustUnderstand";
         public const string String1 = "Envelope";
@@ -503,7 +505,7 @@ namespace System.ServiceModel
         {
             get
             {
-                Contract.Assert(index >= 0 && index < this.Count, "check index");
+                DiagnosticUtility.DebugAssert(index >= 0 && index < this.Count, "check index");
                 switch (index)
                 {
                     case 0: return String0;

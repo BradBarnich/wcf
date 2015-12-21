@@ -1,38 +1,47 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-using System.Diagnostics.Contracts;
-using System.Reflection;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.ServiceModel.Diagnostics.Application;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ProxyOperationRuntime
-    {
-        private readonly IClientMessageFormatter _formatter;
-        private readonly bool _isInitiating;
-        private readonly bool _isOneWay;
-        private readonly bool _isSessionOpenNotificationEnabled;
-        private readonly string _name;
-        private readonly IParameterInspector[] _parameterInspectors;
-        private readonly IClientFaultFormatter _faultFormatter;
-        private readonly ImmutableClientRuntime _parent;
-        private bool _serializeRequest;
-        private bool _deserializeReply;
-        private string _action;
-        private string _replyAction;
+    using System;
+    using System.Collections.ObjectModel;
+    using System.Reflection;
+    using System.Runtime;
+    using System.Runtime.Remoting.Messaging;
+    using System.Security;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
 
-        private MethodInfo _beginMethod;
-        private MethodInfo _syncMethod;
-        private MethodInfo _taskMethod;
-        private ParameterInfo[] _inParams;
-        private ParameterInfo[] _outParams;
-        private ParameterInfo[] _endOutParams;
-        private ParameterInfo _returnParam;
+    class ProxyOperationRuntime
+    {
+        static internal readonly ParameterInfo[] NoParams = new ParameterInfo[0];
+        static internal readonly object[] EmptyArray = new object[0];
+
+        readonly IClientMessageFormatter formatter;
+        readonly bool isInitiating;
+        readonly bool isOneWay;
+        readonly bool isTerminating;
+        readonly bool isSessionOpenNotificationEnabled;
+        readonly string name;
+        readonly IParameterInspector[] parameterInspectors;
+        readonly IClientFaultFormatter faultFormatter;
+        readonly ImmutableClientRuntime parent;
+        bool serializeRequest;
+        bool deserializeReply;
+        string action;
+        string replyAction;
+
+        MethodInfo beginMethod;
+        MethodInfo syncMethod;
+        MethodInfo taskMethod;
+        ParameterInfo[] inParams;
+        ParameterInfo[] outParams;
+        ParameterInfo[] endOutParams;
+        ParameterInfo returnParam;
 
         internal ProxyOperationRuntime(ClientOperation operation, ImmutableClientRuntime parent)
         {
@@ -41,143 +50,150 @@ namespace System.ServiceModel.Dispatcher
             if (parent == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("parent");
 
-            _parent = parent;
-            _formatter = operation.Formatter;
-            _isInitiating = operation.IsInitiating;
-            _isOneWay = operation.IsOneWay;
-            _isSessionOpenNotificationEnabled = operation.IsSessionOpenNotificationEnabled;
-            _name = operation.Name;
-            _parameterInspectors = EmptyArray<IParameterInspector>.ToArray(operation.ParameterInspectors);
-            _faultFormatter = operation.FaultFormatter;
-            _serializeRequest = operation.SerializeRequest;
-            _deserializeReply = operation.DeserializeReply;
-            _action = operation.Action;
-            _replyAction = operation.ReplyAction;
-            _beginMethod = operation.BeginMethod;
-            _syncMethod = operation.SyncMethod;
-            _taskMethod = operation.TaskMethod;
+            this.parent = parent;
+            this.formatter = operation.Formatter;
+            this.isInitiating = operation.IsInitiating;
+            this.isOneWay = operation.IsOneWay;
+            this.isTerminating = operation.IsTerminating;
+            this.isSessionOpenNotificationEnabled = operation.IsSessionOpenNotificationEnabled;
+            this.name = operation.Name;
+            this.parameterInspectors = EmptyArray<IParameterInspector>.ToArray(operation.ParameterInspectors);
+            this.faultFormatter = operation.FaultFormatter;
+            this.serializeRequest = operation.SerializeRequest;
+            this.deserializeReply = operation.DeserializeReply;
+            this.action = operation.Action;
+            this.replyAction = operation.ReplyAction;
+            this.beginMethod = operation.BeginMethod;
+            this.syncMethod = operation.SyncMethod;
+            this.taskMethod = operation.TaskMethod;
             this.TaskTResult = operation.TaskTResult;
 
-            if (_beginMethod != null)
+            if (this.beginMethod != null)
             {
-                _inParams = ServiceReflector.GetInputParameters(_beginMethod, true);
-                if (_syncMethod != null)
+                this.inParams = ServiceReflector.GetInputParameters(this.beginMethod, true);
+                if (this.syncMethod != null)
                 {
-                    _outParams = ServiceReflector.GetOutputParameters(_syncMethod, false);
+                    this.outParams = ServiceReflector.GetOutputParameters(this.syncMethod, false);
                 }
                 else
                 {
-                    _outParams = Array.Empty<ParameterInfo>();
+                    this.outParams = NoParams;
                 }
-                _endOutParams = ServiceReflector.GetOutputParameters(operation.EndMethod, true);
-                _returnParam = operation.EndMethod.ReturnParameter;
+                this.endOutParams = ServiceReflector.GetOutputParameters(operation.EndMethod, true);
+                this.returnParam = operation.EndMethod.ReturnParameter;
             }
-            else if (_syncMethod != null)
+            else if (this.syncMethod != null)
             {
-                _inParams = ServiceReflector.GetInputParameters(_syncMethod, false);
-                _outParams = ServiceReflector.GetOutputParameters(_syncMethod, false);
-                _returnParam = _syncMethod.ReturnParameter;
+                this.inParams = ServiceReflector.GetInputParameters(this.syncMethod, false);
+                this.outParams = ServiceReflector.GetOutputParameters(this.syncMethod, false);
+                this.returnParam = this.syncMethod.ReturnParameter;
             }
 
-            if (_formatter == null && (_serializeRequest || _deserializeReply))
+            if (this.formatter == null && (serializeRequest || deserializeReply))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.ClientRuntimeRequiresFormatter0, _name)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ClientRuntimeRequiresFormatter0, this.name)));
             }
         }
 
         internal string Action
         {
-            get { return _action; }
+            get { return this.action; }
         }
 
         internal IClientFaultFormatter FaultFormatter
         {
-            get { return _faultFormatter; }
+            get { return this.faultFormatter; }
         }
 
         internal bool IsInitiating
         {
-            get { return _isInitiating; }
+            get { return this.isInitiating; }
         }
 
         internal bool IsOneWay
         {
-            get { return _isOneWay; }
+            get { return this.isOneWay; }
+        }
+
+        internal bool IsTerminating
+        {
+            get { return this.isTerminating; }
         }
 
         internal bool IsSessionOpenNotificationEnabled
         {
-            get { return _isSessionOpenNotificationEnabled; }
+            get { return this.isSessionOpenNotificationEnabled; }
         }
 
         internal string Name
         {
-            get { return _name; }
+            get { return this.name; }
         }
 
         internal ImmutableClientRuntime Parent
         {
-            get { return _parent; }
+            get { return this.parent; }
         }
 
         internal string ReplyAction
         {
-            get { return _replyAction; }
+            get { return this.replyAction; }
         }
 
         internal bool DeserializeReply
         {
-            get { return _deserializeReply; }
+            get { return this.deserializeReply; }
         }
 
         internal bool SerializeRequest
         {
-            get { return _serializeRequest; }
+            get { return this.serializeRequest; }
         }
 
-        internal Type TaskTResult
-        {
-            get;
-            set;
+        internal Type TaskTResult 
+        { 
+            get; 
+            set; 
         }
 
         internal void AfterReply(ref ProxyRpc rpc)
         {
-            if (!_isOneWay)
+            if (!this.isOneWay)
             {
                 Message reply = rpc.Reply;
 
-                if (_deserializeReply)
+                if (this.deserializeReply)
                 {
                     if (TD.ClientFormatterDeserializeReplyStartIsEnabled())
                     {
                         TD.ClientFormatterDeserializeReplyStart(rpc.EventTraceActivity);
                     }
 
-                    rpc.ReturnValue = _formatter.DeserializeReply(reply, rpc.OutputParameters);
+                    rpc.ReturnValue = this.formatter.DeserializeReply(reply, rpc.OutputParameters);
 
                     if (TD.ClientFormatterDeserializeReplyStopIsEnabled())
                     {
                         TD.ClientFormatterDeserializeReplyStop(rpc.EventTraceActivity);
                     }
+
                 }
                 else
                 {
                     rpc.ReturnValue = reply;
                 }
 
-                int offset = _parent.ParameterInspectorCorrelationOffset;
+                int offset = this.parent.ParameterInspectorCorrelationOffset;
                 try
                 {
-                    for (int i = _parameterInspectors.Length - 1; i >= 0; i--)
+                    for (int i = parameterInspectors.Length - 1; i >= 0; i--)
                     {
-                        _parameterInspectors[i].AfterCall(_name,
+                        this.parameterInspectors[i].AfterCall(this.name,
                                                               rpc.OutputParameters,
                                                               rpc.ReturnValue,
                                                               rpc.Correlation[offset + i]);
                         if (TD.ClientParameterInspectorAfterCallInvokedIsEnabled())
                         {
-                            TD.ClientParameterInspectorAfterCallInvoked(rpc.EventTraceActivity, _parameterInspectors[i].GetType().FullName);
+                            TD.ClientParameterInspectorAfterCallInvoked(rpc.EventTraceActivity, this.parameterInspectors[i].GetType().FullName);
                         }
                     }
                 }
@@ -194,12 +210,12 @@ namespace System.ServiceModel.Dispatcher
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperCallback(e);
                 }
 
-                if (_parent.ValidateMustUnderstand)
+                if (parent.ValidateMustUnderstand)
                 {
                     Collection<MessageHeaderInfo> headersNotUnderstood = reply.Headers.GetHeadersNotUnderstood();
                     if (headersNotUnderstood != null && headersNotUnderstood.Count > 0)
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ProtocolException(SR.Format(SR.SFxHeaderNotUnderstood, headersNotUnderstood[0].Name, headersNotUnderstood[0].Namespace)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ProtocolException(SR.GetString(SR.SFxHeaderNotUnderstood, headersNotUnderstood[0].Name, headersNotUnderstood[0].Namespace)));
                     }
                 }
             }
@@ -207,15 +223,15 @@ namespace System.ServiceModel.Dispatcher
 
         internal void BeforeRequest(ref ProxyRpc rpc)
         {
-            int offset = _parent.ParameterInspectorCorrelationOffset;
+            int offset = this.parent.ParameterInspectorCorrelationOffset;
             try
             {
-                for (int i = 0; i < _parameterInspectors.Length; i++)
+                for (int i = 0; i < parameterInspectors.Length; i++)
                 {
-                    rpc.Correlation[offset + i] = _parameterInspectors[i].BeforeCall(_name, rpc.InputParameters);
+                    rpc.Correlation[offset + i] = this.parameterInspectors[i].BeforeCall(this.name, rpc.InputParameters);
                     if (TD.ClientParameterInspectorBeforeCallInvokedIsEnabled())
                     {
-                        TD.ClientParameterInspectorBeforeCallInvoked(rpc.EventTraceActivity, _parameterInspectors[i].GetType().FullName);
+                        TD.ClientParameterInspectorBeforeCallInvoked(rpc.EventTraceActivity, this.parameterInspectors[i].GetType().FullName);
                     }
                 }
             }
@@ -232,14 +248,14 @@ namespace System.ServiceModel.Dispatcher
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperCallback(e);
             }
 
-            if (_serializeRequest)
+            if (this.serializeRequest)
             {
                 if (TD.ClientFormatterSerializeRequestStartIsEnabled())
                 {
                     TD.ClientFormatterSerializeRequestStart(rpc.EventTraceActivity);
                 }
 
-                rpc.Request = _formatter.SerializeRequest(rpc.MessageVersion, rpc.InputParameters);
+                rpc.Request = this.formatter.SerializeRequest(rpc.MessageVersion, rpc.InputParameters);
 
 
 
@@ -252,115 +268,118 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (rpc.InputParameters[0] == null)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxProxyRuntimeMessageCannotBeNull, _name)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxProxyRuntimeMessageCannotBeNull, this.name)));
                 }
 
                 rpc.Request = (Message)rpc.InputParameters[0];
                 if (!IsValidAction(rpc.Request, Action))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxInvalidRequestAction, this.Name, rpc.Request.Headers.Action ?? "{NULL}", this.Action)));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidRequestAction, this.Name, rpc.Request.Headers.Action ?? "{NULL}", this.Action)));
             }
         }
 
         internal static object GetDefaultParameterValue(Type parameterType)
         {
-            return (parameterType.IsValueType() && parameterType != typeof(void)) ? Activator.CreateInstance(parameterType) : null;
+            return (parameterType.IsValueType && parameterType != typeof(void)) ? Activator.CreateInstance(parameterType) : null;
         }
 
-        internal bool IsSyncCall(MethodCall methodCall)
+        [SecurityCritical]
+        internal bool IsSyncCall(IMethodCallMessage methodCall)
         {
-            if (_syncMethod == null)
+            if (this.syncMethod == null)
             {
                 return false;
             }
 
-            Contract.Assert(methodCall != null);
-            Contract.Assert(methodCall.MethodBase != null);
-            return methodCall.MethodBase.Equals(_syncMethod);
+            return (methodCall.MethodBase.MethodHandle == this.syncMethod.MethodHandle);
         }
 
-        internal bool IsBeginCall(MethodCall methodCall)
+        [SecurityCritical]
+        internal bool IsBeginCall(IMethodCallMessage methodCall)
         {
-            if (_beginMethod == null)
+            if (this.beginMethod == null)
             {
                 return false;
             }
 
-            Contract.Assert(methodCall != null);
-            Contract.Assert(methodCall.MethodBase != null);
-            return methodCall.MethodBase.Equals(_beginMethod);
+            return (methodCall.MethodBase.MethodHandle == this.beginMethod.MethodHandle);
         }
 
-        internal bool IsTaskCall(MethodCall methodCall)
+        [SecurityCritical]
+        internal bool IsTaskCall(IMethodCallMessage methodCall)
         {
-            if (_taskMethod == null)
+            if (this.taskMethod == null)
             {
                 return false;
             }
 
-            Contract.Assert(methodCall != null);
-            Contract.Assert(methodCall.MethodBase != null);
-            return methodCall.MethodBase.Equals(_taskMethod);
+            return (methodCall.MethodBase.MethodHandle == this.taskMethod.MethodHandle);
         }
 
-        internal object[] MapSyncInputs(MethodCall methodCall, out object[] outs)
+        [SecurityCritical]
+        internal object[] MapSyncInputs(IMethodCallMessage methodCall, out object[] outs)
         {
-            if (_outParams.Length == 0)
+            if (this.outParams.Length == 0)
             {
-                outs = Array.Empty<object>();
+                outs = EmptyArray;
             }
             else
             {
-                outs = new object[_outParams.Length];
+                outs = new object[this.outParams.Length];
             }
-            if (_inParams.Length == 0)
-                return Array.Empty<object>();
-            return methodCall.Args;
+            if (this.inParams.Length == 0)
+                return EmptyArray;
+            return methodCall.InArgs;
         }
 
-        internal object[] MapAsyncBeginInputs(MethodCall methodCall, out AsyncCallback callback, out object asyncState)
+        [SecurityCritical]
+        internal object[] MapAsyncBeginInputs(IMethodCallMessage methodCall, out AsyncCallback callback, out object asyncState)
         {
             object[] ins;
-            if (_inParams.Length == 0)
+            if (this.inParams.Length == 0)
             {
-                ins = Array.Empty<object>();
+                ins = EmptyArray;
             }
             else
             {
-                ins = new object[_inParams.Length];
+                ins = new object[this.inParams.Length];
             }
 
             object[] args = methodCall.Args;
             for (int i = 0; i < ins.Length; i++)
             {
-                ins[i] = args[_inParams[i].Position];
+                ins[i] = args[this.inParams[i].Position];
             }
 
-            callback = args[methodCall.Args.Length - 2] as AsyncCallback;
-            asyncState = args[methodCall.Args.Length - 1];
+            callback = args[methodCall.ArgCount - 2] as AsyncCallback;
+            asyncState = args[methodCall.ArgCount - 1];
             return ins;
         }
 
-        internal void MapAsyncEndInputs(MethodCall methodCall, out IAsyncResult result, out object[] outs)
+        [SecurityCritical]
+        internal void MapAsyncEndInputs(IMethodCallMessage methodCall, out IAsyncResult result, out object[] outs)
         {
-            outs = new object[_endOutParams.Length];
-            result = methodCall.Args[methodCall.Args.Length - 1] as IAsyncResult;
+            outs = new object[this.endOutParams.Length];
+            result = methodCall.Args[methodCall.ArgCount - 1] as IAsyncResult;
         }
 
-        internal object[] MapSyncOutputs(MethodCall methodCall, object[] outs, ref object ret)
+        [SecurityCritical]
+        internal object[] MapSyncOutputs(IMethodCallMessage methodCall, object[] outs, ref object ret)
         {
-            return MapOutputs(_outParams, methodCall, outs, ref ret);
+            return MapOutputs(this.outParams, methodCall, outs, ref ret);
         }
 
-        internal object[] MapAsyncOutputs(MethodCall methodCall, object[] outs, ref object ret)
+        [SecurityCritical]
+        internal object[] MapAsyncOutputs(IMethodCallMessage methodCall, object[] outs, ref object ret)
         {
-            return MapOutputs(_endOutParams, methodCall, outs, ref ret);
+            return MapOutputs(this.endOutParams, methodCall, outs, ref ret);
         }
 
-        private object[] MapOutputs(ParameterInfo[] parameters, MethodCall methodCall, object[] outs, ref object ret)
+        [SecurityCritical]
+        object[] MapOutputs(ParameterInfo[] parameters, IMethodCallMessage methodCall, object[] outs, ref object ret)
         {
-            if (ret == null && _returnParam != null)
+            if (ret == null && this.returnParam != null)
             {
-                ret = GetDefaultParameterValue(TypeLoader.GetParameterType(_returnParam));
+                ret = GetDefaultParameterValue(TypeLoader.GetParameterType(this.returnParam));
             }
 
             if (parameters.Length == 0)

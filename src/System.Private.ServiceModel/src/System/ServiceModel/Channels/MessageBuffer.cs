@@ -1,13 +1,17 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Xml;
-using System.IO;
-using System.Collections.Generic;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public abstract class MessageBuffer : IDisposable
+    using System.Xml;
+    using System.ServiceModel;
+    using System.ServiceModel.Dispatcher;
+    using System.Xml.XPath;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Collections.Generic;
+
+    public abstract class MessageBuffer : IXPathNavigable, IDisposable
     {
         public abstract int BufferSize { get; }
 
@@ -42,61 +46,85 @@ namespace System.ServiceModel.Channels
 
         internal Exception CreateBufferDisposedException()
         {
-            return new ObjectDisposedException("", SR.MessageBufferIsClosed);
+            return new ObjectDisposedException("", SR.GetString(SR.MessageBufferIsClosed));
+        }
+
+        public XPathNavigator CreateNavigator()
+        {
+            return CreateNavigator(int.MaxValue, XmlSpace.None);
+        }
+
+        public XPathNavigator CreateNavigator(int nodeQuota)
+        {
+            return CreateNavigator(nodeQuota, XmlSpace.None);
+        }
+
+        public XPathNavigator CreateNavigator(XmlSpace space)
+        {
+            return CreateNavigator(int.MaxValue, space);
+        }
+
+        public XPathNavigator CreateNavigator(int nodeQuota, XmlSpace space)
+        {
+            if (nodeQuota <= 0)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("nodeQuota", SR.GetString(SR.FilterQuotaRange)));
+
+            return new SeekableMessageNavigator(this.CreateMessage(), nodeQuota, space, true, true);
         }
     }
 
-    internal class DefaultMessageBuffer : MessageBuffer
+    class DefaultMessageBuffer : MessageBuffer
     {
-        private XmlBuffer _msgBuffer;
-        private KeyValuePair<string, object>[] _properties;
-        private bool[] _understoodHeaders;
-        private bool _closed;
-        private MessageVersion _version;
-        private Uri _to;
-        private string _action;
-        private bool _isNullMessage;
+        XmlBuffer msgBuffer;
+        KeyValuePair<string, object>[] properties;
+        bool[] understoodHeaders;
+        bool closed;
+        MessageVersion version;
+        Uri to;
+        string action;
+        bool isNullMessage;
 
         public DefaultMessageBuffer(Message message, XmlBuffer msgBuffer)
         {
-            _msgBuffer = msgBuffer;
-            _version = message.Version;
-            _isNullMessage = message is NullMessage;
+            this.msgBuffer = msgBuffer;
+            this.version = message.Version;
+            this.isNullMessage = message is NullMessage;
 
-            _properties = new KeyValuePair<string, object>[message.Properties.Count];
-            ((ICollection<KeyValuePair<string, object>>)message.Properties).CopyTo(_properties, 0);
-            _understoodHeaders = new bool[message.Headers.Count];
-            for (int i = 0; i < _understoodHeaders.Length; ++i)
-                _understoodHeaders[i] = message.Headers.IsUnderstood(i);
+            properties = new KeyValuePair<string, object>[message.Properties.Count];
+            ((ICollection<KeyValuePair<string, object>>)message.Properties).CopyTo(properties, 0);
+            understoodHeaders = new bool[message.Headers.Count];
+            for (int i = 0; i < understoodHeaders.Length; ++i)
+                understoodHeaders[i] = message.Headers.IsUnderstood(i);
 
-            if (_version == MessageVersion.None)
+            //CSDMain 17837: CreateBufferedCopy should have code to copy over the To and Action headers
+            if (version == MessageVersion.None)
             {
-                _to = message.Headers.To;
-                _action = message.Headers.Action;
+                this.to = message.Headers.To;
+                this.action = message.Headers.Action;
             }
         }
 
-        private object ThisLock
+        object ThisLock
         {
-            get { return _msgBuffer; }
+            get { return msgBuffer; }
         }
 
         public override int BufferSize
         {
-            get { return _msgBuffer.BufferSize; }
+            get { return msgBuffer.BufferSize; }
         }
 
         public override void Close()
         {
             lock (ThisLock)
             {
-                if (_closed)
+                if (closed)
                     return;
 
-                _closed = true;
-                for (int i = 0; i < _properties.Length; i++)
+                closed = true;
+                for (int i = 0; i < this.properties.Length; i++)
                 {
-                    IDisposable disposable = _properties[i].Value as IDisposable;
+                    IDisposable disposable = this.properties[i].Value as IDisposable;
                     if (disposable != null)
                         disposable.Dispose();
                 }
@@ -105,60 +133,60 @@ namespace System.ServiceModel.Channels
 
         public override Message CreateMessage()
         {
-            if (_closed)
+            if (closed)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
 
             Message msg;
-            if (_isNullMessage)
+            if (this.isNullMessage)
             {
                 msg = new NullMessage();
             }
             else
             {
-                msg = Message.CreateMessage(_msgBuffer.GetReader(0), int.MaxValue, _version);
+                msg = Message.CreateMessage(msgBuffer.GetReader(0), int.MaxValue, this.version);
             }
 
             lock (ThisLock)
             {
-                msg.Properties.CopyProperties(_properties);
+                msg.Properties.CopyProperties(properties);
             }
 
-            for (int i = 0; i < _understoodHeaders.Length; ++i)
+            for (int i = 0; i < understoodHeaders.Length; ++i)
             {
-                if (_understoodHeaders[i])
+                if (understoodHeaders[i])
                     msg.Headers.AddUnderstood(i);
             }
 
-            if (_to != null)
+            if (this.to != null)
             {
-                msg.Headers.To = _to;
+                msg.Headers.To = this.to;
             }
 
-            if (_action != null)
+            if (this.action != null)
             {
-                msg.Headers.Action = _action;
+                msg.Headers.Action = this.action;
             }
 
             return msg;
         }
     }
 
-    internal class BufferedMessageBuffer : MessageBuffer
+    class BufferedMessageBuffer : MessageBuffer
     {
-        private IBufferedMessageData _messageData;
-        private KeyValuePair<string, object>[] _properties;
-        private bool _closed;
-        private object _thisLock = new object();
-        private bool[] _understoodHeaders;
-        private bool _understoodHeadersModified;
+        IBufferedMessageData messageData;
+        KeyValuePair<string, object>[] properties;
+        bool closed;
+        object thisLock = new object();
+        bool[] understoodHeaders;
+        bool understoodHeadersModified;
 
         public BufferedMessageBuffer(IBufferedMessageData messageData,
             KeyValuePair<string, object>[] properties, bool[] understoodHeaders, bool understoodHeadersModified)
         {
-            _messageData = messageData;
-            _properties = properties;
-            _understoodHeaders = understoodHeaders;
-            _understoodHeadersModified = understoodHeadersModified;
+            this.messageData = messageData;
+            this.properties = properties;
+            this.understoodHeaders = understoodHeaders;
+            this.understoodHeadersModified = understoodHeadersModified;
             messageData.Open();
         }
 
@@ -168,9 +196,10 @@ namespace System.ServiceModel.Channels
             {
                 lock (ThisLock)
                 {
-                    if (_closed)
+                    if (closed)
+#pragma warning suppress 56503 // [....], Invalid State after dispose
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
-                    return _messageData.Buffer.Count;
+                    return messageData.Buffer.Count;
                 }
             }
         }
@@ -181,9 +210,9 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("stream"));
             lock (ThisLock)
             {
-                if (_closed)
+                if (closed)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
-                ArraySegment<byte> buffer = _messageData.Buffer;
+                ArraySegment<byte> buffer = messageData.Buffer;
                 stream.Write(buffer.Array, buffer.Offset, buffer.Count);
             }
         }
@@ -194,27 +223,28 @@ namespace System.ServiceModel.Channels
             {
                 lock (ThisLock)
                 {
-                    if (_closed)
+                    if (closed)
+#pragma warning suppress 56503 // [....], Invalid State after dispose
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
-                    return _messageData.MessageEncoder.ContentType;
+                    return messageData.MessageEncoder.ContentType;
                 }
             }
         }
 
-        private object ThisLock
+        object ThisLock
         {
-            get { return _thisLock; }
+            get { return thisLock; }
         }
 
         public override void Close()
         {
             lock (ThisLock)
             {
-                if (!_closed)
+                if (!closed)
                 {
-                    _closed = true;
-                    _messageData.Close();
-                    _messageData = null;
+                    closed = true;
+                    messageData.Close();
+                    messageData = null;
                 }
             }
         }
@@ -223,38 +253,38 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (_closed)
+                if (closed)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
-                RecycledMessageState recycledMessageState = _messageData.TakeMessageState();
+                RecycledMessageState recycledMessageState = messageData.TakeMessageState();
                 if (recycledMessageState == null)
                     recycledMessageState = new RecycledMessageState();
-                BufferedMessage bufferedMessage = new BufferedMessage(_messageData, recycledMessageState, _understoodHeaders, _understoodHeadersModified);
-                bufferedMessage.Properties.CopyProperties(_properties);
-                _messageData.Open();
+                BufferedMessage bufferedMessage = new BufferedMessage(messageData, recycledMessageState, this.understoodHeaders, this.understoodHeadersModified);
+                bufferedMessage.Properties.CopyProperties(this.properties);
+                messageData.Open();
                 return bufferedMessage;
             }
         }
     }
 
-    internal class BodyWriterMessageBuffer : MessageBuffer
+    class BodyWriterMessageBuffer : MessageBuffer
     {
-        private BodyWriter _bodyWriter;
-        private KeyValuePair<string, object>[] _properties;
-        private MessageHeaders _headers;
-        private bool _closed;
-        private object _thisLock = new object();
+        BodyWriter bodyWriter;
+        KeyValuePair<string, object>[] properties;
+        MessageHeaders headers;
+        bool closed;
+        object thisLock = new object();
 
         public BodyWriterMessageBuffer(MessageHeaders headers,
             KeyValuePair<string, object>[] properties, BodyWriter bodyWriter)
         {
-            _bodyWriter = bodyWriter;
-            _headers = new MessageHeaders(headers);
-            _properties = properties;
+            this.bodyWriter = bodyWriter;
+            this.headers = new MessageHeaders(headers);
+            this.properties = properties;
         }
 
         protected object ThisLock
         {
-            get { return _thisLock; }
+            get { return thisLock; }
         }
 
         public override int BufferSize
@@ -266,12 +296,12 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (!_closed)
+                if (!closed)
                 {
-                    _closed = true;
-                    _bodyWriter = null;
-                    _headers = null;
-                    _properties = null;
+                    closed = true;
+                    bodyWriter = null;
+                    headers = null;
+                    properties = null;
                 }
             }
         }
@@ -280,30 +310,30 @@ namespace System.ServiceModel.Channels
         {
             lock (ThisLock)
             {
-                if (_closed)
+                if (closed)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateBufferDisposedException());
-                return new BodyWriterMessage(_headers, _properties, _bodyWriter);
+                return new BodyWriterMessage(headers, properties, bodyWriter);
             }
         }
 
         protected BodyWriter BodyWriter
         {
-            get { return _bodyWriter; }
+            get { return bodyWriter; }
         }
 
         protected MessageHeaders Headers
         {
-            get { return _headers; }
+            get { return headers; }
         }
 
         protected KeyValuePair<string, object>[] Properties
         {
-            get { return _properties; }
+            get { return properties; }
         }
 
         protected bool Closed
         {
-            get { return _closed; }
+            get { return closed; }
         }
     }
 }

@@ -1,13 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel
 {
-    public static class ServiceDefaults
+    using System;
+
+    static class ServiceDefaults
     {
-        public static TimeSpan CloseTimeout { get { return TimeSpan.FromMinutes(1); } }
-        public static TimeSpan OpenTimeout { get { return TimeSpan.FromMinutes(1); } }
-        public static TimeSpan ReceiveTimeout { get { return TimeSpan.FromMinutes(10); } }
-        public static TimeSpan SendTimeout { get { return TimeSpan.FromMinutes(1); } }
+        internal static TimeSpan ServiceHostCloseTimeout { get { return TimeSpanHelper.FromSeconds(10, ServiceHostCloseTimeoutString); } }
+        internal const string ServiceHostCloseTimeoutString = "00:00:10";
+        internal static TimeSpan CloseTimeout { get { return TimeSpanHelper.FromMinutes(1, CloseTimeoutString); } }
+        internal const string CloseTimeoutString = "00:01:00";
+        internal static TimeSpan OpenTimeout { get { return TimeSpanHelper.FromMinutes(1, OpenTimeoutString); } }
+        internal const string OpenTimeoutString = "00:01:00";
+        internal static TimeSpan ReceiveTimeout { get { return TimeSpanHelper.FromMinutes(10, ReceiveTimeoutString); } }
+        internal const string ReceiveTimeoutString = "00:10:00";
+        internal static TimeSpan SendTimeout { get { return TimeSpanHelper.FromMinutes(1, SendTimeoutString); } }
+        internal const string SendTimeoutString = "00:01:00";
+        internal static TimeSpan TransactionTimeout { get { return TimeSpanHelper.FromMinutes(1, TransactionTimeoutString); } }
+        internal const string TransactionTimeoutString = "00:00:00";
     }
 }

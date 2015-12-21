@@ -1,15 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Diagnostics;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.Security;
-using System.ServiceModel.Channels;
-using System.Xml;
+// <copyright>
+//   Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Diagnostics
 {
+    using System;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.Runtime.Diagnostics;
+    using System.Security;
+    using System.Security.Permissions;
+    using System.ServiceModel.Channels;
+    using System.Xml;
+
     internal static class EventTraceActivityHelper
     {
         public static bool TryAttachActivity(Message message, EventTraceActivity activity)
@@ -80,10 +83,12 @@ namespace System.ServiceModel.Diagnostics
 
         [Fx.Tag.SecurityNote(Critical = "This sets the ActivityId on the thread. Must not be settable from PT code unless from safe context.")]
         [SecurityCritical]
+        [SecurityPermission(SecurityAction.Assert, Unrestricted = true)]
         internal static void SetOnThread(EventTraceActivity eventTraceActivity)
         {
             if (eventTraceActivity != null)
             {
+                Trace.CorrelationManager.ActivityId = eventTraceActivity.ActivityId;
             }
         }
 

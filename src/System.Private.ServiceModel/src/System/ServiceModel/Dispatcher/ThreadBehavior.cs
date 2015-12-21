@@ -1,57 +1,59 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Runtime;
-using System.ServiceModel;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ThreadBehavior
-    {
-        private SendOrPostCallback _threadAffinityStartCallback;
-        private SendOrPostCallback _threadAffinityEndCallback;
-        private static Action<object> s_cleanThreadCallback;
-        private readonly SynchronizationContext _context;
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Activation;
+    using System.Threading;
 
+    class ThreadBehavior
+    {
+        SendOrPostCallback threadAffinityStartCallback;
+        SendOrPostCallback threadAffinityEndCallback;
+        static Action<object> cleanThreadCallback;
+        readonly SynchronizationContext context;
+       
         internal ThreadBehavior(DispatchRuntime dispatch)
         {
-            _context = dispatch.SynchronizationContext;
+            this.context = dispatch.SynchronizationContext;
         }
 
-        private SendOrPostCallback ThreadAffinityStartCallbackDelegate
+        SendOrPostCallback ThreadAffinityStartCallbackDelegate
         {
             get
             {
-                if (_threadAffinityStartCallback == null)
+                if (this.threadAffinityStartCallback == null)
                 {
-                    _threadAffinityStartCallback = new SendOrPostCallback(this.SynchronizationContextStartCallback);
+                    this.threadAffinityStartCallback = new SendOrPostCallback(this.SynchronizationContextStartCallback);
                 }
-                return _threadAffinityStartCallback;
+                return this.threadAffinityStartCallback;
             }
         }
-        private SendOrPostCallback ThreadAffinityEndCallbackDelegate
+        SendOrPostCallback ThreadAffinityEndCallbackDelegate
         {
             get
             {
-                if (_threadAffinityEndCallback == null)
+                if (this.threadAffinityEndCallback == null)
                 {
-                    _threadAffinityEndCallback = new SendOrPostCallback(this.SynchronizationContextEndCallback);
+                    this.threadAffinityEndCallback = new SendOrPostCallback(this.SynchronizationContextEndCallback);
                 }
-                return _threadAffinityEndCallback;
+                return this.threadAffinityEndCallback;
             }
         }
 
-        private static Action<object> CleanThreadCallbackDelegate
+        static Action<object> CleanThreadCallbackDelegate
         {
             get
             {
-                if (ThreadBehavior.s_cleanThreadCallback == null)
+                if (ThreadBehavior.cleanThreadCallback == null)
                 {
-                    ThreadBehavior.s_cleanThreadCallback = new Action<object>(ThreadBehavior.CleanThreadCallback);
+                    ThreadBehavior.cleanThreadCallback = new Action<object>(ThreadBehavior.CleanThreadCallback);
                 }
-                return ThreadBehavior.s_cleanThreadCallback;
+                return ThreadBehavior.cleanThreadCallback;
             }
         }
 
@@ -65,7 +67,7 @@ namespace System.ServiceModel.Dispatcher
             this.BindCore(ref rpc, false);
         }
 
-        private void BindCore(ref MessageRpc rpc, bool startOperation)
+        void BindCore(ref MessageRpc rpc, bool startOperation)
         {
             SynchronizationContext syncContext = GetSyncContext(rpc.InstanceContext);
 
@@ -89,18 +91,18 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private SynchronizationContext GetSyncContext(InstanceContext instanceContext)
+        SynchronizationContext GetSyncContext(InstanceContext instanceContext)
         {
             Fx.Assert(instanceContext != null, "instanceContext is null !");
-            SynchronizationContext syncContext = instanceContext.SynchronizationContext ?? _context;
+            SynchronizationContext syncContext = instanceContext.SynchronizationContext ?? this.context;
             return syncContext;
         }
 
-        private void SynchronizationContextStartCallback(object state)
+        void SynchronizationContextStartCallback(object state)
         {
             ResumeProcessing((IResumeMessageRpc)state);
         }
-        private void SynchronizationContextEndCallback(object state)
+        void SynchronizationContextEndCallback(object state)
         {
             IResumeMessageRpc resume = (IResumeMessageRpc)state;
 
@@ -110,19 +112,19 @@ namespace System.ServiceModel.Dispatcher
             Fx.Assert(syncContext != null, "syncContext is null !?");
             syncContext.OperationCompleted();
         }
-        private void ResumeProcessing(IResumeMessageRpc resume)
+        void ResumeProcessing(IResumeMessageRpc resume)
         {
             bool alreadyResumedNoLock;
             resume.Resume(out alreadyResumedNoLock);
 
             if (alreadyResumedNoLock)
             {
-                string text = SR.Format(SR.SFxMultipleCallbackFromSynchronizationContext, _context.GetType().ToString());
+                string text = SR.GetString(SR.SFxMultipleCallbackFromSynchronizationContext, context.GetType().ToString());
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(text));
             }
         }
 
-        private static void CleanThreadCallback(object state)
+        static void CleanThreadCallback(object state)
         {
             bool alreadyResumedNoLock;
             ((IResumeMessageRpc)state).Resume(out alreadyResumedNoLock);
@@ -135,6 +137,10 @@ namespace System.ServiceModel.Dispatcher
 
         internal static SynchronizationContext GetCurrentSynchronizationContext()
         {
+            if (AspNetEnvironment.IsApplicationDomainHosted())
+            {
+                return null;
+            }
             return SynchronizationContext.Current;
         }
     }

@@ -1,36 +1,36 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics.Contracts;
-using System.Net;
-using System.Net.Http;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.Net;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
+    using System.Runtime;
+
     public sealed class HttpRequestMessageProperty : IMessageProperty, IMergeEnabledMessageProperty
     {
-        private TraditionalHttpRequestMessageProperty _traditionalProperty;
-        private HttpRequestMessageBackedProperty _httpBackedProperty;
-        private bool _initialCopyPerformed;
-        private bool _useHttpBackedProperty;
+        TraditionalHttpRequestMessageProperty traditionalProperty;
+        HttpRequestMessageBackedProperty httpBackedProperty;
+        bool initialCopyPerformed;
+        bool useHttpBackedProperty;
 
         public HttpRequestMessageProperty()
+            : this((IHttpHeaderProvider)null)
         {
-            _traditionalProperty = new TraditionalHttpRequestMessageProperty();
-            _useHttpBackedProperty = false;
         }
 
-        internal HttpRequestMessageProperty(WebHeaderCollection originalHeaders)
+        internal HttpRequestMessageProperty(IHttpHeaderProvider httpHeaderProvider)
         {
-            _traditionalProperty = new TraditionalHttpRequestMessageProperty(originalHeaders);
-            _useHttpBackedProperty = false;
+            this.traditionalProperty = new TraditionalHttpRequestMessageProperty(httpHeaderProvider);
+            this.useHttpBackedProperty = false;
         }
 
         internal HttpRequestMessageProperty(HttpRequestMessage httpRequestMessage)
         {
-            _httpBackedProperty = new HttpRequestMessageBackedProperty(httpRequestMessage);
-            _useHttpBackedProperty = true;
+            this.httpBackedProperty = new HttpRequestMessageBackedProperty(httpRequestMessage);
+            this.useHttpBackedProperty = true;
         }
 
         public static string Name
@@ -42,9 +42,9 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _useHttpBackedProperty ?
-                    _httpBackedProperty.Headers :
-                    _traditionalProperty.Headers;
+                return this.useHttpBackedProperty ?
+                    this.httpBackedProperty.Headers :
+                    this.traditionalProperty.Headers;
             }
         }
 
@@ -52,9 +52,9 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _useHttpBackedProperty ?
-                    _httpBackedProperty.Method :
-                    _traditionalProperty.Method;
+                return this.useHttpBackedProperty ?
+                    this.httpBackedProperty.Method :
+                    this.traditionalProperty.Method;
             }
 
             set
@@ -64,13 +64,13 @@ namespace System.ServiceModel.Channels
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                if (_useHttpBackedProperty)
+                if (this.useHttpBackedProperty)
                 {
-                    _httpBackedProperty.Method = value;
+                    this.httpBackedProperty.Method = value;
                 }
                 else
                 {
-                    _traditionalProperty.Method = value;
+                    this.traditionalProperty.Method = value;
                 }
             }
         }
@@ -79,25 +79,26 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _useHttpBackedProperty ?
-                    _httpBackedProperty.QueryString :
-                    _traditionalProperty.QueryString;
+                return this.useHttpBackedProperty ?
+                    this.httpBackedProperty.QueryString :
+                    this.traditionalProperty.QueryString;
             }
 
             set
             {
+
                 if (value == null)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                if (_useHttpBackedProperty)
+                if (this.useHttpBackedProperty)
                 {
-                    _httpBackedProperty.QueryString = value;
+                    this.httpBackedProperty.QueryString = value;
                 }
                 else
                 {
-                    _traditionalProperty.QueryString = value;
+                    this.traditionalProperty.QueryString = value;
                 }
             }
         }
@@ -106,31 +107,31 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _useHttpBackedProperty ?
-                    _httpBackedProperty.SuppressEntityBody :
-                    _traditionalProperty.SuppressEntityBody;
+                return this.useHttpBackedProperty ?
+                    this.httpBackedProperty.SuppressEntityBody :
+                    this.traditionalProperty.SuppressEntityBody;
             }
 
             set
             {
-                if (_useHttpBackedProperty)
+                if (this.useHttpBackedProperty)
                 {
-                    _httpBackedProperty.SuppressEntityBody = value;
+                    this.httpBackedProperty.SuppressEntityBody = value;
                 }
                 else
                 {
-                    _traditionalProperty.SuppressEntityBody = value;
+                    this.traditionalProperty.SuppressEntityBody = value;
                 }
             }
         }
 
-        public HttpRequestMessage HttpRequestMessage
+        private HttpRequestMessage HttpRequestMessage
         {
             get
             {
-                if (_useHttpBackedProperty)
+                if (this.useHttpBackedProperty)
                 {
-                    return _httpBackedProperty.HttpRequestMessage;
+                    return this.httpBackedProperty.HttpRequestMessage;
                 }
 
                 return null;
@@ -157,14 +158,14 @@ namespace System.ServiceModel.Channels
 
         IMessageProperty IMessageProperty.CreateCopy()
         {
-            if (!_useHttpBackedProperty ||
-                !_initialCopyPerformed)
+            if (!this.useHttpBackedProperty ||
+                !this.initialCopyPerformed)
             {
-                _initialCopyPerformed = true;
+                this.initialCopyPerformed = true;
                 return this;
             }
 
-            return _httpBackedProperty.CreateTraditionalRequestMessageProperty();
+            return this.httpBackedProperty.CreateTraditionalRequestMessageProperty();
         }
 
         bool IMergeEnabledMessageProperty.TryMergeWithProperty(object propertyToMerge)
@@ -175,17 +176,17 @@ namespace System.ServiceModel.Channels
             //  HttpRequestMessageProperty may hold a reference to an HttpRequestMessage, and this 
             //  cannot be discarded, so values from the OperationContext's property must be set on 
             //  the message's version without completely replacing the message's property.
-            if (_useHttpBackedProperty)
+            if (this.useHttpBackedProperty)
             {
                 HttpRequestMessageProperty requestProperty = propertyToMerge as HttpRequestMessageProperty;
                 if (requestProperty != null)
                 {
-                    if (!requestProperty._useHttpBackedProperty)
+                    if (!requestProperty.useHttpBackedProperty)
                     {
-                        _httpBackedProperty.MergeWithTraditionalProperty(requestProperty._traditionalProperty);
-                        requestProperty._traditionalProperty = null;
-                        requestProperty._httpBackedProperty = _httpBackedProperty;
-                        requestProperty._useHttpBackedProperty = true;
+                        this.httpBackedProperty.MergeWithTraditionalProperty(requestProperty.traditionalProperty);
+                        requestProperty.traditionalProperty = null;
+                        requestProperty.httpBackedProperty = this.httpBackedProperty;
+                        requestProperty.useHttpBackedProperty = true;
                     }
 
                     return true;
@@ -195,45 +196,42 @@ namespace System.ServiceModel.Channels
             return false;
         }
 
+        internal interface IHttpHeaderProvider
+        {
+            void CopyHeaders(WebHeaderCollection headers);
+        }
+
         private class TraditionalHttpRequestMessageProperty
         {
             public const string DefaultMethod = "POST";
             public const string DefaultQueryString = "";
 
-            private string _method;
+            WebHeaderCollection headers;
+            IHttpHeaderProvider httpHeaderProvider;
+            string method;
 
-            public TraditionalHttpRequestMessageProperty()
+            public TraditionalHttpRequestMessageProperty(IHttpHeaderProvider httpHeaderProvider)
             {
-                _method = DefaultMethod;
+                this.httpHeaderProvider = httpHeaderProvider;
+                this.method = DefaultMethod;
                 this.QueryString = DefaultQueryString;
-            }
-
-            private WebHeaderCollection _headers;
-            private WebHeaderCollection _originalHeaders;
-
-            public TraditionalHttpRequestMessageProperty(WebHeaderCollection originalHeaders) : this()
-            {
-                _originalHeaders = originalHeaders;
             }
 
             public WebHeaderCollection Headers
             {
                 get
                 {
-                    if (_headers == null)
+                    if (this.headers == null)
                     {
-                        _headers = new WebHeaderCollection();
-                        if (_originalHeaders != null)
+                        this.headers = new WebHeaderCollection();
+                        if (this.httpHeaderProvider != null)
                         {
-                            foreach (var headerKey in _originalHeaders.AllKeys)
-                            {
-                                _headers[headerKey] = _originalHeaders[headerKey];
-                            }
-                            _originalHeaders = null;
+                            this.httpHeaderProvider.CopyHeaders(this.headers);
+                            this.httpHeaderProvider = null;
                         }
                     }
 
-                    return _headers;
+                    return this.headers;
                 }
             }
 
@@ -241,12 +239,12 @@ namespace System.ServiceModel.Channels
             {
                 get
                 {
-                    return _method;
+                    return this.method;
                 }
 
                 set
                 {
-                    _method = value;
+                    this.method = value;
                     this.HasMethodBeenSet = true;
                 }
             }
@@ -260,27 +258,27 @@ namespace System.ServiceModel.Channels
 
         private class HttpRequestMessageBackedProperty
         {
+            private HttpHeadersWebHeaderCollection headers;
+
             public HttpRequestMessageBackedProperty(HttpRequestMessage httpRequestMessage)
             {
-                Contract.Assert(httpRequestMessage != null, "The 'httpRequestMessage' property should never be null.");
+                Fx.Assert(httpRequestMessage != null, "The 'httpRequestMessage' property should never be null.");
 
                 this.HttpRequestMessage = httpRequestMessage;
             }
 
             public HttpRequestMessage HttpRequestMessage { get; private set; }
 
-            private WebHeaderCollection _headers;
-
             public WebHeaderCollection Headers
             {
                 get
                 {
-                    if (_headers == null)
+                    if (this.headers == null)
                     {
-                        _headers = this.HttpRequestMessage.ToWebHeaderCollection();
+                        this.headers = new HttpHeadersWebHeaderCollection(this.HttpRequestMessage);
                     }
 
-                    return _headers;
+                    return this.headers;
                 }
             }
 
@@ -302,7 +300,7 @@ namespace System.ServiceModel.Channels
                 get
                 {
                     string query = this.HttpRequestMessage.RequestUri.Query;
-                    return query.Length > 0 ? query.Substring(1) : string.Empty;
+                    return query.Length > 0 ? query.Substring(1) : string.Empty;                  
                 }
 
                 set
@@ -339,7 +337,7 @@ namespace System.ServiceModel.Channels
                         (!content.Headers.ContentLength.HasValue ||
                         content.Headers.ContentLength.Value > 0))
                     {
-                        HttpContent newContent = new ByteArrayContent(Array.Empty<byte>());
+                        HttpContent newContent = new ByteArrayContent(EmptyArray<byte>.Instance);
                         foreach (KeyValuePair<string, IEnumerable<string>> header in content.Headers)
                         {
                             newContent.Headers.AddHeaderWithoutValidation(header);
@@ -350,7 +348,7 @@ namespace System.ServiceModel.Channels
                     }
                     else if (!value && content == null)
                     {
-                        this.HttpRequestMessage.Content = new ByteArrayContent(Array.Empty<byte>());
+                        this.HttpRequestMessage.Content = new ByteArrayContent(EmptyArray<byte>.Instance);
                     }
                 }
             }
@@ -359,10 +357,7 @@ namespace System.ServiceModel.Channels
             {
                 HttpRequestMessageProperty copiedProperty = new HttpRequestMessageProperty();
 
-                foreach (var headerKey in this.Headers.AllKeys)
-                {
-                    copiedProperty.Headers[headerKey] = this.Headers[headerKey];
-                }
+                copiedProperty.Headers.Add(this.Headers);
 
                 if (this.Method != TraditionalHttpRequestMessageProperty.DefaultMethod)
                 {
@@ -388,7 +383,12 @@ namespace System.ServiceModel.Channels
                 }
 
                 this.SuppressEntityBody = propertyToMerge.SuppressEntityBody;
-                this.HttpRequestMessage.MergeWebHeaderCollection(propertyToMerge.Headers);
+
+                WebHeaderCollection headersToMerge = propertyToMerge.Headers;
+                foreach (string headerKey in headersToMerge.AllKeys)
+                {
+                    this.Headers[headerKey] = headersToMerge[headerKey];
+                }
             }
         }
     }

@@ -1,6 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Description
 {
     internal static class MetadataStrings
@@ -19,13 +19,14 @@ namespace System.ServiceModel.Description
             public const string TcpBindingName = "MetadataExchangeTcpBinding";
             public const string NamedPipeBindingName = "MetadataExchangeNamedPipeBinding";
             public const string BindingNamespace = "http://schemas.microsoft.com/ws/2005/02/mex/bindings";
-
+    
             public const string Metadata = "Metadata";
             public const string MetadataSection = "MetadataSection";
             public const string Dialect = "Dialect";
             public const string Identifier = "Identifier";
             public const string MetadataReference = "MetadataReference";
             public const string Location = "Location";
+
         }
 
         public static class WSTransfer
@@ -43,7 +44,7 @@ namespace System.ServiceModel.Description
             public const string Definitions = "definitions";
             public const string ArrayType = "arrayType";
         }
-
+        
         public static class XmlSchema
         {
             public const string Schema = "schema";
@@ -58,6 +59,7 @@ namespace System.ServiceModel.Description
             {
                 public const string Id = "id";
             }
+                
         }
 
         public static class Addressing200408
@@ -114,7 +116,7 @@ namespace System.ServiceModel.Description
             public const string Prefix = "wsu";
             public const string NamespaceUri = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd";
             public static class Attributes
-            {
+            {    
                 public const string Id = "Id";
             }
         }
@@ -140,5 +142,6 @@ namespace System.ServiceModel.Description
                 public const string Policy = "Policy";
             }
         }
+
     }
 }

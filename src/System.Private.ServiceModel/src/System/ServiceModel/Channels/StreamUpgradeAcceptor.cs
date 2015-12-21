@@ -1,10 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.IO;
+
     public abstract class StreamUpgradeAcceptor
     {
         protected StreamUpgradeAcceptor()
@@ -20,5 +20,6 @@ namespace System.ServiceModel.Channels
 
         public abstract IAsyncResult BeginAcceptUpgrade(Stream stream, AsyncCallback callback, object state);
         public abstract Stream EndAcceptUpgrade(IAsyncResult result);
+
     }
 }

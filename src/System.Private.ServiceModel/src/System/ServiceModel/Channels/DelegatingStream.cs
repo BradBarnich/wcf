@@ -1,17 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.IO;
+
     // Base Stream that delegates all its methods to another Stream.
-    public abstract class DelegatingStream : Stream
+    abstract class DelegatingStream : Stream
     {
-        private Stream _stream;
-        private bool _disposed;
+        Stream stream;
 
         protected DelegatingStream(Stream stream)
         {
@@ -20,14 +17,14 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("stream");
             }
 
-            _stream = stream;
+            this.stream = stream;
         }
 
         protected Stream BaseStream
         {
             get
             {
-                return _stream;
+                return stream;
             }
         }
 
@@ -35,7 +32,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.CanRead;
+                return stream.CanRead;
             }
         }
 
@@ -43,7 +40,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.CanSeek;
+                return stream.CanSeek;
             }
         }
 
@@ -51,7 +48,7 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.CanTimeout;
+                return stream.CanTimeout;
             }
         }
 
@@ -59,29 +56,15 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.CanWrite;
+                return stream.CanWrite;
             }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    _stream.Dispose();
-                }
-
-                _disposed = true;
-            }
-            base.Dispose(disposing);
         }
 
         public override long Length
         {
             get
             {
-                return _stream.Length;
+                return stream.Length;
             }
         }
 
@@ -89,11 +72,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.Position;
+                return stream.Position;
             }
             set
             {
-                _stream.Position = value;
+                stream.Position = value;
             }
         }
 
@@ -101,11 +84,11 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.ReadTimeout;
+                return stream.ReadTimeout;
             }
             set
             {
-                _stream.ReadTimeout = value;
+                stream.ReadTimeout = value;
             }
         }
 
@@ -113,68 +96,72 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _stream.WriteTimeout;
+                return stream.WriteTimeout;
             }
             set
             {
-                _stream.WriteTimeout = value;
+                stream.WriteTimeout = value;
             }
         }
 
-        public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
-            return _stream.CopyToAsync(destination, bufferSize, cancellationToken);
+            return stream.BeginRead(buffer, offset, count, callback, state);
+        }
+
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
+        {
+            return stream.BeginWrite(buffer, offset, count, callback, state);
+        }
+
+        public override void Close()
+        {
+            stream.Close();
+        }
+
+        public override int EndRead(IAsyncResult result)
+        {
+            return stream.EndRead(result);
+        }
+
+        public override void EndWrite(IAsyncResult result)
+        {
+            stream.EndWrite(result);
         }
 
         public override void Flush()
         {
-            _stream.Flush();
+            stream.Flush();
         }
-
-        public override Task FlushAsync(CancellationToken cancellationToken)
-        {
-            return _stream.FlushAsync(cancellationToken);
-        }
-
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            return _stream.Read(buffer, offset, count);
-        }
-
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            return _stream.ReadAsync(buffer, offset, count, cancellationToken);
+            return stream.Read(buffer, offset, count);
         }
 
         public override int ReadByte()
         {
-            return _stream.ReadByte();
+            return stream.ReadByte();
         }
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            return _stream.Seek(offset, origin);
+            return stream.Seek(offset, origin);
         }
 
         public override void SetLength(long value)
         {
-            _stream.SetLength(value);
+            stream.SetLength(value);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            _stream.Write(buffer, offset, count);
-        }
-
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            return _stream.WriteAsync(buffer, offset, count, cancellationToken);
+            stream.Write(buffer, offset, count);
         }
 
         public override void WriteByte(byte value)
         {
-            _stream.WriteByte(value);
+            stream.WriteByte(value);
         }
     }
 }

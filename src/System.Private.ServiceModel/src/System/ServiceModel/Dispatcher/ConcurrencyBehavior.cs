@@ -1,32 +1,45 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System;
-using System.Collections.Generic;
-using System.Runtime;
-using System.ServiceModel;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ConcurrencyBehavior
+    using System;
+    using System.Collections.Generic;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.Threading;
+
+    class ConcurrencyBehavior
     {
-        private ConcurrencyMode _concurrencyMode;
-        private bool _enforceOrderedReceive;
+        ConcurrencyMode concurrencyMode;
+        bool enforceOrderedReceive;
+        bool supportsTransactedBatch;
 
         internal ConcurrencyBehavior(DispatchRuntime runtime)
         {
-            _concurrencyMode = runtime.ConcurrencyMode;
-            _enforceOrderedReceive = runtime.EnsureOrderedDispatch;
+            this.concurrencyMode = runtime.ConcurrencyMode;
+            this.enforceOrderedReceive = runtime.EnsureOrderedDispatch;
+            this.supportsTransactedBatch = ConcurrencyBehavior.SupportsTransactedBatch(runtime.ChannelDispatcher);
+        }
+
+        static bool SupportsTransactedBatch(ChannelDispatcher channelDispatcher)
+        {
+            return channelDispatcher.IsTransactedReceive && (channelDispatcher.MaxTransactedBatchSize > 0);
         }
 
         internal bool IsConcurrent(ref MessageRpc rpc)
         {
-            return IsConcurrent(_concurrencyMode, _enforceOrderedReceive, rpc.Channel.HasSession);
+            return IsConcurrent(this.concurrencyMode, this.enforceOrderedReceive, rpc.Channel.HasSession, this.supportsTransactedBatch);
         }
 
-        internal static bool IsConcurrent(ConcurrencyMode concurrencyMode, bool ensureOrderedDispatch, bool hasSession)
+        internal static bool IsConcurrent(ConcurrencyMode concurrencyMode, bool ensureOrderedDispatch, bool hasSession, bool supportsTransactedBatch)
         {
+            if (supportsTransactedBatch)
+            {
+                return false;
+            }
+
             if (concurrencyMode != ConcurrencyMode.Single)
             {
                 return true;
@@ -48,6 +61,11 @@ namespace System.ServiceModel.Dispatcher
         internal static bool IsConcurrent(ChannelDispatcher runtime, bool hasSession)
         {
             bool isConcurrencyModeSingle = true;
+
+            if (ConcurrencyBehavior.SupportsTransactedBatch(runtime))
+            {
+                return false;
+            }
 
             foreach (EndpointDispatcher endpointDispatcher in runtime.Endpoints)
             {
@@ -77,7 +95,7 @@ namespace System.ServiceModel.Dispatcher
 
         internal void LockInstance(ref MessageRpc rpc)
         {
-            if (_concurrencyMode != ConcurrencyMode.Multiple)
+            if (this.concurrencyMode != ConcurrencyMode.Multiple)
             {
                 ConcurrencyInstanceContextFacet resource = rpc.InstanceContext.Concurrency;
                 lock (rpc.InstanceContext.ThisLock)
@@ -93,7 +111,7 @@ namespace System.ServiceModel.Dispatcher
                     }
                 }
 
-                if (_concurrencyMode == ConcurrencyMode.Reentrant)
+                if (this.concurrencyMode == ConcurrencyMode.Reentrant)
                 {
                     rpc.OperationContext.IsServiceReentrant = true;
                 }
@@ -102,7 +120,7 @@ namespace System.ServiceModel.Dispatcher
 
         internal void UnlockInstance(ref MessageRpc rpc)
         {
-            if (_concurrencyMode != ConcurrencyMode.Multiple)
+            if (this.concurrencyMode != ConcurrencyMode.Multiple)
             {
                 ConcurrencyBehavior.UnlockInstance(rpc.InstanceContext);
             }
@@ -116,7 +134,7 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private static void UnlockInstance(InstanceContext instanceContext)
+        static void UnlockInstance(InstanceContext instanceContext)
         {
             ConcurrencyInstanceContextFacet resource = instanceContext.Concurrency;
 
@@ -140,7 +158,7 @@ namespace System.ServiceModel.Dispatcher
             if (operationContext != null)
             {
                 InstanceContext instanceContext = operationContext.InstanceContext;
-
+                
                 if (operationContext.IsServiceReentrant)
                 {
                     ConcurrencyInstanceContextFacet resource = instanceContext.Concurrency;
@@ -172,13 +190,13 @@ namespace System.ServiceModel.Dispatcher
             void Signal();
         }
 
-        internal class MessageRpcWaiter : IWaiter
+        class MessageRpcWaiter : IWaiter
         {
-            private IResumeMessageRpc _resume;
+            IResumeMessageRpc resume;
 
             internal MessageRpcWaiter(IResumeMessageRpc resume)
             {
-                _resume = resume;
+                this.resume = resume;
             }
 
             void IWaiter.Signal()
@@ -186,7 +204,7 @@ namespace System.ServiceModel.Dispatcher
                 try
                 {
                     bool alreadyResumedNoLock;
-                    _resume.Resume(out alreadyResumedNoLock);
+                    this.resume.Resume(out alreadyResumedNoLock);
 
                     if (alreadyResumedNoLock)
                     {
@@ -204,19 +222,19 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        internal class ThreadWaiter : IWaiter
+        class ThreadWaiter : IWaiter
         {
-            private ManualResetEvent _wait = new ManualResetEvent(false);
+            ManualResetEvent wait = new ManualResetEvent(false);
 
             void IWaiter.Signal()
             {
-                _wait.Set();
+                this.wait.Set();
             }
 
             internal void Wait()
             {
-                _wait.WaitOne();
-                _wait.Dispose();
+                this.wait.WaitOne();
+                this.wait.Close();
             }
         }
     }
@@ -224,19 +242,19 @@ namespace System.ServiceModel.Dispatcher
     internal class ConcurrencyInstanceContextFacet
     {
         internal bool Locked;
-        private Queue<ConcurrencyBehavior.IWaiter> _calloutMessageQueue;
-        private Queue<ConcurrencyBehavior.IWaiter> _newMessageQueue;
+        Queue<ConcurrencyBehavior.IWaiter> calloutMessageQueue;
+        Queue<ConcurrencyBehavior.IWaiter> newMessageQueue;
 
         internal bool HasWaiters
         {
             get
             {
-                return (((_calloutMessageQueue != null) && (_calloutMessageQueue.Count > 0)) ||
-                        ((_newMessageQueue != null) && (_newMessageQueue.Count > 0)));
+                return (((this.calloutMessageQueue != null) && (this.calloutMessageQueue.Count > 0)) ||
+                        ((this.newMessageQueue != null) && (this.newMessageQueue.Count > 0)));
             }
         }
 
-        private ConcurrencyBehavior.IWaiter DequeueFrom(Queue<ConcurrencyBehavior.IWaiter> queue)
+        ConcurrencyBehavior.IWaiter DequeueFrom(Queue<ConcurrencyBehavior.IWaiter> queue)
         {
             ConcurrencyBehavior.IWaiter waiter = queue.Dequeue();
 
@@ -251,28 +269,28 @@ namespace System.ServiceModel.Dispatcher
         internal ConcurrencyBehavior.IWaiter DequeueWaiter()
         {
             // Finishing old work takes precedence over new work.
-            if ((_calloutMessageQueue != null) && (_calloutMessageQueue.Count > 0))
+            if ((this.calloutMessageQueue != null) && (this.calloutMessageQueue.Count > 0))
             {
-                return this.DequeueFrom(_calloutMessageQueue);
+                return this.DequeueFrom(this.calloutMessageQueue);
             }
             else
             {
-                return this.DequeueFrom(_newMessageQueue);
+                return this.DequeueFrom(this.newMessageQueue);
             }
         }
 
         internal void EnqueueNewMessage(ConcurrencyBehavior.IWaiter waiter)
         {
-            if (_newMessageQueue == null)
-                _newMessageQueue = new Queue<ConcurrencyBehavior.IWaiter>();
-            _newMessageQueue.Enqueue(waiter);
+            if (this.newMessageQueue == null)
+                this.newMessageQueue = new Queue<ConcurrencyBehavior.IWaiter>();
+            this.newMessageQueue.Enqueue(waiter);
         }
 
         internal void EnqueueCalloutMessage(ConcurrencyBehavior.IWaiter waiter)
         {
-            if (_calloutMessageQueue == null)
-                _calloutMessageQueue = new Queue<ConcurrencyBehavior.IWaiter>();
-            _calloutMessageQueue.Enqueue(waiter);
+            if (this.calloutMessageQueue == null)
+                this.calloutMessageQueue = new Queue<ConcurrencyBehavior.IWaiter>();
+            this.calloutMessageQueue.Enqueue(waiter);
         }
     }
 }

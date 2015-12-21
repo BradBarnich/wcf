@@ -1,43 +1,48 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.ServiceModel.Security;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    public class SslStreamSecurityBindingElement : StreamUpgradeBindingElement
+    using System.Security.Authentication;
+    using System.ComponentModel;
+    using System.Collections.Generic;
+    using System.Net.Security;
+    using System.ServiceModel.Description;
+    using System.ServiceModel;
+    using System.ServiceModel.Security;
+    using System.ServiceModel.Security.Tokens;
+    using System.Xml;
+    
+    public class SslStreamSecurityBindingElement : StreamUpgradeBindingElement, ITransportTokenAssertionProvider, IPolicyExportExtension
     {
-        private IdentityVerifier _identityVerifier;
-        private bool _requireClientCertificate;
-        private SslProtocols _sslProtocols;
+        IdentityVerifier identityVerifier;
+        bool requireClientCertificate;
+        SslProtocols sslProtocols;
 
         public SslStreamSecurityBindingElement()
         {
-            _requireClientCertificate = TransportDefaults.RequireClientCertificate;
-            _sslProtocols = TransportDefaults.SslProtocols;
+            this.requireClientCertificate = TransportDefaults.RequireClientCertificate;
+            this.sslProtocols = TransportDefaults.SslProtocols;
         }
 
         protected SslStreamSecurityBindingElement(SslStreamSecurityBindingElement elementToBeCloned)
             : base(elementToBeCloned)
         {
-            _identityVerifier = elementToBeCloned._identityVerifier;
-            _requireClientCertificate = elementToBeCloned._requireClientCertificate;
-            _sslProtocols = elementToBeCloned._sslProtocols;
+            this.identityVerifier = elementToBeCloned.identityVerifier;
+            this.requireClientCertificate = elementToBeCloned.requireClientCertificate;
+            this.sslProtocols = elementToBeCloned.sslProtocols;
         }
 
         public IdentityVerifier IdentityVerifier
         {
             get
             {
-                if (_identityVerifier == null)
+                if (this.identityVerifier == null)
                 {
-                    _identityVerifier = IdentityVerifier.CreateDefault();
+                    this.identityVerifier = IdentityVerifier.CreateDefault();
                 }
 
-                return _identityVerifier;
+                return this.identityVerifier;
             }
             set
             {
@@ -46,20 +51,20 @@ namespace System.ServiceModel.Channels
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                _identityVerifier = value;
+                this.identityVerifier = value;
             }
         }
 
         [DefaultValue(TransportDefaults.RequireClientCertificate)]
-        internal bool RequireClientCertificate
+        public bool RequireClientCertificate
         {
             get
             {
-                return _requireClientCertificate;
+                return this.requireClientCertificate;
             }
             set
             {
-                _requireClientCertificate = value;
+                this.requireClientCertificate = value;
             }
         }
 
@@ -68,15 +73,14 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _sslProtocols;
+                return this.sslProtocols;
             }
             set
             {
                 SslProtocolsHelper.Validate(value);
-                _sslProtocols = value;
+                this.sslProtocols = value;
             }
         }
-
 
         public override IChannelFactory<TChannel> BuildChannelFactory<TChannel>(BindingContext context)
         {
@@ -85,6 +89,7 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
             }
 
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters cannot be null
             context.BindingParameters.Add(this);
             return context.BuildInnerChannelFactory<TChannel>();
         }
@@ -96,8 +101,33 @@ namespace System.ServiceModel.Channels
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
             }
 
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters cannot be null
             context.BindingParameters.Add(this);
             return context.CanBuildInnerChannelFactory<TChannel>();
+        }
+
+        public override IChannelListener<TChannel> BuildChannelListener<TChannel>(BindingContext context)
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters cannot be null
+            context.BindingParameters.Add(this);
+            return context.BuildInnerChannelListener<TChannel>();
+        }
+
+        public override bool CanBuildChannelListener<TChannel>(BindingContext context)
+        {
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters cannot be null
+            context.BindingParameters.Add(this);
+            return context.CanBuildInnerChannelListener<TChannel>();
         }
 
         public override BindingElement Clone()
@@ -120,7 +150,6 @@ namespace System.ServiceModel.Channels
             {
                 return (T)(object)this.IdentityVerifier;
             }
-
             else
             {
                 return context.GetInnerProperty<T>();
@@ -130,6 +159,69 @@ namespace System.ServiceModel.Channels
         public override StreamUpgradeProvider BuildClientStreamUpgradeProvider(BindingContext context)
         {
             return SslStreamSecurityUpgradeProvider.CreateClientProvider(this, context);
+        }
+
+        public override StreamUpgradeProvider BuildServerStreamUpgradeProvider(BindingContext context)
+        {
+            return SslStreamSecurityUpgradeProvider.CreateServerProvider(this, context);
+        }
+
+
+        internal static void ImportPolicy(MetadataImporter importer, PolicyConversionContext policyContext)
+        {
+            XmlElement assertion = PolicyConversionContext.FindAssertion(policyContext.GetBindingAssertions(),
+                TransportPolicyConstants.SslTransportSecurityName, TransportPolicyConstants.DotNetFramingNamespace, true);
+
+            if (assertion != null)
+            {
+                SslStreamSecurityBindingElement sslBindingElement = new SslStreamSecurityBindingElement();
+
+                XmlReader reader = new XmlNodeReader(assertion);
+                reader.ReadStartElement();
+                sslBindingElement.RequireClientCertificate = reader.IsStartElement(
+                    TransportPolicyConstants.RequireClientCertificateName,
+                    TransportPolicyConstants.DotNetFramingNamespace);
+                if (sslBindingElement.RequireClientCertificate)
+                {
+                    reader.ReadElementString();
+                }
+
+                policyContext.BindingElements.Add(sslBindingElement);
+            }
+        }
+
+        #region ITransportTokenAssertionProvider Members
+
+        public XmlElement GetTransportTokenAssertion()
+        {
+            XmlDocument document = new XmlDocument();
+            XmlElement assertion =
+                document.CreateElement(TransportPolicyConstants.DotNetFramingPrefix,
+                TransportPolicyConstants.SslTransportSecurityName,
+                TransportPolicyConstants.DotNetFramingNamespace);
+            if (this.requireClientCertificate)
+            {
+                assertion.AppendChild(document.CreateElement(TransportPolicyConstants.DotNetFramingPrefix,
+                    TransportPolicyConstants.RequireClientCertificateName,
+                    TransportPolicyConstants.DotNetFramingNamespace));
+            }
+            return assertion;
+        }
+
+        #endregion
+
+        void IPolicyExportExtension.ExportPolicy(MetadataExporter exporter, PolicyConversionContext context)
+        {
+            if (exporter == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("exporter");
+            }
+            if (context == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+            SecurityBindingElement.ExportPolicyForTransportTokenAssertionProviders(exporter, context);
         }
 
         internal override bool IsMatch(BindingElement b)
@@ -144,7 +236,15 @@ namespace System.ServiceModel.Channels
                 return false;
             }
 
-            return _requireClientCertificate == ssl._requireClientCertificate && _sslProtocols == ssl._sslProtocols;
+            return this.requireClientCertificate == ssl.requireClientCertificate && this.sslProtocols == ssl.sslProtocols;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeIdentityVerifier()
+        {
+            // IdentifyVerifier.CreateDefault() grabs the static instance of nested DefaultIdentityVerifier. 
+            // DefaultIdentityVerifier can't be serialized directly because it's nested. 
+            return (!object.ReferenceEquals(this.IdentityVerifier, IdentityVerifier.CreateDefault()));  
         }
     }
 }

@@ -1,67 +1,71 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.ObjectModel;
-using System.IdentityModel.Tokens;
-using System.Net;
-using System.Security.Principal;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Security.Tokens
 {
+    using System.IdentityModel.Claims;
+    using System.ServiceModel;
+    using System.IdentityModel.Policy;
+    using System.IdentityModel.Tokens;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Security.Principal;
+    using System.Net;
+   
     public class SspiSecurityToken : SecurityToken
     {
-        private string _id;
-        private readonly TokenImpersonationLevel _impersonationLevel;
-        private readonly bool _allowNtlm;
-        private readonly NetworkCredential _networkCredential;
-        private readonly bool _extractGroupsForWindowsAccounts;
-        private readonly bool _allowUnauthenticatedCallers = SspiSecurityTokenProvider.DefaultAllowUnauthenticatedCallers;
-        private readonly DateTime _effectiveTime;
-        private readonly DateTime _expirationTime;
+        string id;
+        TokenImpersonationLevel impersonationLevel;
+        bool allowNtlm;
+        NetworkCredential networkCredential;
+        bool extractGroupsForWindowsAccounts;
+        bool allowUnauthenticatedCallers = SspiSecurityTokenProvider.DefaultAllowUnauthenticatedCallers;
+        DateTime effectiveTime;
+        DateTime expirationTime;
 
         public SspiSecurityToken(TokenImpersonationLevel impersonationLevel, bool allowNtlm, NetworkCredential networkCredential)
         {
-            _impersonationLevel = impersonationLevel;
-            _allowNtlm = allowNtlm;
-            _networkCredential = SecurityUtils.GetNetworkCredentialsCopy(networkCredential);
-            _effectiveTime = DateTime.UtcNow;
-            _expirationTime = _effectiveTime.AddHours(10);
+            this.impersonationLevel = impersonationLevel;
+            this.allowNtlm = allowNtlm;
+            this.networkCredential = SecurityUtils.GetNetworkCredentialsCopy(networkCredential);
+            this.effectiveTime = DateTime.UtcNow;
+            this.expirationTime = this.effectiveTime.AddHours(10);
         }
 
         public SspiSecurityToken(NetworkCredential networkCredential, bool extractGroupsForWindowsAccounts, bool allowUnauthenticatedCallers)
         {
-            _networkCredential = SecurityUtils.GetNetworkCredentialsCopy(networkCredential);
-            _extractGroupsForWindowsAccounts = extractGroupsForWindowsAccounts;
-            _allowUnauthenticatedCallers = allowUnauthenticatedCallers;
-            _effectiveTime = DateTime.UtcNow;
-            _expirationTime = _effectiveTime.AddHours(10);
+            this.networkCredential = SecurityUtils.GetNetworkCredentialsCopy(networkCredential);
+            this.extractGroupsForWindowsAccounts = extractGroupsForWindowsAccounts;
+            this.allowUnauthenticatedCallers = allowUnauthenticatedCallers;
+            this.effectiveTime = DateTime.UtcNow;
+            this.expirationTime = this.effectiveTime.AddHours(10);
         }
 
         public override string Id
         {
             get
             {
-                if (_id == null)
-                    _id = SecurityUniqueId.Create().Value;
-                return _id;
+                if (this.id == null)
+                    this.id = SecurityUniqueId.Create().Value;
+                return this.id; 
             }
         }
 
         public override DateTime ValidFrom
         {
-            get { return _effectiveTime; }
+            get { return this.effectiveTime; }
         }
 
         public override DateTime ValidTo
         {
-            get { return _expirationTime; }
+            get { return this.expirationTime; }
         }
 
         public bool AllowUnauthenticatedCallers
         {
             get
             {
-                return _allowUnauthenticatedCallers;
+                return this.allowUnauthenticatedCallers;
             }
         }
 
@@ -69,7 +73,7 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _impersonationLevel;
+                return this.impersonationLevel;
             }
         }
 
@@ -77,7 +81,7 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _allowNtlm;
+                return this.allowNtlm;
             }
         }
 
@@ -85,7 +89,7 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _networkCredential;
+                return this.networkCredential;
             }
         }
 
@@ -93,15 +97,15 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                return _extractGroupsForWindowsAccounts;
+                return this.extractGroupsForWindowsAccounts;
             }
         }
 
         public override ReadOnlyCollection<SecurityKey> SecurityKeys
         {
-            get
+            get 
             {
-                return EmptyReadOnlyCollection<SecurityKey>.Instance;
+                return EmptyReadOnlyCollection<SecurityKey>.Instance; 
             }
         }
     }

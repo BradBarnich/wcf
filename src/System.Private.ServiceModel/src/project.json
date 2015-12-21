@@ -1,4 +1,11 @@
 {
+  "compile": ["..\\..\\Common\\src\\System\\SR.cs", "..\\..\\Common\\src\\System\\NotImplemented.cs"],
+  "compilationOptions": {
+    "allowUnsafe": true,
+    "define": [
+      "FEATURE_CORECLR"
+    ]
+  },
   "dependencies": {
     "System.Collections": "4.0.11-rc2-23608",
     "System.Collections.Concurrent": "4.0.11-rc2-23608",
@@ -52,11 +59,6 @@
         "System.Net.Security": "4.0.0-rc2-23608",
         "System.Net.Sockets": "4.1.0-rc2-23608",
         "System.Security.Principal.Windows": "4.0.0-rc2-23608"
-      }
-    },
-    "netcore50": {
-      "dependencies": {
-        "System.Runtime.WindowsRuntime": "4.0.11-rc2-23608"
       }
     }
   }

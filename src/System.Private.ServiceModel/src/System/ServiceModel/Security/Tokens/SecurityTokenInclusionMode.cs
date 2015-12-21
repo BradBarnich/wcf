@@ -1,10 +1,12 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
-using System.ComponentModel;
 
 namespace System.ServiceModel.Security.Tokens
 {
+    using System.ComponentModel;
+
     public enum SecurityTokenInclusionMode
     {
         AlwaysToRecipient = 0,
@@ -13,7 +15,7 @@ namespace System.ServiceModel.Security.Tokens
         AlwaysToInitiator = 3
     }
 
-    internal static class SecurityTokenInclusionModeHelper
+    static class SecurityTokenInclusionModeHelper
     {
         public static bool IsDefined(SecurityTokenInclusionMode value)
         {
@@ -31,5 +33,6 @@ namespace System.ServiceModel.Security.Tokens
                     typeof(SecurityTokenInclusionMode)));
             }
         }
+
     }
 }

@@ -1,75 +1,76 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel;
-using System.IO;
-using System.Text;
-using System.Globalization;
-using System.Runtime;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal static class DecoderHelper
+    using System.Globalization;
+    using System.ServiceModel;
+    using System.IO;
+    using System.Text;
+
+    static class DecoderHelper
     {
         public static void ValidateSize(int size)
         {
             if (size <= 0)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.ValueMustBePositive));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("size", size, SR.GetString(
+                    SR.ValueMustBePositive)));
             }
         }
     }
 
-    internal struct IntDecoder
+    struct IntDecoder
     {
-        private int _value;
-        private short _index;
-        private bool _isValueDecoded;
-        private const int LastIndex = 4;
+        int value;
+        short index;
+        bool isValueDecoded;
+        const int LastIndex = 4;
 
         public int Value
         {
             get
             {
-                if (!_isValueDecoded)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _value;
+                if (!isValueDecoded)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return value;
             }
         }
 
         public bool IsValueDecoded
         {
-            get { return _isValueDecoded; }
+            get { return isValueDecoded; }
         }
 
         public void Reset()
         {
-            _index = 0;
-            _value = 0;
-            _isValueDecoded = false;
+            index = 0;
+            value = 0;
+            isValueDecoded = false;
         }
 
         public int Decode(byte[] buffer, int offset, int size)
         {
             DecoderHelper.ValidateSize(size);
-            if (_isValueDecoded)
+            if (isValueDecoded)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
             }
             int bytesConsumed = 0;
             while (bytesConsumed < size)
             {
                 int next = buffer[offset];
-                _value |= (next & 0x7F) << (_index * 7);
+                value |= (next & 0x7F) << (index * 7);
                 bytesConsumed++;
-                if (_index == LastIndex && (next & 0xF8) != 0)
+                if (index == LastIndex && (next & 0xF8) != 0)
                 {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.FramingSizeTooLarge));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.GetString(SR.FramingSizeTooLarge)));
                 }
-                _index++;
+                index++;
                 if ((next & 0x80) == 0)
                 {
-                    _isValueDecoded = true;
+                    isValueDecoded = true;
                     break;
                 }
                 offset++;
@@ -78,38 +79,38 @@ namespace System.ServiceModel.Channels
         }
     }
 
-
-    internal abstract class StringDecoder
+    abstract class StringDecoder
     {
-        private int _encodedSize;
-        private byte[] _encodedBytes;
-        private int _bytesNeeded;
-        private string _value;
-        private State _currentState;
-        private IntDecoder _sizeDecoder;
-        private int _sizeQuota;
-        private int _valueLengthInBytes;
+        int encodedSize;
+        byte[] encodedBytes;
+        int bytesNeeded;
+        string value;
+        State currentState;
+        IntDecoder sizeDecoder;
+        int sizeQuota;
+        int valueLengthInBytes;
 
         public StringDecoder(int sizeQuota)
         {
-            _sizeQuota = sizeQuota;
-            _sizeDecoder = new IntDecoder();
-            _currentState = State.ReadingSize;
+            this.sizeQuota = sizeQuota;
+            this.sizeDecoder = new IntDecoder();
+            this.currentState = State.ReadingSize;
             Reset();
         }
 
         public bool IsValueDecoded
         {
-            get { return _currentState == State.Done; }
+            get { return currentState == State.Done; }
         }
 
         public string Value
         {
             get
             {
-                if (_currentState != State.Done)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _value;
+                if (currentState != State.Done)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return value;
             }
         }
 
@@ -118,51 +119,51 @@ namespace System.ServiceModel.Channels
             DecoderHelper.ValidateSize(size);
 
             int bytesConsumed;
-            switch (_currentState)
+            switch (currentState)
             {
                 case State.ReadingSize:
-                    bytesConsumed = _sizeDecoder.Decode(buffer, offset, size);
-                    if (_sizeDecoder.IsValueDecoded)
+                    bytesConsumed = sizeDecoder.Decode(buffer, offset, size);
+                    if (sizeDecoder.IsValueDecoded)
                     {
-                        _encodedSize = _sizeDecoder.Value;
-                        if (_encodedSize > _sizeQuota)
+                        encodedSize = sizeDecoder.Value;
+                        if (encodedSize > sizeQuota)
                         {
-                            Exception quotaExceeded = OnSizeQuotaExceeded(_encodedSize);
+                            Exception quotaExceeded = OnSizeQuotaExceeded(encodedSize);
                             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(quotaExceeded);
                         }
-                        if (_encodedBytes == null || _encodedBytes.Length < _encodedSize)
+                        if (encodedBytes == null || encodedBytes.Length < encodedSize)
                         {
-                            _encodedBytes = Fx.AllocateByteArray(_encodedSize);
-                            _value = null;
+                            encodedBytes = DiagnosticUtility.Utility.AllocateByteArray(encodedSize);
+                            value = null;
                         }
-                        _currentState = State.ReadingBytes;
-                        _bytesNeeded = _encodedSize;
+                        currentState = State.ReadingBytes;
+                        bytesNeeded = encodedSize;
                     }
                     break;
                 case State.ReadingBytes:
-                    if (_value != null && _valueLengthInBytes == _encodedSize && _bytesNeeded == _encodedSize &&
-                        size >= _encodedSize && CompareBuffers(_encodedBytes, buffer, offset))
+                    if (value != null && valueLengthInBytes == encodedSize && bytesNeeded == encodedSize &&
+                        size >= encodedSize && CompareBuffers(encodedBytes, buffer, offset))
                     {
-                        bytesConsumed = _bytesNeeded;
-                        OnComplete(_value);
+                        bytesConsumed = bytesNeeded;
+                        OnComplete(value);
                     }
                     else
                     {
-                        bytesConsumed = _bytesNeeded;
-                        if (size < _bytesNeeded)
+                        bytesConsumed = bytesNeeded;
+                        if (size < bytesNeeded)
                             bytesConsumed = size;
-                        Buffer.BlockCopy(buffer, offset, _encodedBytes, _encodedSize - _bytesNeeded, bytesConsumed);
-                        _bytesNeeded -= bytesConsumed;
-                        if (_bytesNeeded == 0)
+                        Buffer.BlockCopy(buffer, offset, encodedBytes, encodedSize - bytesNeeded, bytesConsumed);
+                        bytesNeeded -= bytesConsumed;
+                        if (bytesNeeded == 0)
                         {
-                            _value = Encoding.UTF8.GetString(_encodedBytes, 0, _encodedSize);
-                            _valueLengthInBytes = _encodedSize;
-                            OnComplete(_value);
+                            value = Encoding.UTF8.GetString(encodedBytes, 0, encodedSize);
+                            valueLengthInBytes = encodedSize;
+                            OnComplete(value);
                         }
                     }
                     break;
                 default:
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.InvalidDecoderStateMachine));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine)));
             }
 
             return bytesConsumed;
@@ -170,10 +171,10 @@ namespace System.ServiceModel.Channels
 
         protected virtual void OnComplete(string value)
         {
-            _currentState = State.Done;
+            this.currentState = State.Done;
         }
 
-        private static bool CompareBuffers(byte[] buffer1, byte[] buffer2, int offset)
+        static bool CompareBuffers(byte[] buffer1, byte[] buffer2, int offset)
         {
             for (int i = 0; i < buffer1.Length; i++)
             {
@@ -189,11 +190,11 @@ namespace System.ServiceModel.Channels
 
         public void Reset()
         {
-            _currentState = State.ReadingSize;
-            _sizeDecoder.Reset();
+            currentState = State.ReadingSize;
+            sizeDecoder.Reset();
         }
 
-        private enum State
+        enum State
         {
             ReadingSize,
             ReadingBytes,
@@ -201,9 +202,9 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal class ViaStringDecoder : StringDecoder
+    class ViaStringDecoder : StringDecoder
     {
-        private Uri _via;
+        Uri via;
 
         public ViaStringDecoder(int sizeQuota)
             : base(sizeQuota)
@@ -212,7 +213,7 @@ namespace System.ServiceModel.Channels
 
         protected override Exception OnSizeQuotaExceeded(int size)
         {
-            Exception result = new InvalidDataException(SR.Format(SR.FramingViaTooLong, size));
+            Exception result = new InvalidDataException(SR.GetString(SR.FramingViaTooLong, size));
             FramingEncodingString.AddFaultString(result, FramingEncodingString.ViaTooLongFault);
             return result;
         }
@@ -221,12 +222,12 @@ namespace System.ServiceModel.Channels
         {
             try
             {
-                _via = new Uri(value);
+                via = new Uri(value);
                 base.OnComplete(value);
             }
             catch (UriFormatException exception)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.Format(SR.FramingViaNotUri, value), exception));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataException(SR.GetString(SR.FramingViaNotUri, value), exception));
             }
         }
 
@@ -235,13 +236,14 @@ namespace System.ServiceModel.Channels
             get
             {
                 if (!IsValueDecoded)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _via;
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return via;
             }
         }
     }
 
-    internal class FaultStringDecoder : StringDecoder
+    class FaultStringDecoder : StringDecoder
     {
         internal const int FaultSizeQuota = 256;
 
@@ -252,70 +254,70 @@ namespace System.ServiceModel.Channels
 
         protected override Exception OnSizeQuotaExceeded(int size)
         {
-            return new InvalidDataException(SR.Format(SR.FramingFaultTooLong, size));
+            return new InvalidDataException(SR.GetString(SR.FramingFaultTooLong, size));
         }
 
         public static Exception GetFaultException(string faultString, string via, string contentType)
         {
             if (faultString == FramingEncodingString.EndpointNotFoundFault)
             {
-                return new EndpointNotFoundException(SR.Format(SR.EndpointNotFound, via));
+                return new EndpointNotFoundException(SR.GetString(SR.EndpointNotFound, via));
             }
             else if (faultString == FramingEncodingString.ContentTypeInvalidFault)
             {
-                return new ProtocolException(SR.Format(SR.FramingContentTypeMismatch, contentType, via));
+                return new ProtocolException(SR.GetString(SR.FramingContentTypeMismatch, contentType, via));
             }
             else if (faultString == FramingEncodingString.ServiceActivationFailedFault)
             {
-                return new ServiceActivationException(SR.Format(SR.Hosting_ServiceActivationFailed, via));
+                return new ServiceActivationException(SR.GetString(SR.Hosting_ServiceActivationFailed, via));
             }
             else if (faultString == FramingEncodingString.ConnectionDispatchFailedFault)
             {
-                return new CommunicationException(SR.Format(SR.Sharing_ConnectionDispatchFailed, via));
+                return new CommunicationException(SR.GetString(SR.Sharing_ConnectionDispatchFailed, via));
             }
             else if (faultString == FramingEncodingString.EndpointUnavailableFault)
             {
-                return new EndpointNotFoundException(SR.Format(SR.Sharing_EndpointUnavailable, via));
+                return new EndpointNotFoundException(SR.GetString(SR.Sharing_EndpointUnavailable, via));
             }
             else if (faultString == FramingEncodingString.MaxMessageSizeExceededFault)
             {
-                Exception inner = new QuotaExceededException(SR.FramingMaxMessageSizeExceeded);
+                Exception inner = new QuotaExceededException(SR.GetString(SR.FramingMaxMessageSizeExceeded));
                 return new CommunicationException(inner.Message, inner);
             }
             else if (faultString == FramingEncodingString.UnsupportedModeFault)
             {
-                return new ProtocolException(SR.Format(SR.FramingModeNotSupportedFault, via));
+                return new ProtocolException(SR.GetString(SR.FramingModeNotSupportedFault, via));
             }
             else if (faultString == FramingEncodingString.UnsupportedVersionFault)
             {
-                return new ProtocolException(SR.Format(SR.FramingVersionNotSupportedFault, via));
+                return new ProtocolException(SR.GetString(SR.FramingVersionNotSupportedFault, via));
             }
             else if (faultString == FramingEncodingString.ContentTypeTooLongFault)
             {
-                Exception inner = new QuotaExceededException(SR.Format(SR.FramingContentTypeTooLongFault, contentType));
+                Exception inner = new QuotaExceededException(SR.GetString(SR.FramingContentTypeTooLongFault, contentType));
                 return new CommunicationException(inner.Message, inner);
             }
             else if (faultString == FramingEncodingString.ViaTooLongFault)
             {
-                Exception inner = new QuotaExceededException(SR.Format(SR.FramingViaTooLongFault, via));
+                Exception inner = new QuotaExceededException(SR.GetString(SR.FramingViaTooLongFault, via));
                 return new CommunicationException(inner.Message, inner);
             }
             else if (faultString == FramingEncodingString.ServerTooBusyFault)
             {
-                return new ServerTooBusyException(SR.Format(SR.ServerTooBusy, via));
+                return new ServerTooBusyException(SR.GetString(SR.ServerTooBusy, via));
             }
             else if (faultString == FramingEncodingString.UpgradeInvalidFault)
             {
-                return new ProtocolException(SR.Format(SR.FramingUpgradeInvalid, via));
+                return new ProtocolException(SR.GetString(SR.FramingUpgradeInvalid, via));
             }
             else
             {
-                return new ProtocolException(SR.Format(SR.FramingFaultUnrecognized, faultString));
+                return new ProtocolException(SR.GetString(SR.FramingFaultUnrecognized, faultString));
             }
         }
     }
 
-    internal class ContentTypeStringDecoder : StringDecoder
+    class ContentTypeStringDecoder : StringDecoder
     {
         public ContentTypeStringDecoder(int sizeQuota)
             : base(sizeQuota)
@@ -324,7 +326,7 @@ namespace System.ServiceModel.Channels
 
         protected override Exception OnSizeQuotaExceeded(int size)
         {
-            Exception result = new InvalidDataException(SR.Format(SR.FramingContentTypeTooLong, size));
+            Exception result = new InvalidDataException(SR.GetString(SR.FramingContentTypeTooLong, size));
             FramingEncodingString.AddFaultString(result, FramingEncodingString.ContentTypeTooLongFault);
             return result;
         }
@@ -357,9 +359,9 @@ namespace System.ServiceModel.Channels
         }
     }
 
-    internal abstract class FramingDecoder
+    abstract class FramingDecoder
     {
-        private long _streamPosition;
+        long streamPosition;
 
         protected FramingDecoder()
         {
@@ -367,15 +369,15 @@ namespace System.ServiceModel.Channels
 
         protected FramingDecoder(long streamPosition)
         {
-            _streamPosition = streamPosition;
+            this.streamPosition = streamPosition;
         }
 
         protected abstract string CurrentStateAsString { get; }
 
         public long StreamPosition
         {
-            get { return _streamPosition; }
-            set { _streamPosition = value; }
+            get { return streamPosition; }
+            set { streamPosition = value; }
         }
 
         protected void ValidateFramingMode(FramingMode mode)
@@ -389,7 +391,7 @@ namespace System.ServiceModel.Channels
                     break;
                 default:
                     {
-                        Exception exception = CreateException(new InvalidDataException(SR.Format(
+                        Exception exception = CreateException(new InvalidDataException(SR.GetString(
                             SR.FramingModeNotSupported, mode.ToString())), FramingEncodingString.UnsupportedModeFault);
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(exception);
                     }
@@ -413,26 +415,26 @@ namespace System.ServiceModel.Channels
                 string exceptionString;
                 if (((byte)foundType == 'h') || ((byte)foundType == 'H'))
                 {
-                    exceptionString = SR.PreambleAckIncorrectMaybeHttp;
+                    exceptionString = SR.GetString(SR.PreambleAckIncorrectMaybeHttp);
                 }
                 else
                 {
-                    exceptionString = SR.PreambleAckIncorrect;
+                    exceptionString = SR.GetString(SR.PreambleAckIncorrect);
                 }
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ProtocolException(exceptionString, inner));
             }
         }
 
-        private Exception CreateInvalidRecordTypeException(FramingRecordType expectedType, FramingRecordType foundType)
+        Exception CreateInvalidRecordTypeException(FramingRecordType expectedType, FramingRecordType foundType)
         {
-            return new InvalidDataException(SR.Format(SR.FramingRecordTypeMismatch, expectedType.ToString(), foundType.ToString()));
+            return new InvalidDataException(SR.GetString(SR.FramingRecordTypeMismatch, expectedType.ToString(), foundType.ToString()));
         }
 
         protected void ValidateMajorVersion(int majorVersion)
         {
             if (majorVersion != FramingVersion.Major)
             {
-                Exception exception = CreateException(new InvalidDataException(SR.Format(
+                Exception exception = CreateException(new InvalidDataException(SR.GetString(
                     SR.FramingVersionNotSupported, majorVersion)), FramingEncodingString.UnsupportedVersionFault);
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(exception);
             }
@@ -440,7 +442,7 @@ namespace System.ServiceModel.Channels
 
         public Exception CreatePrematureEOFException()
         {
-            return CreateException(new InvalidDataException(SR.FramingPrematureEOF));
+            return CreateException(new InvalidDataException(SR.GetString(SR.FramingPrematureEOF)));
         }
 
         protected Exception CreateException(InvalidDataException innerException, string framingFault)
@@ -452,50 +454,218 @@ namespace System.ServiceModel.Channels
 
         protected Exception CreateException(InvalidDataException innerException)
         {
-            return new ProtocolException(SR.Format(SR.FramingError, StreamPosition, CurrentStateAsString),
+            return new ProtocolException(SR.GetString(SR.FramingError, StreamPosition, CurrentStateAsString),
                 innerException);
         }
     }
 
-    internal class SingletonMessageDecoder : FramingDecoder
+    // Pattern: 
+    //   Done
+    class ServerModeDecoder : FramingDecoder
     {
-        private IntDecoder _sizeDecoder;
-        private int _chunkBytesNeeded;
-        private int _chunkSize;
-        private State _currentState;
+        State currentState;
+        int majorVersion;
+        int minorVersion;
+        FramingMode mode;
 
-        public SingletonMessageDecoder(long streamPosition)
-            : base(streamPosition)
+        public ServerModeDecoder()
         {
-            _sizeDecoder = new IntDecoder();
-            _currentState = State.ChunkStart;
+            currentState = State.ReadingVersionRecord;
+        }
+
+        public int Decode(byte[] bytes, int offset, int size)
+        {
+            DecoderHelper.ValidateSize(size);
+
+            try
+            {
+                int bytesConsumed;
+                switch (currentState)
+                {
+                    case State.ReadingVersionRecord:
+                        ValidateRecordType(FramingRecordType.Version, (FramingRecordType)bytes[offset]);
+                        currentState = State.ReadingMajorVersion;
+                        bytesConsumed = 1;
+                        break;
+                    case State.ReadingMajorVersion:
+                        majorVersion = bytes[offset];
+                        ValidateMajorVersion(majorVersion);
+                        currentState = State.ReadingMinorVersion;
+                        bytesConsumed = 1;
+                        break;
+                    case State.ReadingMinorVersion:
+                        minorVersion = bytes[offset];
+                        currentState = State.ReadingModeRecord;
+                        bytesConsumed = 1;
+                        break;
+                    case State.ReadingModeRecord:
+                        ValidateRecordType(FramingRecordType.Mode, (FramingRecordType)bytes[offset]);
+                        currentState = State.ReadingModeValue;
+                        bytesConsumed = 1;
+                        break;
+                    case State.ReadingModeValue:
+                        mode = (FramingMode)bytes[offset];
+                        ValidateFramingMode(mode);
+                        currentState = State.Done;
+                        bytesConsumed = 1;
+                        break;
+                    default:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
+                }
+
+                StreamPosition += bytesConsumed;
+                return bytesConsumed;
+            }
+            catch (InvalidDataException e)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateException(e));
+            }
         }
 
         public void Reset()
         {
-            _currentState = State.ChunkStart;
+            StreamPosition = 0;
+            currentState = State.ReadingVersionRecord;
         }
 
         public State CurrentState
         {
-            get { return _currentState; }
+            get { return currentState; }
         }
 
         protected override string CurrentStateAsString
         {
-            get { return _currentState.ToString(); }
+            get { return currentState.ToString(); }
         }
 
-        public int ChunkSize
+        public FramingMode Mode
         {
             get
             {
-                if (_currentState < State.ChunkStart)
-                {
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                }
+                if (currentState != State.Done)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return mode;
+            }
+        }
 
-                return _chunkSize;
+        public int MajorVersion
+        {
+            get
+            {
+                if (currentState != State.Done)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return majorVersion;
+            }
+        }
+
+        public int MinorVersion
+        {
+            get
+            {
+                if (currentState != State.Done)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return minorVersion;
+            }
+        }
+
+        public enum State
+        {
+            ReadingVersionRecord,
+            ReadingMajorVersion,
+            ReadingMinorVersion,
+            ReadingModeRecord,
+            ReadingModeValue,
+            Done,
+        }
+    }
+
+    // Used for Duplex/Simplex
+    // Pattern: 
+    //   Start, 
+    //   (UpgradeRequest, upgrade-content-type)*, 
+    //   (EnvelopeStart, ReadingEnvelopeBytes*, EnvelopeEnd)*, 
+    //   End
+    class ServerSessionDecoder : FramingDecoder
+    {
+        ViaStringDecoder viaDecoder;
+        StringDecoder contentTypeDecoder;
+        IntDecoder sizeDecoder;
+        State currentState;
+        string contentType;
+        int envelopeBytesNeeded;
+        int envelopeSize;
+        string upgrade;
+
+        public ServerSessionDecoder(long streamPosition, int maxViaLength, int maxContentTypeLength)
+            : base(streamPosition)
+        {
+            this.viaDecoder = new ViaStringDecoder(maxViaLength);
+            this.contentTypeDecoder = new ContentTypeStringDecoder(maxContentTypeLength);
+            this.sizeDecoder = new IntDecoder();
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public State CurrentState
+        {
+            get { return currentState; }
+        }
+
+        protected override string CurrentStateAsString
+        {
+            get { return currentState.ToString(); }
+        }
+
+        public string ContentType
+        {
+            get
+            {
+                if (currentState < State.PreUpgradeStart)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return contentType;
+            }
+        }
+
+        public Uri Via
+        {
+            get
+            {
+                if (currentState < State.ReadingContentTypeRecord)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return viaDecoder.ValueAsUri;
+            }
+        }
+
+        public void Reset(long streamPosition)
+        {
+            this.StreamPosition = streamPosition;
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public string Upgrade
+        {
+            get
+            {
+                if (currentState != State.UpgradeRequest)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return upgrade;
+            }
+        }
+
+        public int EnvelopeSize
+        {
+            get
+            {
+                if (currentState < State.EnvelopeStart)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return envelopeSize;
             }
         }
 
@@ -506,58 +676,277 @@ namespace System.ServiceModel.Channels
             try
             {
                 int bytesConsumed;
-                switch (_currentState)
+                FramingRecordType recordType;
+                switch (currentState)
+                {
+                    case State.ReadingViaRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        ValidateRecordType(FramingRecordType.Via, recordType);
+                        bytesConsumed = 1;
+                        viaDecoder.Reset();
+                        currentState = State.ReadingViaString;
+                        break;
+                    case State.ReadingViaString:
+                        bytesConsumed = viaDecoder.Decode(bytes, offset, size);
+                        if (viaDecoder.IsValueDecoded)
+                        {
+                            currentState = State.ReadingContentTypeRecord;
+                        }
+                        break;
+                    case State.ReadingContentTypeRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.KnownEncoding)
+                        {
+                            bytesConsumed = 1;
+                            currentState = State.ReadingContentTypeByte;
+                        }
+                        else
+                        {
+                            ValidateRecordType(FramingRecordType.ExtensibleEncoding, recordType);
+                            bytesConsumed = 1;
+                            contentTypeDecoder.Reset();
+                            currentState = State.ReadingContentTypeString;
+                        }
+                        break;
+                    case State.ReadingContentTypeByte:
+                        contentType = ContentTypeStringDecoder.GetString((FramingEncodingType)bytes[offset]);
+                        bytesConsumed = 1;
+                        currentState = State.PreUpgradeStart;
+                        break;
+                    case State.ReadingContentTypeString:
+                        bytesConsumed = contentTypeDecoder.Decode(bytes, offset, size);
+                        if (contentTypeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.PreUpgradeStart;
+                            contentType = contentTypeDecoder.Value;
+                        }
+                        break;
+                    case State.PreUpgradeStart:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingUpgradeRecord;
+                        break;
+                    case State.ReadingUpgradeRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.UpgradeRequest)
+                        {
+                            bytesConsumed = 1;
+                            contentTypeDecoder.Reset();
+                            currentState = State.ReadingUpgradeString;
+                        }
+                        else
+                        {
+                            bytesConsumed = 0;
+                            currentState = State.ReadingPreambleEndRecord;
+                        }
+                        break;
+                    case State.ReadingUpgradeString:
+                        bytesConsumed = contentTypeDecoder.Decode(bytes, offset, size);
+                        if (contentTypeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.UpgradeRequest;
+                            upgrade = contentTypeDecoder.Value;
+                        }
+                        break;
+                    case State.UpgradeRequest:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingUpgradeRecord;
+                        break;
+                    case State.ReadingPreambleEndRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        ValidateRecordType(FramingRecordType.PreambleEnd, recordType);
+                        bytesConsumed = 1;
+                        currentState = State.Start;
+                        break;
+                    case State.Start:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingEndRecord;
+                        break;
+                    case State.ReadingEndRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.End)
+                        {
+                            bytesConsumed = 1;
+                            currentState = State.End;
+                        }
+                        else
+                        {
+                            bytesConsumed = 0;
+                            currentState = State.ReadingEnvelopeRecord;
+                        }
+                        break;
+                    case State.ReadingEnvelopeRecord:
+                        ValidateRecordType(FramingRecordType.SizedEnvelope, (FramingRecordType)bytes[offset]);
+                        bytesConsumed = 1;
+                        currentState = State.ReadingEnvelopeSize;
+                        sizeDecoder.Reset();
+                        break;
+                    case State.ReadingEnvelopeSize:
+                        bytesConsumed = sizeDecoder.Decode(bytes, offset, size);
+                        if (sizeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.EnvelopeStart;
+                            envelopeSize = sizeDecoder.Value;
+                            envelopeBytesNeeded = envelopeSize;
+                        }
+                        break;
+                    case State.EnvelopeStart:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingEnvelopeBytes;
+                        break;
+                    case State.ReadingEnvelopeBytes:
+                        bytesConsumed = size;
+                        if (bytesConsumed > envelopeBytesNeeded)
+                            bytesConsumed = envelopeBytesNeeded;
+                        envelopeBytesNeeded -= bytesConsumed;
+                        if (envelopeBytesNeeded == 0)
+                            currentState = State.EnvelopeEnd;
+                        break;
+                    case State.EnvelopeEnd:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingEndRecord;
+                        break;
+                    case State.End:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
+                    default:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
+                }
+
+                StreamPosition += bytesConsumed;
+                return bytesConsumed;
+            }
+            catch (InvalidDataException e)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateException(e));
+            }
+        }
+
+        public enum State
+        {
+            ReadingViaRecord,
+            ReadingViaString,
+            ReadingContentTypeRecord,
+            ReadingContentTypeString,
+            ReadingContentTypeByte,
+            PreUpgradeStart,
+            ReadingUpgradeRecord,
+            ReadingUpgradeString,
+            UpgradeRequest,
+            ReadingPreambleEndRecord,
+            Start,
+            ReadingEnvelopeRecord,
+            ReadingEnvelopeSize,
+            EnvelopeStart,
+            ReadingEnvelopeBytes,
+            EnvelopeEnd,
+            ReadingEndRecord,
+            End,
+        }
+    }
+
+    class SingletonMessageDecoder : FramingDecoder
+    {
+        IntDecoder sizeDecoder;
+        int chunkBytesNeeded;
+        int chunkSize;
+        State currentState;
+
+        public SingletonMessageDecoder(long streamPosition)
+            : base(streamPosition)
+        {
+            this.sizeDecoder = new IntDecoder();
+            this.currentState = State.ChunkStart;
+        }
+
+        public void Reset()
+        {
+            this.currentState = State.ChunkStart;
+        }
+
+        public State CurrentState
+        {
+            get { return currentState; }
+        }
+
+        protected override string CurrentStateAsString
+        {
+            get { return currentState.ToString(); }
+        }
+
+        public int ChunkSize
+        {
+            get
+            {
+                if (currentState < State.ChunkStart)
+                {
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                }
+
+                return this.chunkSize;
+            }
+        }
+
+        public int Decode(byte[] bytes, int offset, int size)
+        {
+            DecoderHelper.ValidateSize(size);
+
+            try
+            {
+                int bytesConsumed;
+                switch (currentState)
                 {
                     case State.ReadingEnvelopeChunkSize:
-                        bytesConsumed = _sizeDecoder.Decode(bytes, offset, size);
-                        if (_sizeDecoder.IsValueDecoded)
+                        bytesConsumed = sizeDecoder.Decode(bytes, offset, size);
+                        if (sizeDecoder.IsValueDecoded)
                         {
-                            _chunkSize = _sizeDecoder.Value;
-                            _sizeDecoder.Reset();
+                            this.chunkSize = sizeDecoder.Value;
+                            sizeDecoder.Reset();
 
-                            if (_chunkSize == 0)
+                            if (this.chunkSize == 0)
                             {
-                                _currentState = State.EnvelopeEnd;
+                                currentState = State.EnvelopeEnd;
                             }
                             else
                             {
-                                _currentState = State.ChunkStart;
-                                _chunkBytesNeeded = _chunkSize;
+                                currentState = State.ChunkStart;
+                                chunkBytesNeeded = chunkSize;
                             }
                         }
                         break;
                     case State.ChunkStart:
                         bytesConsumed = 0;
-                        _currentState = State.ReadingEnvelopeBytes;
+                        currentState = State.ReadingEnvelopeBytes;
                         break;
                     case State.ReadingEnvelopeBytes:
                         bytesConsumed = size;
-                        if (bytesConsumed > _chunkBytesNeeded)
+                        if (bytesConsumed > chunkBytesNeeded)
                         {
-                            bytesConsumed = _chunkBytesNeeded;
+                            bytesConsumed = chunkBytesNeeded;
                         }
-                        _chunkBytesNeeded -= bytesConsumed;
-                        if (_chunkBytesNeeded == 0)
+                        chunkBytesNeeded -= bytesConsumed;
+                        if (chunkBytesNeeded == 0)
                         {
-                            _currentState = State.ChunkEnd;
+                            currentState = State.ChunkEnd;
                         }
                         break;
                     case State.ChunkEnd:
                         bytesConsumed = 0;
-                        _currentState = State.ReadingEnvelopeChunkSize;
+                        currentState = State.ReadingEnvelopeChunkSize;
                         break;
                     case State.EnvelopeEnd:
                         ValidateRecordType(FramingRecordType.End, (FramingRecordType)bytes[offset]);
                         bytesConsumed = 1;
-                        _currentState = State.End;
+                        currentState = State.End;
                         break;
                     case State.End:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.FramingAtEnd)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
 
                     default:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.InvalidDecoderStateMachine)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
                 }
 
                 StreamPosition += bytesConsumed;
@@ -580,8 +969,347 @@ namespace System.ServiceModel.Channels
         }
     }
 
+    // Pattern: 
+    //   Start, 
+    //   (UpgradeRequest, upgrade-bytes)*, 
+    //   EnvelopeStart,
+    class ServerSingletonDecoder : FramingDecoder
+    {
+        ViaStringDecoder viaDecoder;
+        ContentTypeStringDecoder contentTypeDecoder;
+        State currentState;
+        string contentType;
+        string upgrade;
+
+        public ServerSingletonDecoder(long streamPosition, int maxViaLength, int maxContentTypeLength)
+            : base(streamPosition)
+        {
+            this.viaDecoder = new ViaStringDecoder(maxViaLength);
+            this.contentTypeDecoder = new ContentTypeStringDecoder(maxContentTypeLength);
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public void Reset()
+        {
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public State CurrentState
+        {
+            get { return currentState; }
+        }
+
+        protected override string CurrentStateAsString
+        {
+            get { return currentState.ToString(); }
+        }
+
+        public Uri Via
+        {
+            get
+            {
+                if (currentState < State.ReadingContentTypeRecord)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return viaDecoder.ValueAsUri;
+            }
+        }
+
+        public string ContentType
+        {
+            get
+            {
+                if (currentState < State.PreUpgradeStart)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return contentType;
+            }
+        }
+
+        public string Upgrade
+        {
+            get
+            {
+                if (currentState != State.UpgradeRequest)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return upgrade;
+            }
+        }
+
+        public int Decode(byte[] bytes, int offset, int size)
+        {
+            DecoderHelper.ValidateSize(size);
+
+            try
+            {
+                int bytesConsumed;
+                FramingRecordType recordType;
+                switch (currentState)
+                {
+                    case State.ReadingViaRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        ValidateRecordType(FramingRecordType.Via, recordType);
+                        bytesConsumed = 1;
+                        viaDecoder.Reset();
+                        currentState = State.ReadingViaString;
+                        break;
+                    case State.ReadingViaString:
+                        bytesConsumed = viaDecoder.Decode(bytes, offset, size);
+                        if (viaDecoder.IsValueDecoded)
+                        {
+                            currentState = State.ReadingContentTypeRecord;
+                        }
+                        break;
+                    case State.ReadingContentTypeRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.KnownEncoding)
+                        {
+                            bytesConsumed = 1;
+                            currentState = State.ReadingContentTypeByte;
+                        }
+                        else
+                        {
+                            ValidateRecordType(FramingRecordType.ExtensibleEncoding, recordType);
+                            bytesConsumed = 1;
+                            contentTypeDecoder.Reset();
+                            currentState = State.ReadingContentTypeString;
+                        }
+                        break;
+                    case State.ReadingContentTypeByte:
+                        contentType = ContentTypeStringDecoder.GetString((FramingEncodingType)bytes[offset]);
+                        bytesConsumed = 1;
+                        currentState = State.PreUpgradeStart;
+                        break;
+                    case State.ReadingContentTypeString:
+                        bytesConsumed = contentTypeDecoder.Decode(bytes, offset, size);
+                        if (contentTypeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.PreUpgradeStart;
+                            contentType = contentTypeDecoder.Value;
+                        }
+                        break;
+                    case State.PreUpgradeStart:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingUpgradeRecord;
+                        break;
+                    case State.ReadingUpgradeRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.UpgradeRequest)
+                        {
+                            bytesConsumed = 1;
+                            contentTypeDecoder.Reset();
+                            currentState = State.ReadingUpgradeString;
+                        }
+                        else
+                        {
+                            bytesConsumed = 0;
+                            currentState = State.ReadingPreambleEndRecord;
+                        }
+                        break;
+                    case State.ReadingUpgradeString:
+                        bytesConsumed = contentTypeDecoder.Decode(bytes, offset, size);
+                        if (contentTypeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.UpgradeRequest;
+                            upgrade = contentTypeDecoder.Value;
+                        }
+                        break;
+                    case State.UpgradeRequest:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingUpgradeRecord;
+                        break;
+                    case State.ReadingPreambleEndRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        ValidateRecordType(FramingRecordType.PreambleEnd, recordType);
+                        bytesConsumed = 1;
+                        currentState = State.Start;
+                        break;
+                    case State.Start:
+                        bytesConsumed = 0;
+                        currentState = State.ReadingEnvelopeRecord;
+                        break;
+                    case State.ReadingEnvelopeRecord:
+                        ValidateRecordType(FramingRecordType.UnsizedEnvelope, (FramingRecordType)bytes[offset]);
+                        bytesConsumed = 1;
+                        currentState = State.EnvelopeStart;
+                        break;
+                    case State.EnvelopeStart:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
+                    default:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
+                }
+
+                StreamPosition += bytesConsumed;
+                return bytesConsumed;
+            }
+            catch (InvalidDataException e)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateException(e));
+            }
+        }
+
+        public enum State
+        {
+            ReadingViaRecord,
+            ReadingViaString,
+            ReadingContentTypeRecord,
+            ReadingContentTypeString,
+            ReadingContentTypeByte,
+            PreUpgradeStart,
+            ReadingUpgradeRecord,
+            ReadingUpgradeString,
+            UpgradeRequest,
+            ReadingPreambleEndRecord,
+            Start,
+            ReadingEnvelopeRecord,
+            EnvelopeStart,
+            ReadingEnvelopeChunkSize,
+            ChunkStart,
+            ReadingEnvelopeChunk,
+            ChunkEnd,
+            End,
+        }
+    }
+
+    // Pattern: 
+    //   Start, 
+    //   EnvelopeStart,
+    class ServerSingletonSizedDecoder : FramingDecoder
+    {
+        ViaStringDecoder viaDecoder;
+        ContentTypeStringDecoder contentTypeDecoder;
+        State currentState;
+        string contentType;
+
+        public ServerSingletonSizedDecoder(long streamPosition, int maxViaLength, int maxContentTypeLength)
+            : base(streamPosition)
+        {
+            this.viaDecoder = new ViaStringDecoder(maxViaLength);
+            this.contentTypeDecoder = new ContentTypeStringDecoder(maxContentTypeLength);
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public int Decode(byte[] bytes, int offset, int size)
+        {
+            DecoderHelper.ValidateSize(size);
+
+            try
+            {
+                int bytesConsumed;
+                FramingRecordType recordType;
+                switch (currentState)
+                {
+                    case State.ReadingViaRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        ValidateRecordType(FramingRecordType.Via, recordType);
+                        bytesConsumed = 1;
+                        viaDecoder.Reset();
+                        currentState = State.ReadingViaString;
+                        break;
+                    case State.ReadingViaString:
+                        bytesConsumed = viaDecoder.Decode(bytes, offset, size);
+                        if (viaDecoder.IsValueDecoded)
+                            currentState = State.ReadingContentTypeRecord;
+                        break;
+                    case State.ReadingContentTypeRecord:
+                        recordType = (FramingRecordType)bytes[offset];
+                        if (recordType == FramingRecordType.KnownEncoding)
+                        {
+                            bytesConsumed = 1;
+                            currentState = State.ReadingContentTypeByte;
+                        }
+                        else
+                        {
+                            ValidateRecordType(FramingRecordType.ExtensibleEncoding, recordType);
+                            bytesConsumed = 1;
+                            contentTypeDecoder.Reset();
+                            currentState = State.ReadingContentTypeString;
+                        }
+                        break;
+                    case State.ReadingContentTypeByte:
+                        contentType = ContentTypeStringDecoder.GetString((FramingEncodingType)bytes[offset]);
+                        bytesConsumed = 1;
+                        currentState = State.Start;
+                        break;
+                    case State.ReadingContentTypeString:
+                        bytesConsumed = contentTypeDecoder.Decode(bytes, offset, size);
+                        if (contentTypeDecoder.IsValueDecoded)
+                        {
+                            currentState = State.Start;
+                            contentType = contentTypeDecoder.Value;
+                        }
+                        break;
+                    case State.Start:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
+                    default:
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
+                }
+
+                StreamPosition += bytesConsumed;
+                return bytesConsumed;
+            }
+            catch (InvalidDataException e)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(CreateException(e));
+            }
+        }
+
+        public void Reset(long streamPosition)
+        {
+            this.StreamPosition = streamPosition;
+            this.currentState = State.ReadingViaRecord;
+        }
+
+        public State CurrentState
+        {
+            get { return currentState; }
+        }
+
+        protected override string CurrentStateAsString
+        {
+            get { return currentState.ToString(); }
+        }
+
+        public Uri Via
+        {
+            get
+            {
+                if (currentState < State.ReadingContentTypeRecord)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return viaDecoder.ValueAsUri;
+            }
+        }
+
+        public string ContentType
+        {
+            get
+            {
+                if (currentState < State.Start)
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return contentType;
+            }
+        }
+
+        public enum State
+        {
+            ReadingViaRecord,
+            ReadingViaString,
+            ReadingContentTypeRecord,
+            ReadingContentTypeString,
+            ReadingContentTypeByte,
+            Start,
+        }
+    }
+
     // common set of states used on the client-side.
-    internal enum ClientFramingDecoderState
+    enum ClientFramingDecoderState
     {
         ReadingUpgradeRecord,
         ReadingUpgradeMode,
@@ -600,32 +1328,32 @@ namespace System.ServiceModel.Channels
         End,
     }
 
-    internal abstract class ClientFramingDecoder : FramingDecoder
+    abstract class ClientFramingDecoder : FramingDecoder
     {
-        private ClientFramingDecoderState _currentState;
+        ClientFramingDecoderState currentState;
 
         protected ClientFramingDecoder(long streamPosition)
             : base(streamPosition)
         {
-            _currentState = ClientFramingDecoderState.ReadingUpgradeRecord;
+            this.currentState = ClientFramingDecoderState.ReadingUpgradeRecord;
         }
 
         public ClientFramingDecoderState CurrentState
         {
             get
             {
-                return _currentState;
+                return this.currentState;
             }
 
             protected set
             {
-                _currentState = value;
+                this.currentState = value;
             }
         }
 
         protected override string CurrentStateAsString
         {
-            get { return _currentState.ToString(); }
+            get { return currentState.ToString(); }
         }
 
         public abstract string Fault
@@ -640,17 +1368,17 @@ namespace System.ServiceModel.Channels
     //   (UpgradeResponse, upgrade-bytes)*, (Ack | Fault),
     //   ((EnvelopeStart, ReadingEnvelopeBytes*, EnvelopeEnd) | Fault)*, 
     //   End
-    internal class ClientDuplexDecoder : ClientFramingDecoder
+    class ClientDuplexDecoder : ClientFramingDecoder
     {
-        private IntDecoder _sizeDecoder;
-        private FaultStringDecoder _faultDecoder;
-        private int _envelopeBytesNeeded;
-        private int _envelopeSize;
+        IntDecoder sizeDecoder;
+        FaultStringDecoder faultDecoder;
+        int envelopeBytesNeeded;
+        int envelopeSize;
 
         public ClientDuplexDecoder(long streamPosition)
             : base(streamPosition)
         {
-            _sizeDecoder = new IntDecoder();
+            sizeDecoder = new IntDecoder();
         }
 
         public int EnvelopeSize
@@ -658,8 +1386,9 @@ namespace System.ServiceModel.Channels
             get
             {
                 if (CurrentState < ClientFramingDecoderState.EnvelopeStart)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _envelopeSize;
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return envelopeSize;
             }
         }
 
@@ -668,8 +1397,9 @@ namespace System.ServiceModel.Channels
             get
             {
                 if (CurrentState < ClientFramingDecoderState.Fault)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _faultDecoder.Value;
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return faultDecoder.Value;
             }
         }
 
@@ -705,7 +1435,7 @@ namespace System.ServiceModel.Channels
                         if (recordType == FramingRecordType.Fault)
                         {
                             bytesConsumed = 1;
-                            _faultDecoder = new FaultStringDecoder();
+                            faultDecoder = new FaultStringDecoder();
                             base.CurrentState = ClientFramingDecoderState.ReadingFaultString;
                             break;
                         }
@@ -728,22 +1458,22 @@ namespace System.ServiceModel.Channels
                         else if (recordType == FramingRecordType.Fault)
                         {
                             bytesConsumed = 1;
-                            _faultDecoder = new FaultStringDecoder();
+                            faultDecoder = new FaultStringDecoder();
                             base.CurrentState = ClientFramingDecoderState.ReadingFaultString;
                             break;
                         }
                         ValidateRecordType(FramingRecordType.SizedEnvelope, recordType);
                         bytesConsumed = 1;
                         base.CurrentState = ClientFramingDecoderState.ReadingEnvelopeSize;
-                        _sizeDecoder.Reset();
+                        sizeDecoder.Reset();
                         break;
                     case ClientFramingDecoderState.ReadingEnvelopeSize:
-                        bytesConsumed = _sizeDecoder.Decode(bytes, offset, size);
-                        if (_sizeDecoder.IsValueDecoded)
+                        bytesConsumed = sizeDecoder.Decode(bytes, offset, size);
+                        if (sizeDecoder.IsValueDecoded)
                         {
                             base.CurrentState = ClientFramingDecoderState.EnvelopeStart;
-                            _envelopeSize = _sizeDecoder.Value;
-                            _envelopeBytesNeeded = _envelopeSize;
+                            envelopeSize = sizeDecoder.Value;
+                            envelopeBytesNeeded = envelopeSize;
                         }
                         break;
                     case ClientFramingDecoderState.EnvelopeStart:
@@ -752,10 +1482,10 @@ namespace System.ServiceModel.Channels
                         break;
                     case ClientFramingDecoderState.ReadingEnvelopeBytes:
                         bytesConsumed = size;
-                        if (bytesConsumed > _envelopeBytesNeeded)
-                            bytesConsumed = _envelopeBytesNeeded;
-                        _envelopeBytesNeeded -= bytesConsumed;
-                        if (_envelopeBytesNeeded == 0)
+                        if (bytesConsumed > envelopeBytesNeeded)
+                            bytesConsumed = envelopeBytesNeeded;
+                        envelopeBytesNeeded -= bytesConsumed;
+                        if (envelopeBytesNeeded == 0)
                             base.CurrentState = ClientFramingDecoderState.EnvelopeEnd;
                         break;
                     case ClientFramingDecoderState.EnvelopeEnd:
@@ -763,8 +1493,8 @@ namespace System.ServiceModel.Channels
                         base.CurrentState = ClientFramingDecoderState.ReadingEnvelopeRecord;
                         break;
                     case ClientFramingDecoderState.ReadingFaultString:
-                        bytesConsumed = _faultDecoder.Decode(bytes, offset, size);
-                        if (_faultDecoder.IsValueDecoded)
+                        bytesConsumed = faultDecoder.Decode(bytes, offset, size);
+                        if (faultDecoder.IsValueDecoded)
                         {
                             base.CurrentState = ClientFramingDecoderState.Fault;
                         }
@@ -780,10 +1510,10 @@ namespace System.ServiceModel.Channels
                         break;
                     case ClientFramingDecoderState.End:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.FramingAtEnd)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
                     default:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.InvalidDecoderStateMachine)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
                 }
 
                 StreamPosition += bytesConsumed;
@@ -799,9 +1529,9 @@ namespace System.ServiceModel.Channels
     // Pattern: 
     //   (UpgradeResponse, upgrade-bytes)*, (Ack | Fault),
     //   End
-    internal class ClientSingletonDecoder : ClientFramingDecoder
+    class ClientSingletonDecoder : ClientFramingDecoder
     {
-        private FaultStringDecoder _faultDecoder;
+        FaultStringDecoder faultDecoder;
 
         public ClientSingletonDecoder(long streamPosition)
             : base(streamPosition)
@@ -813,8 +1543,9 @@ namespace System.ServiceModel.Channels
             get
             {
                 if (CurrentState < ClientFramingDecoderState.Fault)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.FramingValueNotAvailable));
-                return _faultDecoder.Value;
+#pragma warning suppress 56503 // [....], not a publicly accessible API
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.FramingValueNotAvailable)));
+                return faultDecoder.Value;
             }
         }
 
@@ -850,7 +1581,7 @@ namespace System.ServiceModel.Channels
                         if (recordType == FramingRecordType.Fault)
                         {
                             bytesConsumed = 1;
-                            _faultDecoder = new FaultStringDecoder();
+                            faultDecoder = new FaultStringDecoder();
                             base.CurrentState = ClientFramingDecoderState.ReadingFaultString;
                             break;
                         }
@@ -885,28 +1616,28 @@ namespace System.ServiceModel.Channels
 
                     case ClientFramingDecoderState.EnvelopeStart:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.FramingAtEnd)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
 
                     case ClientFramingDecoderState.ReadingFault:
                         recordType = (FramingRecordType)bytes[offset];
                         ValidateRecordType(FramingRecordType.Fault, recordType);
                         bytesConsumed = 1;
-                        _faultDecoder = new FaultStringDecoder();
+                        faultDecoder = new FaultStringDecoder();
                         base.CurrentState = ClientFramingDecoderState.ReadingFaultString;
                         break;
                     case ClientFramingDecoderState.ReadingFaultString:
-                        bytesConsumed = _faultDecoder.Decode(bytes, offset, size);
-                        if (_faultDecoder.IsValueDecoded)
+                        bytesConsumed = faultDecoder.Decode(bytes, offset, size);
+                        if (faultDecoder.IsValueDecoded)
                         {
                             base.CurrentState = ClientFramingDecoderState.Fault;
                         }
                         break;
                     case ClientFramingDecoderState.Fault:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.FramingAtEnd)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.FramingAtEnd))));
                     default:
                         throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                            CreateException(new InvalidDataException(SR.InvalidDecoderStateMachine)));
+                            CreateException(new InvalidDataException(SR.GetString(SR.InvalidDecoderStateMachine))));
                 }
 
                 StreamPosition += bytesConsumed;

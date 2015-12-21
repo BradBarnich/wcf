@@ -1,33 +1,28 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IO;
-using System.Threading.Tasks;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
-    internal abstract class DetectEofStream : DelegatingStream
+    using System.IO;
+
+    abstract class DetectEofStream : DelegatingStream
     {
-        private bool _isAtEof;
+        bool isAtEof;
 
         protected DetectEofStream(Stream stream)
             : base(stream)
         {
-            _isAtEof = false;
+            this.isAtEof = false;
         }
 
         protected bool IsAtEof
         {
-            get { return _isAtEof; }
+            get { return this.isAtEof; }
         }
 
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, Threading.CancellationToken cancellationToken)
+        public override int EndRead(IAsyncResult result)
         {
-            if (_isAtEof)
-            {
-                return 0;
-            }
-            int returnValue = await base.ReadAsync(buffer, offset, count, cancellationToken);
+            int returnValue = base.EndRead(result);
             if (returnValue == 0)
             {
                 ReceivedEof();
@@ -47,7 +42,7 @@ namespace System.ServiceModel.Channels
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_isAtEof)
+            if (isAtEof)
             {
                 return 0;
             }
@@ -59,11 +54,11 @@ namespace System.ServiceModel.Channels
             return returnValue;
         }
 
-        private void ReceivedEof()
+        void ReceivedEof()
         {
-            if (!_isAtEof)
+            if (!isAtEof)
             {
-                _isAtEof = true;
+                this.isAtEof = true;
                 this.OnReceivedEof();
             }
         }

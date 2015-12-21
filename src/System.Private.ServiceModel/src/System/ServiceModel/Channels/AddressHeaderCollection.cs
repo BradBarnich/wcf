@@ -1,16 +1,24 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Text;
-using System.Xml;
-
+//----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.ServiceModel;
+    using System.Collections.ObjectModel;
+    using System.Diagnostics;
+    using System.Runtime.Serialization;
+    using System.Text;
+    using System.Xml;
+    using System.Xml.Schema;
+    using System.Xml.Serialization;
+    using System.ServiceModel.Security;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+
     public sealed class AddressHeaderCollection : ReadOnlyCollection<AddressHeader>
     {
-        private static AddressHeaderCollection s_emptyHeaderCollection = new AddressHeaderCollection();
+        static AddressHeaderCollection emptyHeaderCollection = new AddressHeaderCollection();
 
         public AddressHeaderCollection()
             : base(new List<AddressHeader>())
@@ -27,7 +35,7 @@ namespace System.ServiceModel.Channels
                 for (int i = 0; i < collection.Count; i++)
                 {
                     if (collection[i] == null)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.MessageHeaderIsNull0));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.MessageHeaderIsNull0)));
                 }
             }
             else
@@ -35,21 +43,21 @@ namespace System.ServiceModel.Channels
                 foreach (AddressHeader addressHeader in addressHeaders)
                 {
                     if (addressHeaders == null)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.MessageHeaderIsNull0));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.MessageHeaderIsNull0)));
                 }
             }
         }
 
         internal static AddressHeaderCollection EmptyHeaderCollection
         {
-            get { return s_emptyHeaderCollection; }
+            get { return emptyHeaderCollection; }
         }
 
-        private int InternalCount
+        int InternalCount
         {
             get
             {
-                if (this == (object)s_emptyHeaderCollection)
+                if (this == (object)emptyHeaderCollection)
                     return 0;
                 return Count;
             }
@@ -62,6 +70,7 @@ namespace System.ServiceModel.Channels
 
             for (int i = 0; i < InternalCount; i++)
             {
+#pragma warning suppress 56506 // [....], Message.Headers can never be null
                 message.Headers.Add(this[i].ToMessageHeader());
             }
         }
@@ -101,7 +110,7 @@ namespace System.ServiceModel.Channels
                 if (header.Name == name && header.Namespace == ns)
                 {
                     if (matchingHeader != null)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.Format(SR.MultipleMessageHeaders, name, ns)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.MultipleMessageHeaders, name, ns)));
                     matchingHeader = header;
                 }
             }

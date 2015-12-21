@@ -1,13 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IdentityModel.Tokens;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Security.Tokens
 {
-    internal class SecurityTokenContainer
+    using System;
+    using System.IdentityModel.Tokens;
+
+    class SecurityTokenContainer
     {
-        private SecurityToken _token;
+        SecurityToken token;
 
         public SecurityTokenContainer(SecurityToken token)
         {
@@ -15,12 +16,12 @@ namespace System.ServiceModel.Security.Tokens
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("token");
             }
-            _token = token;
+            this.token = token;
         }
 
         public SecurityToken Token
         {
-            get { return _token; }
+            get { return this.token; }
         }
     }
 }

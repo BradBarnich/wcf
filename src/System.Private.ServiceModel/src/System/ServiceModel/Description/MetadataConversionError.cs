@@ -1,24 +1,28 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
+    using System.Collections.ObjectModel;
+    using System.ServiceModel.Channels;
+
     public class MetadataConversionError
     {
-        private string _message;
-        private bool _isWarning;
+        string message;
+        bool isWarning;
 
         public MetadataConversionError(string message) : this(message, false) { }
         public MetadataConversionError(string message, bool isWarning)
         {
             if (message == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("message");
-            _message = message;
-            _isWarning = isWarning;
+            this.message = message;
+            this.isWarning = isWarning;
         }
 
-        public string Message { get { return _message; } }
-        public bool IsWarning { get { return _isWarning; } }
+        public string Message { get { return message; } }
+        public bool IsWarning { get { return isWarning; } }
         public override bool Equals(object obj)
         {
             MetadataConversionError otherError = obj as MetadataConversionError;
@@ -29,7 +33,8 @@ namespace System.ServiceModel.Description
 
         public override int GetHashCode()
         {
-            return _message.GetHashCode();
+            return message.GetHashCode();
         }
     }
+
 }

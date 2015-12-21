@@ -1,6 +1,6 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
     public enum SecurityMode
@@ -11,9 +11,9 @@ namespace System.ServiceModel
         TransportWithMessageCredential
     }
 
-    public static class SecurityModeHelper
+    static class SecurityModeHelper
     {
-        public static bool IsDefined(SecurityMode value)
+        internal static bool IsDefined(SecurityMode value)
         {
             return (value == SecurityMode.None ||
                 value == SecurityMode.Transport ||
@@ -21,7 +21,7 @@ namespace System.ServiceModel
                 value == SecurityMode.TransportWithMessageCredential);
         }
 
-        public static SecurityMode ToSecurityMode(UnifiedSecurityMode value)
+        internal static SecurityMode ToSecurityMode(UnifiedSecurityMode value)
         {
             switch (value)
             {

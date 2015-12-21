@@ -1,10 +1,10 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.ComponentModel;
+
     public enum SecurityHeaderLayout
     {
         Strict = 0,
@@ -13,7 +13,7 @@ namespace System.ServiceModel.Channels
         LaxTimestampLast = 3
     }
 
-    internal static class SecurityHeaderLayoutHelper
+    static class SecurityHeaderLayoutHelper
     {
         public static bool IsDefined(SecurityHeaderLayout value)
         {

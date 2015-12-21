@@ -1,89 +1,169 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-using System.Diagnostics.Contracts;
-using System.ServiceModel.Channels;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
-    public class NetTcpBinding : Binding
+    using System.ComponentModel;
+    using System.Configuration;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Configuration;
+    using System.Xml;
+
+    public class NetTcpBinding : Binding, IBindingRuntimePreferences
     {
+        OptionalReliableSession reliableSession;
         // private BindingElements
-        private TcpTransportBindingElement _transport;
-        private BinaryMessageEncodingBindingElement _encoding;
-        private long _maxBufferPoolSize;
-        private NetTcpSecurity _security = new NetTcpSecurity();
+        TcpTransportBindingElement transport;
+        BinaryMessageEncodingBindingElement encoding;
+        TransactionFlowBindingElement context;
+        ReliableSessionBindingElement session;
+        NetTcpSecurity security = new NetTcpSecurity();
 
         public NetTcpBinding() { Initialize(); }
         public NetTcpBinding(SecurityMode securityMode)
             : this()
         {
-            _security.Mode = securityMode;
+            this.security.Mode = securityMode;
         }
 
+        public NetTcpBinding(SecurityMode securityMode, bool reliableSessionEnabled)
+            : this(securityMode)
+        {
+            this.ReliableSession.Enabled = reliableSessionEnabled;
+        }
 
         public NetTcpBinding(string configurationName)
             : this()
         {
-            if (!String.IsNullOrEmpty(configurationName))
-            {
-                throw ExceptionHelper.PlatformNotSupported();
-            }
+            ApplyConfiguration(configurationName);
         }
 
-        private NetTcpBinding(TcpTransportBindingElement transport,
-                      BinaryMessageEncodingBindingElement encoding,
-                      NetTcpSecurity security)
+        NetTcpBinding(TcpTransportBindingElement transport, BinaryMessageEncodingBindingElement encoding, TransactionFlowBindingElement context, ReliableSessionBindingElement session, NetTcpSecurity security)
             : this()
         {
-            _security = security;
+            this.security = security;
+            this.ReliableSession.Enabled = session != null;
+            InitializeFrom(transport, encoding, context, session);
+        }
+
+        [DefaultValue(NetTcpDefaults.TransactionsEnabled)]
+        public bool TransactionFlow
+        {
+            get { return context.Transactions; }
+            set { context.Transactions = value; }
+        }
+
+        public TransactionProtocol TransactionProtocol
+        {
+            get { return this.context.TransactionProtocol; }
+            set { this.context.TransactionProtocol = value; }
         }
 
         [DefaultValue(ConnectionOrientedTransportDefaults.TransferMode)]
         public TransferMode TransferMode
         {
-            get { return _transport.TransferMode; }
-            set { _transport.TransferMode = value; }
+            get { return this.transport.TransferMode; }
+            set { this.transport.TransferMode = value; }
+        }
+
+        [DefaultValue(ConnectionOrientedTransportDefaults.HostNameComparisonMode)]
+        public HostNameComparisonMode HostNameComparisonMode
+        {
+            get { return transport.HostNameComparisonMode; }
+            set { transport.HostNameComparisonMode = value; }
         }
 
         [DefaultValue(TransportDefaults.MaxBufferPoolSize)]
         public long MaxBufferPoolSize
         {
-            get { return _maxBufferPoolSize; }
+            get { return transport.MaxBufferPoolSize; }
             set
             {
-                _maxBufferPoolSize = value;
+                transport.MaxBufferPoolSize = value;
             }
         }
 
         [DefaultValue(TransportDefaults.MaxBufferSize)]
         public int MaxBufferSize
         {
-            get { return _transport.MaxBufferSize; }
-            set { _transport.MaxBufferSize = value; }
+            get { return transport.MaxBufferSize; }
+            set { transport.MaxBufferSize = value; }
+        }
+
+        public int MaxConnections
+        {
+            get { return transport.MaxPendingConnections; }
+            set
+            {
+                transport.MaxPendingConnections = value;
+                transport.ConnectionPoolSettings.MaxOutboundConnectionsPerEndpoint = value;
+            }
+        }
+
+        internal bool IsMaxConnectionsSet
+        {
+            get { return transport.IsMaxPendingConnectionsSet; }
+        }
+
+        public int ListenBacklog
+        {
+            get { return transport.ListenBacklog; }
+            set { transport.ListenBacklog = value; }
+        }
+
+        internal bool IsListenBacklogSet
+        {
+            get { return transport.IsListenBacklogSet; }
         }
 
         [DefaultValue(TransportDefaults.MaxReceivedMessageSize)]
         public long MaxReceivedMessageSize
         {
-            get { return _transport.MaxReceivedMessageSize; }
-            set { _transport.MaxReceivedMessageSize = value; }
+            get { return transport.MaxReceivedMessageSize; }
+            set { transport.MaxReceivedMessageSize = value; }
+        }
+
+        [DefaultValue(TcpTransportDefaults.PortSharingEnabled)]
+        public bool PortSharingEnabled
+        {
+            get { return transport.PortSharingEnabled; }
+            set { transport.PortSharingEnabled = value; }
         }
 
         public XmlDictionaryReaderQuotas ReaderQuotas
         {
-            get { return _encoding.ReaderQuotas; }
+            get { return encoding.ReaderQuotas; }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                value.CopyTo(_encoding.ReaderQuotas);
+                value.CopyTo(encoding.ReaderQuotas);
             }
         }
 
-        public override string Scheme { get { return _transport.Scheme; } }
+        bool IBindingRuntimePreferences.ReceiveSynchronously
+        {
+            get { return false; }
+        }
+
+        public OptionalReliableSession ReliableSession
+        {
+            get
+            {
+                return reliableSession;
+            }
+            set
+            {
+                if (value == null)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("value"));
+                }
+                this.reliableSession.CopySettings(value);
+            }
+        }
+
+        public override string Scheme { get { return transport.Scheme; } }
 
         public EnvelopeVersion EnvelopeVersion
         {
@@ -92,43 +172,115 @@ namespace System.ServiceModel
 
         public NetTcpSecurity Security
         {
-            get { return _security; }
+            get { return security; }
             set
             {
                 if (value == null)
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
-                _security = value;
+                security = value;
             }
         }
 
-        private void Initialize()
+        static TransactionFlowBindingElement GetDefaultTransactionFlowBindingElement()
         {
-            _transport = new TcpTransportBindingElement();
-            _encoding = new BinaryMessageEncodingBindingElement();
+            return new TransactionFlowBindingElement(NetTcpDefaults.TransactionsEnabled);
+        }
 
-            // NetNative and CoreCLR initialize to what TransportBindingElement does in the desktop
-            // This property is not available in shipped contracts
-            _maxBufferPoolSize = TransportDefaults.MaxBufferPoolSize;
+        void Initialize()
+        {
+            transport = new TcpTransportBindingElement();
+            encoding = new BinaryMessageEncodingBindingElement();
+            context = GetDefaultTransactionFlowBindingElement();
+            session = new ReliableSessionBindingElement();
+            this.reliableSession = new OptionalReliableSession(session);
+        }
+
+        void InitializeFrom(TcpTransportBindingElement transport, BinaryMessageEncodingBindingElement encoding, TransactionFlowBindingElement context, ReliableSessionBindingElement session)
+        {
+            Fx.Assert(transport != null, "Invalid (null) transport value.");
+            Fx.Assert(encoding != null, "Invalid (null) encoding value.");
+            Fx.Assert(context != null, "Invalid (null) context value.");
+            Fx.Assert(security != null, "Invalid (null) security value.");
+
+            // transport
+            this.HostNameComparisonMode = transport.HostNameComparisonMode;
+            this.MaxBufferPoolSize = transport.MaxBufferPoolSize;
+            this.MaxBufferSize = transport.MaxBufferSize;
+            if (transport.IsMaxPendingConnectionsSet)
+            {
+                this.MaxConnections = transport.MaxPendingConnections;    
+            }
+            if (transport.IsListenBacklogSet)
+            {
+                this.ListenBacklog = transport.ListenBacklog;    
+            }
+            this.MaxReceivedMessageSize = transport.MaxReceivedMessageSize;
+            this.PortSharingEnabled = transport.PortSharingEnabled;
+            this.TransferMode = transport.TransferMode;
+
+            // encoding
+            this.ReaderQuotas = encoding.ReaderQuotas;
+
+            // context
+            this.TransactionFlow = context.Transactions;
+            this.TransactionProtocol = context.TransactionProtocol;
+
+            //session
+            if (session != null)
+            {
+                // only set properties that have standard binding manifestations
+                this.session.InactivityTimeout = session.InactivityTimeout;
+                this.session.Ordered = session.Ordered;
+            }
         }
 
         // check that properties of the HttpTransportBindingElement and 
         // MessageEncodingBindingElement not exposed as properties on BasicHttpBinding 
         // match default values of the binding elements
-        private bool IsBindingElementsMatch(TcpTransportBindingElement transport, BinaryMessageEncodingBindingElement encoding)
+        bool IsBindingElementsMatch(TcpTransportBindingElement transport, BinaryMessageEncodingBindingElement encoding, TransactionFlowBindingElement context, ReliableSessionBindingElement session)
         {
-            if (!_transport.IsMatch(transport))
+            if (!this.transport.IsMatch(transport))
                 return false;
-
-            if (!_encoding.IsMatch(encoding))
+            if (!this.encoding.IsMatch(encoding))
+                return false;
+            if (!this.context.IsMatch(context))
+                return false;
+            if (reliableSession.Enabled)
+            {
+                if (!this.session.IsMatch(session))
+                    return false;
+            }
+            else if (session != null)
                 return false;
 
             return true;
         }
 
-        private void CheckSettings()
+        void ApplyConfiguration(string configurationName)
         {
-#if FEATURE_NETNATIVE // In .NET Native, some settings for the binding security are not supported; this check is not necessary for CoreCLR
-                      
+            NetTcpBindingCollectionElement section = NetTcpBindingCollectionElement.GetBindingCollectionElement();
+            NetTcpBindingElement element = section.Bindings[configurationName];
+            if (element == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ConfigurationErrorsException(
+                    SR.GetString(SR.ConfigInvalidBindingConfigurationName,
+                                 configurationName,
+                                 ConfigurationStrings.NetTcpBindingCollectionElementName)));
+            }
+            else
+            {
+                element.ApplyConfiguration(this);
+            }
+        }
+
+        // In the Win8 profile, some settings for the binding security are not supported.
+        void CheckSettings()
+        {
+            if (!UnsafeNativeMethods.IsTailoredApplication.Value)
+            {
+                return;
+            }
+
             NetTcpSecurity security = this.Security;
             if (security == null)
             {
@@ -142,7 +294,7 @@ namespace System.ServiceModel
             }
             else if (mode == SecurityMode.Message)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.Format(SR.UnsupportedSecuritySetting, "Mode", mode)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.UnsupportedSecuritySetting, "Mode", mode)));
             }
 
             // Message.ClientCredentialType = Certificate, IssuedToken or Windows are not supported.
@@ -154,72 +306,189 @@ namespace System.ServiceModel
                     MessageCredentialType mct = message.ClientCredentialType;
                     if ((mct == MessageCredentialType.Certificate) || (mct == MessageCredentialType.IssuedToken) || (mct == MessageCredentialType.Windows))
                     {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.Format(SR.UnsupportedSecuritySetting, "Message.ClientCredentialType", mct)));
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.UnsupportedSecuritySetting, "Message.ClientCredentialType", mct)));
                     }
                 }
             }
 
             // Transport.ClientCredentialType = Certificate is not supported.
-            Contract.Assert((mode == SecurityMode.Transport) || (mode == SecurityMode.TransportWithMessageCredential), "Unexpected SecurityMode value: " + mode);
+            Fx.Assert((mode == SecurityMode.Transport) || (mode == SecurityMode.TransportWithMessageCredential), "Unexpected SecurityMode value: " + mode);
             TcpTransportSecurity transport = security.Transport;
             if ((transport != null) && (transport.ClientCredentialType == TcpClientCredentialType.Certificate))
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.Format(SR.UnsupportedSecuritySetting, "Transport.ClientCredentialType", transport.ClientCredentialType)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.UnsupportedSecuritySetting, "Transport.ClientCredentialType", transport.ClientCredentialType)));
             }
-#endif // FEATURE_NETNATIVE
         }
 
         public override BindingElementCollection CreateBindingElements()
         {
             this.CheckSettings();
-
+            
             // return collection of BindingElements
             BindingElementCollection bindingElements = new BindingElementCollection();
             // order of BindingElements is important
+            // add context
+            bindingElements.Add(context);
+            // add session
+            if (reliableSession.Enabled)
+                bindingElements.Add(session);
             // add security (*optional)
             SecurityBindingElement wsSecurity = CreateMessageSecurity();
             if (wsSecurity != null)
                 bindingElements.Add(wsSecurity);
             // add encoding
-            bindingElements.Add(_encoding);
+            bindingElements.Add(encoding);
             // add transport security
             BindingElement transportSecurity = CreateTransportSecurity();
             if (transportSecurity != null)
             {
                 bindingElements.Add(transportSecurity);
             }
-
+            transport.ExtendedProtectionPolicy = security.Transport.ExtendedProtectionPolicy;
             // add transport (tcp)
-            bindingElements.Add(_transport);
+            bindingElements.Add(transport);
 
             return bindingElements.Clone();
         }
 
-        private BindingElement CreateTransportSecurity()
+        internal static bool TryCreate(BindingElementCollection elements, out Binding binding)
         {
-            return _security.CreateTransportSecurity();
+            binding = null;
+            if (elements.Count > 6)
+                return false;
+
+            // collect all binding elements
+            TcpTransportBindingElement transport = null;
+            BinaryMessageEncodingBindingElement encoding = null;
+            TransactionFlowBindingElement context = null;
+            ReliableSessionBindingElement session = null;
+            SecurityBindingElement wsSecurity = null;
+            BindingElement transportSecurity = null;
+
+            foreach (BindingElement element in elements)
+            {
+                if (element is SecurityBindingElement)
+                    wsSecurity = element as SecurityBindingElement;
+                else if (element is TransportBindingElement)
+                    transport = element as TcpTransportBindingElement;
+                else if (element is MessageEncodingBindingElement)
+                    encoding = element as BinaryMessageEncodingBindingElement;
+                else if (element is TransactionFlowBindingElement)
+                    context = element as TransactionFlowBindingElement;
+                else if (element is ReliableSessionBindingElement)
+                    session = element as ReliableSessionBindingElement;
+                else
+                {
+                    if (transportSecurity != null)
+                        return false;
+                    transportSecurity = element;
+                }
+            }
+
+            if (transport == null)
+                return false;
+            if (encoding == null)
+                return false;
+            if (context == null)
+                context = GetDefaultTransactionFlowBindingElement();
+
+            TcpTransportSecurity tcpTransportSecurity = new TcpTransportSecurity();
+            UnifiedSecurityMode mode = GetModeFromTransportSecurity(transportSecurity);
+
+            NetTcpSecurity security;
+            if (!TryCreateSecurity(wsSecurity, mode, session != null, transportSecurity, tcpTransportSecurity, out security))
+                return false;
+
+            if (!SetTransportSecurity(transportSecurity, security.Mode, tcpTransportSecurity))
+                return false;
+
+            NetTcpBinding netTcpBinding = new NetTcpBinding(transport, encoding, context, session, security);
+            if (!netTcpBinding.IsBindingElementsMatch(transport, encoding, context, session))
+                return false;
+
+            binding = netTcpBinding;
+            return true;
         }
 
-        private static UnifiedSecurityMode GetModeFromTransportSecurity(BindingElement transport)
+        BindingElement CreateTransportSecurity()
+        {
+            return this.security.CreateTransportSecurity();
+        }
+
+        static UnifiedSecurityMode GetModeFromTransportSecurity(BindingElement transport)
         {
             return NetTcpSecurity.GetModeFromTransportSecurity(transport);
         }
 
-        private static bool SetTransportSecurity(BindingElement transport, SecurityMode mode, TcpTransportSecurity transportSecurity)
+        static bool SetTransportSecurity(BindingElement transport, SecurityMode mode, TcpTransportSecurity transportSecurity)
         {
             return NetTcpSecurity.SetTransportSecurity(transport, mode, transportSecurity);
         }
 
-        private SecurityBindingElement CreateMessageSecurity()
+        SecurityBindingElement CreateMessageSecurity()
         {
-            if (_security.Mode == SecurityMode.Message || _security.Mode == SecurityMode.TransportWithMessageCredential)
+            if (this.security.Mode == SecurityMode.Message || this.security.Mode == SecurityMode.TransportWithMessageCredential)
             {
-                throw ExceptionHelper.PlatformNotSupported("NetTcpBinding.CreateMessageSecurity is not supported.");
+                return this.security.CreateMessageSecurity(this.ReliableSession.Enabled);
             }
             else
             {
                 return null;
             }
+        }
+
+        static bool TryCreateSecurity(SecurityBindingElement sbe, UnifiedSecurityMode mode, bool isReliableSession, BindingElement transportSecurity, TcpTransportSecurity tcpTransportSecurity, out NetTcpSecurity security)
+        {
+            if (sbe != null)
+                mode &= UnifiedSecurityMode.Message | UnifiedSecurityMode.TransportWithMessageCredential;
+            else
+                mode &= ~(UnifiedSecurityMode.Message | UnifiedSecurityMode.TransportWithMessageCredential);
+
+            SecurityMode securityMode = SecurityModeHelper.ToSecurityMode(mode);
+            Fx.Assert(SecurityModeHelper.IsDefined(securityMode), string.Format("Invalid SecurityMode value: {0}.", securityMode.ToString()));
+
+            if (NetTcpSecurity.TryCreate(sbe, securityMode, isReliableSession, transportSecurity, tcpTransportSecurity, out security))
+                return true;
+
+            return false;
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeReaderQuotas()
+        {
+            return (!EncoderDefaults.IsDefaultReaderQuotas(this.ReaderQuotas));
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeSecurity()
+        {
+            return this.security.InternalShouldSerialize();
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeTransactionProtocol()
+        {
+            return (TransactionProtocol != NetTcpDefaults.TransactionProtocol);
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeReliableSession()
+        {
+            return (this.ReliableSession.Ordered != ReliableSessionDefaults.Ordered
+                || this.ReliableSession.InactivityTimeout != ReliableSessionDefaults.InactivityTimeout
+                || this.ReliableSession.Enabled != ReliableSessionDefaults.Enabled);
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeListenBacklog()
+        {
+            return transport.ShouldSerializeListenBacklog();
+        }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool ShouldSerializeMaxConnections()
+        {
+            return transport.ShouldSerializeListenBacklog();
         }
     }
 }

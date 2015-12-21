@@ -1,19 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Diagnostics;
+    using System.ServiceModel;
+    using System.Collections.Generic;
+    using System.Collections;
+
     internal class CommunicationObjectManager<ItemType> : LifetimeManager where ItemType : class, ICommunicationObject
     {
-        private bool _inputClosed;
-        private HashSet<ItemType> _table;
+        bool inputClosed;
+        Hashtable table;
 
         public CommunicationObjectManager(object mutex)
             : base(mutex)
         {
-            _table = new HashSet<ItemType>();
+            this.table = new Hashtable();
         }
 
         public void Add(ItemType item)
@@ -22,12 +26,12 @@ namespace System.ServiceModel.Channels
 
             lock (this.ThisLock)
             {
-                if (this.State == LifetimeState.Opened && !_inputClosed)
+                if (this.State == LifetimeState.Opened && !this.inputClosed)
                 {
-                    if (_table.Contains(item))
+                    if (this.table.ContainsKey(item))
                         return;
 
-                    _table.Add(item);
+                    this.table.Add(item, item);
                     base.IncrementBusyCountWithoutLock();
                     item.Closed += this.OnItemClosed;
                     added = true;
@@ -46,7 +50,7 @@ namespace System.ServiceModel.Channels
             //Abort can reenter this call as a result of 
             //close timeout, Closing input twice is not a
             //FailFast case.
-            _inputClosed = true;
+            this.inputClosed = true;
         }
 
         public void DecrementActivityCount()
@@ -59,7 +63,7 @@ namespace System.ServiceModel.Channels
             this.IncrementBusyCount();
         }
 
-        private void OnItemClosed(object sender, EventArgs args)
+        void OnItemClosed(object sender, EventArgs args)
         {
             this.Remove((ItemType)sender);
         }
@@ -68,9 +72,9 @@ namespace System.ServiceModel.Channels
         {
             lock (this.ThisLock)
             {
-                if (!_table.Contains(item))
+                if (!this.table.ContainsKey(item))
                     return;
-                _table.Remove(item);
+                this.table.Remove(item);
             }
 
             item.Closed -= this.OnItemClosed;
@@ -82,8 +86,8 @@ namespace System.ServiceModel.Channels
             lock (this.ThisLock)
             {
                 int index = 0;
-                ItemType[] items = new ItemType[_table.Count];
-                foreach (ItemType item in _table)
+                ItemType[] items = new ItemType[this.table.Keys.Count];
+                foreach (ItemType item in this.table.Keys)
                     items[index++] = item;
 
                 return items;

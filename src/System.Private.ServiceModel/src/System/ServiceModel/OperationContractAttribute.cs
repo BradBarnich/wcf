@@ -1,28 +1,30 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Net.Security;
-using System.Reflection;
-using System.ServiceModel.Description;
-using System.ServiceModel.Security;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Net.Security;
+    using System.Reflection;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Security;
+
     [AttributeUsage(ServiceModelAttributeTargets.OperationContract)]
     public sealed class OperationContractAttribute : Attribute
     {
-        private string _name = null;
-        private string _action = null;
-        private string _replyAction = null;
-        private bool _asyncPattern = false;
-        private bool _isInitiating = true;
-        private bool _isOneWay = false;
-        private ProtectionLevel _protectionLevel = ProtectionLevel.None;
-        private bool _hasProtectionLevel = false;
+        string name = null;
+        string action = null;
+        string replyAction = null;
+        bool asyncPattern = false;
+        bool isInitiating = true;
+        bool isTerminating = false;
+        bool isOneWay = false;
+        ProtectionLevel protectionLevel = ProtectionLevel.None;
+        bool hasProtectionLevel = false;
 
         public string Name
         {
-            get { return _name; }
+            get { return this.name; }
             set
             {
                 if (value == null)
@@ -32,17 +34,17 @@ namespace System.ServiceModel
                 if (value == "")
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value",
-                        SR.SFxNameCannotBeEmpty));
+                        SR.GetString(SR.SFxNameCannotBeEmpty)));
                 }
 
-                _name = value;
+                this.name = value;
             }
         }
 
         internal const string ActionPropertyName = "Action";
         public string Action
         {
-            get { return _action; }
+            get { return this.action; }
             set
             {
                 if (value == null)
@@ -50,7 +52,7 @@ namespace System.ServiceModel
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                _action = value;
+                this.action = value;
             }
         }
 
@@ -59,26 +61,26 @@ namespace System.ServiceModel
         {
             get
             {
-                return _protectionLevel;
+                return this.protectionLevel;
             }
             set
             {
                 if (!ProtectionLevelHelper.IsDefined(value))
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value"));
-                _protectionLevel = value;
-                _hasProtectionLevel = true;
+                this.protectionLevel = value;
+                this.hasProtectionLevel = true;
             }
         }
 
         public bool HasProtectionLevel
         {
-            get { return _hasProtectionLevel; }
+            get { return this.hasProtectionLevel; }
         }
 
         internal const string ReplyActionPropertyName = "ReplyAction";
         public string ReplyAction
         {
-            get { return _replyAction; }
+            get { return this.replyAction; }
             set
             {
                 if (value == null)
@@ -86,31 +88,37 @@ namespace System.ServiceModel
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("value");
                 }
 
-                _replyAction = value;
+                this.replyAction = value;
             }
         }
 
         public bool AsyncPattern
         {
-            get { return _asyncPattern; }
-            set { _asyncPattern = value; }
+            get { return this.asyncPattern; }
+            set { this.asyncPattern = value; }
         }
 
         public bool IsOneWay
         {
-            get { return _isOneWay; }
-            set { _isOneWay = value; }
+            get { return this.isOneWay; }
+            set { this.isOneWay = value; }
         }
 
         public bool IsInitiating
         {
-            get { return _isInitiating; }
-            set { _isInitiating = value; }
+            get { return this.isInitiating; }
+            set { this.isInitiating = value; }
+        }
+
+        public bool IsTerminating
+        {
+            get { return this.isTerminating; }
+            set { this.isTerminating = value; }
         }
 
         internal bool IsSessionOpenNotificationEnabled
         {
-            get
+            get 
             {
                 return this.Action == OperationDescription.SessionOpenedAction;
             }
@@ -125,7 +133,7 @@ namespace System.ServiceModel
                  || methodInfo.GetParameters().Length > 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                        SR.Format(SR.ContractIsNotSelfConsistentWhenIsSessionOpenNotificationEnabled, operationName, "Action", OperationDescription.SessionOpenedAction, "IsOneWay", "IsInitiating")));
+                        SR.GetString(SR.ContractIsNotSelfConsistentWhenIsSessionOpenNotificationEnabled, operationName, "Action", OperationDescription.SessionOpenedAction, "IsOneWay", "IsInitiating")));
                 }
             }
         }

@@ -1,26 +1,34 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Reflection;
-using System.Runtime;
-using System.Runtime.Diagnostics;
-using System.ServiceModel.Description;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
-using System.Threading.Tasks;
+// <copyright>
+//   Copyright (c) Microsoft Corporation.  All rights reserved.
+// </copyright>
 
 namespace System.ServiceModel.Dispatcher
 {
-    public class TaskMethodInvoker : IOperationInvoker
+    using System;
+    using System.Diagnostics;
+    using System.Reflection;
+    using System.Runtime;
+    using System.Runtime.Diagnostics;
+    using System.Security;
+    using System.ServiceModel.Description;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+    using System.Threading.Tasks;
+
+    /// <summary>
+    /// An invoker used when some operation contract has a return value of Task or its generic counterpart (Task of T) 
+    /// </summary>
+    internal class TaskMethodInvoker : IOperationInvoker
     {
         private const string ResultMethodName = "Result";
-        private readonly MethodInfo _taskMethod;
-        private InvokeDelegate _invokeDelegate;
-        private int _inputParameterCount;
-        private int _outputParameterCount;
-        private string _methodName;
-        private MethodInfo _taskTResultGetMethod;
-        private bool _isGenericTask;
+        private MethodInfo taskMethod;
+        private bool isGenericTask;
+        private InvokeDelegate invokeDelegate;
+        private int inputParameterCount;
+        private int outputParameterCount;
+        private object[] outputs;
+        private MethodInfo toAsyncMethodInfo;
+        private MethodInfo taskTResultGetMethod;
 
         public TaskMethodInvoker(MethodInfo taskMethod, Type taskType)
         {
@@ -29,255 +37,242 @@ namespace System.ServiceModel.Dispatcher
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("taskMethod"));
             }
 
-            _taskMethod = taskMethod;
+            this.taskMethod = taskMethod;
 
             if (taskType != ServiceReflector.VoidType)
             {
-                _taskTResultGetMethod = ((PropertyInfo)taskMethod.ReturnType.GetMember(ResultMethodName)[0]).GetGetMethod();
-                _isGenericTask = true;
+                this.toAsyncMethodInfo = TaskExtensions.MakeGenericMethod(taskType);
+                this.taskTResultGetMethod = ((PropertyInfo)taskMethod.ReturnType.GetMember(ResultMethodName)[0]).GetGetMethod();
+                this.isGenericTask = true;
             }
         }
 
-        public MethodInfo Method
+        public bool IsSynchronous
         {
-            get { return _taskMethod; }
+            get { return false; }
         }
 
-        public string MethodName
+        public MethodInfo TaskMethod
+        {
+            get { return this.taskMethod; }
+        }
+
+        private InvokeDelegate InvokeDelegate
         {
             get
             {
-                if (_methodName == null)
-                    _methodName = _taskMethod.Name;
-                return _methodName;
+                this.EnsureIsInitialized();
+                return this.invokeDelegate;
+            }
+        }
+
+        private int InputParameterCount
+        {
+            get
+            {
+                this.EnsureIsInitialized();
+                return this.inputParameterCount;
+            }
+        }
+
+        private int OutputParameterCount
+        {
+            get
+            {
+                this.EnsureIsInitialized();
+                return this.outputParameterCount;
             }
         }
 
         public object[] AllocateInputs()
         {
-            EnsureIsInitialized();
+            return EmptyArray.Allocate(this.InputParameterCount);
+        }
 
-            return EmptyArray<object>.Allocate(_inputParameterCount);
+        public object Invoke(object instance, object[] inputs, out object[] outputs)
+        {
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException());
         }
 
         public IAsyncResult InvokeBegin(object instance, object[] inputs, AsyncCallback callback, object state)
         {
-            return InvokeAsync(instance, inputs).ToApm(callback, state);
+            if (instance == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxNoServiceObject)));
+            }
+
+            if (inputs == null)
+            {
+                if (this.InputParameterCount > 0)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInputParametersToServiceNull, this.InputParameterCount)));
+                }
+            }
+            else if (inputs.Length != this.InputParameterCount)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInputParametersToServiceInvalid, this.InputParameterCount, inputs.Length)));
+            }
+
+            this.outputs = EmptyArray.Allocate(this.OutputParameterCount);
+
+            AsyncMethodInvoker.StartOperationInvokePerformanceCounters(this.taskMethod.Name);
+
+            IAsyncResult returnValue;
+            bool callFailed = true;
+            bool callFaulted = false;
+            ServiceModelActivity activity = null;
+
+            try
+            {
+                Activity boundActivity = null;
+                AsyncMethodInvoker.CreateActivityInfo(ref activity, ref boundActivity);
+
+                AsyncMethodInvoker.StartOperationInvokeTrace(this.taskMethod.Name);
+                                
+                using (boundActivity)
+                {
+                    if (DiagnosticUtility.ShouldUseActivity)
+                    {
+                        string activityName = SR.GetString(SR.ActivityExecuteMethod, this.taskMethod.DeclaringType.FullName, this.taskMethod.Name);
+                        ServiceModelActivity.Start(activity, activityName, ActivityType.ExecuteUserCode);
+                    }
+
+                    object taskReturnValue = this.InvokeDelegate(instance, inputs, this.outputs);
+
+                    if (taskReturnValue == null)
+                    {
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("task");
+                    }
+                    else if (this.isGenericTask)
+                    {
+                        returnValue = (IAsyncResult)this.toAsyncMethodInfo.Invoke(null, new object[] { taskReturnValue, callback, state });
+                    }
+                    else
+                    {
+                        returnValue = ((Task)taskReturnValue).AsAsyncResult(callback, state);
+                    }
+
+                    callFailed = false;
+                }
+            }
+            catch (System.Security.SecurityException e)
+            {
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Warning);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(AuthorizationBehavior.CreateAccessDeniedFaultException());
+            }
+            catch (Exception e)
+            {
+                TraceUtility.TraceUserCodeException(e, this.taskMethod);
+                if (e is FaultException)
+                {
+                    callFaulted = true;
+                    callFailed = false;
+                }
+
+                throw;
+            }
+            finally
+            {
+                ServiceModelActivity.Stop(activity);
+
+                // Any exception above means InvokeEnd will not be called, so complete it here.
+                if (callFailed || callFaulted)
+                {
+                    AsyncMethodInvoker.StopOperationInvokeTrace(callFailed, callFaulted, this.TaskMethod.Name);
+                    AsyncMethodInvoker.StopOperationInvokePerformanceCounters(callFailed, callFaulted, this.TaskMethod.Name);
+                }
+            }
+
+            return returnValue;
         }
 
         public object InvokeEnd(object instance, out object[] outputs, IAsyncResult result)
         {
             object returnVal;
-            var invokeTask = result as Task<Tuple<object, object[]>>;
-            if (invokeTask == null)
+            bool callFailed = true;
+            bool callFaulted = false;
+            ServiceModelActivity activity = null;
+
+            if (instance == null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.SFxInvalidCallbackIAsyncResult));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxNoServiceObject)));
             }
 
-            AggregateException ae = null;
-            Tuple<object, object[]> tuple = null;
-            Task task = null;
-            
-            if (invokeTask.IsFaulted)
+            try
             {
-                Fx.Assert(invokeTask.Exception != null, "Task.IsFaulted guarantees non-null exception.");
-                ae = invokeTask.Exception;
-            }
-            else
-            {
-                Fx.Assert(invokeTask.IsCompleted, "Task.Result is expected to be completed");
-                tuple = invokeTask.Result;
-                task = tuple.Item1 as Task;
-                Fx.Assert(task != null, "Returned object is expected to be a non-null Task");
-                if (task.IsFaulted)
+                Activity boundOperation = null;
+                AsyncMethodInvoker.GetActivityInfo(ref activity, ref boundOperation);
+
+                using (boundOperation)
                 {
-                    Fx.Assert(task.Exception != null, "Task.IsFaulted guarantees non-null exception.");
-                    ae = task.Exception;
+                    Task task = result as Task;
+
+                    Fx.Assert(task != null, "InvokeEnd needs to be called with the result returned from InvokeBegin.");
+                    if (task.IsFaulted)
+                    {
+                        Fx.Assert(task.Exception != null, "Task.IsFaulted guarantees non-null exception.");
+
+                        // If FaultException is thrown, we will get 'callFaulted' behavior below.
+                        // Any other exception will retain 'callFailed' behavior.
+                        throw FxTrace.Exception.AsError<FaultException>(task.Exception);
+                    }
+
+                    // Task cancellation without an exception indicates failure but we have no
+                    // additional information to provide.  Accessing Task.Result will throw a
+                    // TaskCanceledException.   For consistency between void Tasks and Task<T>,
+                    // we detect and throw here.
+                    if (task.IsCanceled)
+                    {
+                        throw FxTrace.Exception.AsError(new TaskCanceledException(task));
+                    }
+
+                    outputs = this.outputs;
+                    if (this.isGenericTask)
+                    {
+                        returnVal = this.taskTResultGetMethod.Invoke(result, Type.EmptyTypes);
+                    }
+                    else
+                    {                        
+                        returnVal = null;
+                    }
+
+                    callFailed = false;
                 }
             }
-
-            if (ae != null)
+            catch (SecurityException e)
             {
-                // If FaultException is thrown, we will get 'callFaulted' behavior below.
-                // Any other exception will retain 'callFailed' behavior.
-                throw FxTrace.Exception.AsError<FaultException>(ae);
+                DiagnosticUtility.TraceHandledException(e, TraceEventType.Warning);
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(AuthorizationBehavior.CreateAccessDeniedFaultException());
             }
-
-            // Task cancellation without an exception indicates failure but we have no
-            // additional information to provide.  Accessing Task.Result will throw a
-            // TaskCanceledException.   For consistency between void Tasks and Task<T>,
-            // we detect and throw here.
-            if (task.IsCanceled)
+            catch (FaultException)
             {
-                throw FxTrace.Exception.AsError(new TaskCanceledException(task));
+                callFaulted = true;
+                callFailed = false;
+                throw;
             }
-
-            outputs = tuple.Item2;
-
-            if (_isGenericTask)
+            finally
             {
-                returnVal = _taskTResultGetMethod.Invoke(task, Type.EmptyTypes);
-            }
-            else
-            {
-                returnVal = null;
+                ServiceModelActivity.Stop(activity);
+                AsyncMethodInvoker.StopOperationInvokeTrace(callFailed, callFaulted, this.TaskMethod.Name);
+                AsyncMethodInvoker.StopOperationInvokePerformanceCounters(callFailed, callFaulted, this.TaskMethod.Name);
             }
 
             return returnVal;
         }
 
-        private async Task<Tuple<object, object[]>> InvokeAsync(object instance, object[] inputs)
+        private void EnsureIsInitialized()
         {
-            EnsureIsInitialized();
-
-            if (instance == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new InvalidOperationException(SR.SFxNoServiceObject));
-            if (inputs == null)
+            if (this.invokeDelegate == null)
             {
-                if (_inputParameterCount > 0)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                        new InvalidOperationException(SR.Format(SR.SFxInputParametersToServiceNull, _inputParameterCount)));
+                // Only pass locals byref because InvokerUtil may store temporary results in the byref.
+                // If two threads both reference this.count, temporary results may interact.
+                int inputParameterCount;
+                int outputParameterCount;
+                InvokeDelegate invokeDelegate = new InvokerUtil().GenerateInvokeDelegate(this.taskMethod, out inputParameterCount, out outputParameterCount);
+                this.inputParameterCount = inputParameterCount;
+                this.outputParameterCount = outputParameterCount;
+                this.invokeDelegate = invokeDelegate;  // must set this last due to ----
             }
-            else if (inputs.Length != _inputParameterCount)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new InvalidOperationException(SR.Format(SR.SFxInputParametersToServiceInvalid, _inputParameterCount,
-                        inputs.Length)));
-
-            var outputs = EmptyArray<object>.Allocate(_outputParameterCount);
-
-            long beginOperation = 0;
-            bool callSucceeded = false;
-            bool callFaulted = false;
-
-            EventTraceActivity eventTraceActivity = null;
-            if (TD.OperationCompletedIsEnabled() ||
-                TD.OperationFaultedIsEnabled() ||
-                TD.OperationFailedIsEnabled())
-            {
-                beginOperation = DateTime.UtcNow.Ticks;
-                OperationContext context = OperationContext.Current;
-                if (context != null && context.IncomingMessage != null)
-                {
-                    eventTraceActivity = EventTraceActivityHelper.TryExtractActivity(context.IncomingMessage);
-                }
-            }
-
-            object returnValue;
-            try
-            {
-                ServiceModelActivity activity = null;
-                IDisposable boundActivity = null;
-                if (DiagnosticUtility.ShouldUseActivity)
-                {
-                    activity = ServiceModelActivity.CreateBoundedActivity(true);
-                    boundActivity = activity;
-                }
-                else if (TraceUtility.MessageFlowTracingOnly)
-                {
-                    Guid activityId = TraceUtility.GetReceivedActivityId(OperationContext.Current);
-                    if (activityId != Guid.Empty)
-                    {
-                        DiagnosticTraceBase.ActivityId = activityId;
-                    }
-                }
-                else if (TraceUtility.ShouldPropagateActivity)
-                {
-                    //Message flow tracing only scenarios use a light-weight ActivityID management logic
-                    Guid activityId = ActivityIdHeader.ExtractActivityId(OperationContext.Current.IncomingMessage);
-                    if (activityId != Guid.Empty)
-                    {
-                        boundActivity = Activity.CreateActivity(activityId);
-                    }
-                }
-
-                using (boundActivity)
-                {
-                    if (DiagnosticUtility.ShouldUseActivity)
-                    {
-                        ServiceModelActivity.Start(activity,
-                            SR.Format(SR.ActivityExecuteMethod, _taskMethod.DeclaringType.FullName, _taskMethod.Name),
-                            ActivityType.ExecuteUserCode);
-                    }
-                    if (TD.OperationInvokedIsEnabled())
-                    {
-                        TD.OperationInvoked(eventTraceActivity, MethodName,
-                            TraceUtility.GetCallerInfo(OperationContext.Current));
-                    }
-                    returnValue = _invokeDelegate(instance, inputs, outputs);
-
-                    if (returnValue == null)
-                    {
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("task");
-                    }
-
-                    var returnValueTask = returnValue as Task;
-                    if (returnValueTask != null)
-                    {
-                        // Only return once the task has completed
-                        await returnValueTask;
-                    }
-
-                    callSucceeded = true;
-                }
-            }
-            catch (FaultException)
-            {
-                callFaulted = true;
-                throw;
-            }
-            finally
-            {
-                if (beginOperation != 0)
-                {
-                    if (callSucceeded)
-                    {
-                        if (TD.OperationCompletedIsEnabled())
-                        {
-                            TD.OperationCompleted(eventTraceActivity, _methodName,
-                                TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
-                        }
-                    }
-                    else if (callFaulted)
-                    {
-                        if (TD.OperationFaultedIsEnabled())
-                        {
-                            TD.OperationFaulted(eventTraceActivity, _methodName,
-                                TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
-                        }
-                    }
-                    else
-                    {
-                        if (TD.OperationFailedIsEnabled())
-                        {
-                            TD.OperationFailed(eventTraceActivity, _methodName,
-                                TraceUtility.GetUtcBasedDurationForTrace(beginOperation));
-                        }
-                    }
-                }
-            }
-
-            return Tuple.Create(returnValue, outputs);
-        }
-
-        void EnsureIsInitialized()
-        {
-            if (_invokeDelegate == null)
-            {
-                EnsureIsInitializedCore();
-            }
-        }
-
-        void EnsureIsInitializedCore()
-        {
-            // Only pass locals byref because InvokerUtil may store temporary results in the byref.
-            // If two threads both reference this.count, temporary results may interact.
-            int inputParameterCount;
-            int outputParameterCount;
-            var invokeDelegate = new InvokerUtil().GenerateInvokeDelegate(Method, out inputParameterCount, out outputParameterCount);
-            _outputParameterCount = outputParameterCount;
-            _inputParameterCount = inputParameterCount;
-            _invokeDelegate = invokeDelegate;  // must set this last due to race
         }
     }
 }

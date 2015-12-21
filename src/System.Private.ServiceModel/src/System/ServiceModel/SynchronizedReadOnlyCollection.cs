@@ -1,20 +1,23 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.Collections.Generic
 {
+    using System;
+    using System.Collections;
+    using System.Diagnostics;
+    using System.ServiceModel;
+
     [System.Runtime.InteropServices.ComVisible(false)]
     public class SynchronizedReadOnlyCollection<T> : IList<T>, IList
     {
-        private IList<T> _items;
-        private object _sync;
+        IList<T> items;
+        object sync;
 
         public SynchronizedReadOnlyCollection()
         {
-            _items = new List<T>();
-            _sync = new Object();
+            this.items = new List<T>();
+            this.sync = new Object();
         }
 
         public SynchronizedReadOnlyCollection(object syncRoot)
@@ -22,8 +25,8 @@ namespace System.Collections.Generic
             if (syncRoot == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("syncRoot"));
 
-            _items = new List<T>();
-            _sync = syncRoot;
+            this.items = new List<T>();
+            this.sync = syncRoot;
         }
 
         public SynchronizedReadOnlyCollection(object syncRoot, IEnumerable<T> list)
@@ -33,8 +36,8 @@ namespace System.Collections.Generic
             if (list == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("list"));
 
-            _items = new List<T>(list);
-            _sync = syncRoot;
+            this.items = new List<T>(list);
+            this.sync = syncRoot;
         }
 
         public SynchronizedReadOnlyCollection(object syncRoot, params T[] list)
@@ -44,11 +47,11 @@ namespace System.Collections.Generic
             if (list == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("list"));
 
-            _items = new List<T>(list.Length);
+            this.items = new List<T>(list.Length);
             for (int i = 0; i < list.Length; i++)
-                _items.Add(list[i]);
+                this.items.Add(list[i]);
 
-            _sync = syncRoot;
+            this.sync = syncRoot;
         }
 
         internal SynchronizedReadOnlyCollection(object syncRoot, List<T> list, bool makeCopy)
@@ -59,66 +62,66 @@ namespace System.Collections.Generic
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("list"));
 
             if (makeCopy)
-                _items = new List<T>(list);
+                this.items = new List<T>(list);
             else
-                _items = list;
+                this.items = list;
 
-            _sync = syncRoot;
+            this.sync = syncRoot;
         }
 
         public int Count
         {
-            get { lock (_sync) { return _items.Count; } }
+            get { lock (this.sync) { return this.items.Count; } }
         }
 
         protected IList<T> Items
         {
             get
             {
-                return _items;
+                return this.items;
             }
         }
 
         public T this[int index]
         {
-            get { lock (_sync) { return _items[index]; } }
+            get { lock (this.sync) { return this.items[index]; } }
         }
 
         public bool Contains(T value)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                return _items.Contains(value);
+                return this.items.Contains(value);
             }
         }
 
         public void CopyTo(T[] array, int index)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                _items.CopyTo(array, index);
+                this.items.CopyTo(array, index);
             }
         }
 
         public IEnumerator<T> GetEnumerator()
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                return _items.GetEnumerator();
+                return this.items.GetEnumerator();
             }
         }
 
         public int IndexOf(T value)
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                return _items.IndexOf(value);
+                return this.items.IndexOf(value);
             }
         }
 
-        private void ThrowReadOnly()
+        void ThrowReadOnly()
         {
-            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SFxCollectionReadOnly));
+            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SFxCollectionReadOnly)));
         }
 
         bool ICollection<T>.IsReadOnly
@@ -171,16 +174,16 @@ namespace System.Collections.Generic
 
         object ICollection.SyncRoot
         {
-            get { return _sync; }
+            get { return this.sync; }
         }
 
         void ICollection.CopyTo(Array array, int index)
         {
-            ICollection asCollection = _items as ICollection;
+            ICollection asCollection = this.items as ICollection;
             if (asCollection == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.SFxCopyToRequiresICollection));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotSupportedException(SR.GetString(SR.SFxCopyToRequiresICollection)));
 
-            lock (_sync)
+            lock (this.sync)
             {
                 asCollection.CopyTo(array, index);
             }
@@ -188,13 +191,13 @@ namespace System.Collections.Generic
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            lock (_sync)
+            lock (this.sync)
             {
-                IEnumerable asEnumerable = _items as IEnumerable;
+                IEnumerable asEnumerable = this.items as IEnumerable;
                 if (asEnumerable != null)
                     return asEnumerable.GetEnumerator();
                 else
-                    return new EnumeratorAdapter(_items);
+                    return new EnumeratorAdapter(this.items);
             }
         }
 
@@ -258,45 +261,45 @@ namespace System.Collections.Generic
             this.ThrowReadOnly();
         }
 
-        private static void VerifyValueType(object value)
+        static void VerifyValueType(object value)
         {
-            if ((value is T) || (value == null && !typeof(T).IsValueType()))
+            if ((value is T) || (value == null && !typeof(T).IsValueType))
                 return;
 
             Type type = (value == null) ? typeof(Object) : value.GetType();
-            string message = SR.Format(SR.SFxCollectionWrongType2, type.ToString(), typeof(T).ToString());
+            string message = SR.GetString(SR.SFxCollectionWrongType2, type.ToString(), typeof(T).ToString());
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(message));
         }
 
-        internal sealed class EnumeratorAdapter : IEnumerator, IDisposable
+        sealed class EnumeratorAdapter : IEnumerator, IDisposable
         {
-            private IList<T> _list;
-            private IEnumerator<T> _e;
+            IList<T> list;
+            IEnumerator<T> e;
 
             public EnumeratorAdapter(IList<T> list)
             {
-                _list = list;
-                _e = list.GetEnumerator();
+                this.list = list;
+                this.e = list.GetEnumerator();
             }
 
             public object Current
             {
-                get { return _e.Current; }
+                get { return e.Current; }
             }
 
             public bool MoveNext()
             {
-                return _e.MoveNext();
+                return e.MoveNext();
             }
 
             public void Dispose()
             {
-                _e.Dispose();
+                e.Dispose();
             }
 
             public void Reset()
             {
-                _e = _list.GetEnumerator();
+                e = list.GetEnumerator();
             }
         }
     }

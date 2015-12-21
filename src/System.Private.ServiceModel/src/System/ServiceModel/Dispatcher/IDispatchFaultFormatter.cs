@@ -1,7 +1,10 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
+using System;
+using System.ServiceModel;
 using System.ServiceModel.Channels;
+using System.Runtime.Serialization;
 
 namespace System.ServiceModel.Dispatcher
 {
@@ -9,4 +12,14 @@ namespace System.ServiceModel.Dispatcher
     {
         MessageFault Serialize(FaultException faultException, out string action);
     }
+
+    internal interface IDispatchFaultFormatterWrapper
+    {
+        IDispatchFaultFormatter InnerFaultFormatter
+        {
+            get;
+            set;
+        }
+    }
 }
+

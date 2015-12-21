@@ -1,14 +1,15 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel
 {
     [AttributeUsage(ServiceModelAttributeTargets.ServiceContract | ServiceModelAttributeTargets.OperationContract, Inherited = true, AllowMultiple = true)]
     public sealed class ServiceKnownTypeAttribute : Attribute
     {
-        private Type _declaringType;
-        private string _methodName;
-        private Type _type;
+        Type declaringType;
+        string methodName;
+        Type type;
 
         private ServiceKnownTypeAttribute()
         {
@@ -17,33 +18,33 @@ namespace System.ServiceModel
 
         public ServiceKnownTypeAttribute(Type type)
         {
-            _type = type;
+            this.type = type;
         }
 
         public ServiceKnownTypeAttribute(string methodName)
         {
-            _methodName = methodName;
+            this.methodName = methodName;
         }
 
         public ServiceKnownTypeAttribute(string methodName, Type declaringType)
         {
-            _methodName = methodName;
-            _declaringType = declaringType;
+            this.methodName = methodName;
+            this.declaringType = declaringType;
         }
 
         public Type DeclaringType
         {
-            get { return _declaringType; }
+            get { return declaringType; }
         }
 
         public string MethodName
         {
-            get { return _methodName; }
+            get { return methodName; }
         }
 
         public Type Type
         {
-            get { return _type; }
+            get { return type; }
         }
     }
 }

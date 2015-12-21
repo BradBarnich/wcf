@@ -1,15 +1,14 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Globalization;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel
 {
+    using System.Collections.Generic;
+    using System.Globalization;
+
     public class FaultReason
     {
-        private SynchronizedReadOnlyCollection<FaultReasonText> _translations;
+        SynchronizedReadOnlyCollection<FaultReasonText> translations;
 
         public FaultReason(FaultReasonText translation)
         {
@@ -45,27 +44,27 @@ namespace System.ServiceModel
             foreach (FaultReasonText faultReasonText in translations)
                 count++;
             if (count == 0)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.AtLeastOneFaultReasonMustBeSpecified, "translations"));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.AtLeastOneFaultReasonMustBeSpecified), "translations"));
             FaultReasonText[] array = new FaultReasonText[count];
             int index = 0;
             foreach (FaultReasonText faultReasonText in translations)
             {
                 if (faultReasonText == null)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("translations", SR.NoNullTranslations);
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgument("translations", SR.GetString(SR.NoNullTranslations));
 
                 array[index++] = faultReasonText;
             }
             Init(array);
         }
 
-        private void Init(FaultReasonText translation)
+        void Init(FaultReasonText translation)
         {
             Init(new FaultReasonText[] { translation });
         }
 
-        private void Init(FaultReasonText[] translations)
+        void Init(FaultReasonText[] translations)
         {
-            _translations = new SynchronizedReadOnlyCollection<FaultReasonText>(new object(), new ReadOnlyCollection<FaultReasonText>(translations));
+            this.translations = new SynchronizedReadOnlyCollection<FaultReasonText>(new object(), Array.AsReadOnly<FaultReasonText>(translations));
         }
 
         public FaultReasonText GetMatchingTranslation()
@@ -73,24 +72,25 @@ namespace System.ServiceModel
             return GetMatchingTranslation(CultureInfo.CurrentCulture);
         }
 
+        // [....], This function should always return a translation so that a fault can be surfaced.
         public FaultReasonText GetMatchingTranslation(CultureInfo cultureInfo)
         {
             if (cultureInfo == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("cultureInfo"));
 
             // If there's only one translation, use it
-            if (_translations.Count == 1)
-                return _translations[0];
+            if (translations.Count == 1)
+                return translations[0];
 
             // Search for an exact match
-            for (int i = 0; i < _translations.Count; i++)
-                if (_translations[i].Matches(cultureInfo))
-                    return _translations[i];
+            for (int i = 0; i < translations.Count; i++)
+                if (translations[i].Matches(cultureInfo))
+                    return translations[i];
 
             // If no exact match is found, proceed by looking for the a translation with a language that is a parent of the current culture
 
-            if (_translations.Count == 0)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.NoMatchingTranslationFoundForFaultText));
+            if (translations.Count == 0)
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentException(SR.GetString(SR.NoMatchingTranslationFoundForFaultText)));
 
             // Search for a more general language
 #pragma warning suppress 56506
@@ -106,23 +106,23 @@ namespace System.ServiceModel
                 // Clip off the last subtag and look for a match
                 localLang = localLang.Substring(0, idx);
 
-                for (int i = 0; i < _translations.Count; i++)
-                    if (_translations[i].XmlLang == localLang)
-                        return _translations[i];
+                for (int i = 0; i < translations.Count; i++)
+                    if (translations[i].XmlLang == localLang)
+                        return translations[i];
             }
 
             // Return the first translation if no match is found
-            return _translations[0];
+            return translations[0];
         }
 
         public SynchronizedReadOnlyCollection<FaultReasonText> Translations
         {
-            get { return _translations; }
+            get { return translations; }
         }
 
         public override string ToString()
         {
-            if (_translations.Count == 0)
+            if (translations.Count == 0)
                 return string.Empty;
 
             return GetMatchingTranslation().Text;

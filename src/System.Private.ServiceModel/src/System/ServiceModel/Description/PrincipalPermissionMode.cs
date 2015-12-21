@@ -1,8 +1,11 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
+    using System.ServiceModel.Security;
+
     public enum PrincipalPermissionMode
     {
         None,
@@ -12,11 +15,11 @@ namespace System.ServiceModel.Description
         Always
     }
 
-    internal static class PrincipalPermissionModeHelper
+    static class PrincipalPermissionModeHelper
     {
         public static bool IsDefined(PrincipalPermissionMode principalPermissionMode)
         {
-            return Enum.IsDefined(typeof(PrincipalPermissionMode), principalPermissionMode);
+            return Enum.IsDefined( typeof( PrincipalPermissionMode ), principalPermissionMode );
         }
     }
 }

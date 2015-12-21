@@ -1,35 +1,42 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.Runtime.Serialization;
-using System.Xml;
-using System.ServiceModel.Diagnostics;
-using System.Runtime;
-
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 namespace System.ServiceModel.Dispatcher
 {
-    internal class PrimitiveOperationFormatter : IClientMessageFormatter, IDispatchMessageFormatter
+    using System.Collections;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.Collections.Generic;
+    using System.Runtime.Serialization;
+    using System.Reflection;
+    using System.Xml;
+    using System.ServiceModel.Diagnostics;
+    using System.Diagnostics;
+    using System.Runtime;
+
+    class PrimitiveOperationFormatter : IClientMessageFormatter, IDispatchMessageFormatter
     {
-        private OperationDescription _operation;
-        private MessageDescription _responseMessage;
-        private MessageDescription _requestMessage;
-        private XmlDictionaryString _action;
-        private XmlDictionaryString _replyAction;
-        private ActionHeader _actionHeaderNone;
-        private ActionHeader _actionHeader10;
-        private ActionHeader _replyActionHeaderNone;
-        private ActionHeader _replyActionHeader10;
-        private XmlDictionaryString _requestWrapperName;
-        private XmlDictionaryString _requestWrapperNamespace;
-        private XmlDictionaryString _responseWrapperName;
-        private XmlDictionaryString _responseWrapperNamespace;
-        private PartInfo[] _requestParts;
-        private PartInfo[] _responseParts;
-        private PartInfo _returnPart;
-        private XmlDictionaryString _xsiNilLocalName;
-        private XmlDictionaryString _xsiNilNamespace;
+        OperationDescription operation;
+        MessageDescription responseMessage;
+        MessageDescription requestMessage;
+        XmlDictionaryString action;
+        XmlDictionaryString replyAction;
+        ActionHeader actionHeaderNone;
+        ActionHeader actionHeader10;
+        ActionHeader actionHeaderAugust2004;
+        ActionHeader replyActionHeaderNone;
+        ActionHeader replyActionHeader10;
+        ActionHeader replyActionHeaderAugust2004;
+        XmlDictionaryString requestWrapperName;
+        XmlDictionaryString requestWrapperNamespace;
+        XmlDictionaryString responseWrapperName;
+        XmlDictionaryString responseWrapperNamespace;
+        PartInfo[] requestParts;
+        PartInfo[] responseParts;
+        PartInfo returnPart;
+        XmlDictionaryString xsiNilLocalName;
+        XmlDictionaryString xsiNilNamespace;
 
         public PrimitiveOperationFormatter(OperationDescription description, bool isRpc)
         {
@@ -38,106 +45,133 @@ namespace System.ServiceModel.Dispatcher
 
             OperationFormatter.Validate(description, isRpc, false/*isEncoded*/);
 
-            _operation = description;
-            _requestMessage = description.Messages[0];
+            this.operation = description;
+#pragma warning suppress 56506 // [....], OperationDescription.Messages never be null
+            this.requestMessage = description.Messages[0];
             if (description.Messages.Count == 2)
-                _responseMessage = description.Messages[1];
+                this.responseMessage = description.Messages[1];
 
-            int stringCount = 3 + _requestMessage.Body.Parts.Count;
-            if (_responseMessage != null)
-                stringCount += 2 + _responseMessage.Body.Parts.Count;
+            int stringCount = 3 + requestMessage.Body.Parts.Count;
+            if (responseMessage != null)
+                stringCount += 2 + responseMessage.Body.Parts.Count;
 
             XmlDictionary dictionary = new XmlDictionary(stringCount * 2);
 
-            _xsiNilLocalName = dictionary.Add("nil");
-            _xsiNilNamespace = dictionary.Add(EndpointAddressProcessor.XsiNs);
+            xsiNilLocalName = dictionary.Add("nil");
+            xsiNilNamespace = dictionary.Add(System.Xml.Schema.XmlSchema.InstanceNamespace);
 
-            OperationFormatter.GetActions(description, dictionary, out _action, out _replyAction);
+            OperationFormatter.GetActions(description, dictionary, out this.action, out this.replyAction);
 
-            if (_requestMessage.Body.WrapperName != null)
+            if (requestMessage.Body.WrapperName != null)
             {
-                _requestWrapperName = AddToDictionary(dictionary, _requestMessage.Body.WrapperName);
-                _requestWrapperNamespace = AddToDictionary(dictionary, _requestMessage.Body.WrapperNamespace);
+                requestWrapperName = AddToDictionary(dictionary, requestMessage.Body.WrapperName);
+                requestWrapperNamespace = AddToDictionary(dictionary, requestMessage.Body.WrapperNamespace);
             }
 
-            _requestParts = AddToDictionary(dictionary, _requestMessage.Body.Parts, isRpc);
+            requestParts = AddToDictionary(dictionary, requestMessage.Body.Parts, isRpc);
 
-            if (_responseMessage != null)
+            if (responseMessage != null)
             {
-                if (_responseMessage.Body.WrapperName != null)
+                if (responseMessage.Body.WrapperName != null)
                 {
-                    _responseWrapperName = AddToDictionary(dictionary, _responseMessage.Body.WrapperName);
-                    _responseWrapperNamespace = AddToDictionary(dictionary, _responseMessage.Body.WrapperNamespace);
+                    responseWrapperName = AddToDictionary(dictionary, responseMessage.Body.WrapperName);
+                    responseWrapperNamespace = AddToDictionary(dictionary, responseMessage.Body.WrapperNamespace);
                 }
 
-                _responseParts = AddToDictionary(dictionary, _responseMessage.Body.Parts, isRpc);
+                responseParts = AddToDictionary(dictionary, responseMessage.Body.Parts, isRpc);
 
-                if (_responseMessage.Body.ReturnValue != null && _responseMessage.Body.ReturnValue.Type != typeof(void))
+                if (responseMessage.Body.ReturnValue != null && responseMessage.Body.ReturnValue.Type != typeof(void))
                 {
-                    _returnPart = AddToDictionary(dictionary, _responseMessage.Body.ReturnValue, isRpc);
+                    returnPart = AddToDictionary(dictionary, responseMessage.Body.ReturnValue, isRpc);
                 }
             }
         }
 
-        private ActionHeader ActionHeaderNone
+        ActionHeader ActionHeaderNone
         {
             get
             {
-                if (_actionHeaderNone == null)
+                if (actionHeaderNone == null)
                 {
-                    _actionHeaderNone =
-                        ActionHeader.Create(_action, AddressingVersion.None);
+                    actionHeaderNone =
+                        ActionHeader.Create(this.action, AddressingVersion.None);
                 }
 
-                return _actionHeaderNone;
+                return actionHeaderNone;
             }
         }
 
-        private ActionHeader ActionHeader10
+        ActionHeader ActionHeader10
         {
             get
             {
-                if (_actionHeader10 == null)
+                if (actionHeader10 == null)
                 {
-                    _actionHeader10 =
-                        ActionHeader.Create(_action, AddressingVersion.WSAddressing10);
+                    actionHeader10 =
+                        ActionHeader.Create(this.action, AddressingVersion.WSAddressing10);
                 }
 
-                return _actionHeader10;
+                return actionHeader10;
             }
         }
 
-
-        private ActionHeader ReplyActionHeaderNone
+        ActionHeader ActionHeaderAugust2004
         {
             get
             {
-                if (_replyActionHeaderNone == null)
+                if (actionHeaderAugust2004 == null)
                 {
-                    _replyActionHeaderNone =
-                        ActionHeader.Create(_replyAction, AddressingVersion.None);
+                    actionHeaderAugust2004 =
+                        ActionHeader.Create(this.action, AddressingVersion.WSAddressingAugust2004);
                 }
 
-                return _replyActionHeaderNone;
+                return actionHeaderAugust2004;
             }
         }
 
-        private ActionHeader ReplyActionHeader10
+        ActionHeader ReplyActionHeaderNone
         {
             get
             {
-                if (_replyActionHeader10 == null)
+                if (replyActionHeaderNone == null)
                 {
-                    _replyActionHeader10 =
-                        ActionHeader.Create(_replyAction, AddressingVersion.WSAddressing10);
+                    replyActionHeaderNone =
+                        ActionHeader.Create(this.replyAction, AddressingVersion.None);
                 }
 
-                return _replyActionHeader10;
+                return replyActionHeaderNone;
             }
         }
 
+        ActionHeader ReplyActionHeader10
+        {
+            get
+            {
+                if (replyActionHeader10 == null)
+                {
+                    replyActionHeader10 =
+                        ActionHeader.Create(this.replyAction, AddressingVersion.WSAddressing10);
+                }
 
-        private static XmlDictionaryString AddToDictionary(XmlDictionary dictionary, string s)
+                return replyActionHeader10;
+            }
+        }
+
+        ActionHeader ReplyActionHeaderAugust2004
+        {
+            get
+            {
+                if (replyActionHeaderAugust2004 == null)
+                {
+                    replyActionHeaderAugust2004 =
+                        ActionHeader.Create(this.replyAction, AddressingVersion.WSAddressingAugust2004);
+                }
+
+                return replyActionHeaderAugust2004;
+            }
+        }
+
+        static XmlDictionaryString AddToDictionary(XmlDictionary dictionary, string s)
         {
             XmlDictionaryString dictionaryString;
             if (!dictionary.TryLookup(s, out dictionaryString))
@@ -147,7 +181,7 @@ namespace System.ServiceModel.Dispatcher
             return dictionaryString;
         }
 
-        private static PartInfo[] AddToDictionary(XmlDictionary dictionary, MessagePartDescriptionCollection parts, bool isRpc)
+        static PartInfo[] AddToDictionary(XmlDictionary dictionary, MessagePartDescriptionCollection parts, bool isRpc)
         {
             PartInfo[] partInfos = new PartInfo[parts.Count];
             for (int i = 0; i < parts.Count; i++)
@@ -157,14 +191,18 @@ namespace System.ServiceModel.Dispatcher
             return partInfos;
         }
 
-        private ActionHeader GetActionHeader(AddressingVersion addressing)
+        ActionHeader GetActionHeader(AddressingVersion addressing)
         {
-            if (_action == null)
+            if (this.action == null)
             {
                 return null;
             }
 
-            if (addressing == AddressingVersion.WSAddressing10)
+            if (addressing == AddressingVersion.WSAddressingAugust2004)
+            {
+                return ActionHeaderAugust2004;
+            }
+            else if (addressing == AddressingVersion.WSAddressing10)
             {
                 return ActionHeader10;
             }
@@ -175,18 +213,22 @@ namespace System.ServiceModel.Dispatcher
             else
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new InvalidOperationException(SR.Format(SR.AddressingVersionNotSupported, addressing)));
+                    new InvalidOperationException(SR.GetString(SR.AddressingVersionNotSupported, addressing)));
             }
         }
 
         ActionHeader GetReplyActionHeader(AddressingVersion addressing)
         {
-            if (_replyAction == null)
+            if (this.replyAction == null)
             {
                 return null;
             }
 
-            if (addressing == AddressingVersion.WSAddressing10)
+            if (addressing == AddressingVersion.WSAddressingAugust2004)
+            {
+                return ReplyActionHeaderAugust2004;
+            }
+            else if (addressing == AddressingVersion.WSAddressing10)
             {
                 return ReplyActionHeader10;
             }
@@ -197,13 +239,13 @@ namespace System.ServiceModel.Dispatcher
             else
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new InvalidOperationException(SR.Format(SR.AddressingVersionNotSupported, addressing)));
+                    new InvalidOperationException(SR.GetString(SR.AddressingVersionNotSupported, addressing)));
             }
         }
 
-        private static string GetArrayItemName(Type type)
+        static string GetArrayItemName(Type type)
         {
-            switch (type.GetTypeCode())
+            switch (Type.GetTypeCode(type))
             {
                 case TypeCode.Boolean:
                     return "boolean";
@@ -220,11 +262,11 @@ namespace System.ServiceModel.Dispatcher
                 case TypeCode.Double:
                     return "double";
                 default:
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidUseOfPrimitiveOperationFormatter));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidUseOfPrimitiveOperationFormatter)));
             }
         }
 
-        private static PartInfo AddToDictionary(XmlDictionary dictionary, MessagePartDescription part, bool isRpc)
+        static PartInfo AddToDictionary(XmlDictionary dictionary, MessagePartDescription part, bool isRpc)
         {
             Type type = part.Type;
             XmlDictionaryString itemName = null;
@@ -248,6 +290,7 @@ namespace System.ServiceModel.Dispatcher
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("description");
 
             OperationDescription operation = description;
+#pragma warning suppress 56506 // [....], OperationDescription.Messages never be null
             MessageDescription requestMessage = description.Messages[0];
             MessageDescription responseMessage = null;
             if (description.Messages.Count == 2)
@@ -280,7 +323,7 @@ namespace System.ServiceModel.Dispatcher
             return true;
         }
 
-        private static bool AreTypesSupported(MessagePartDescriptionCollection bodyDescriptions)
+        static bool AreTypesSupported(MessagePartDescriptionCollection bodyDescriptions)
         {
             for (int i = 0; i < bodyDescriptions.Count; i++)
                 if (!IsTypeSupported(bodyDescriptions[i]))
@@ -288,21 +331,21 @@ namespace System.ServiceModel.Dispatcher
             return true;
         }
 
-        private static bool IsTypeSupported(MessagePartDescription bodyDescription)
+        static bool IsTypeSupported(MessagePartDescription bodyDescription)
         {
             Fx.Assert(bodyDescription != null, "");
             Type type = bodyDescription.Type;
             if (type == null)
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.SFxMessagePartDescriptionMissingType, bodyDescription.Name, bodyDescription.Namespace)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxMessagePartDescriptionMissingType, bodyDescription.Name, bodyDescription.Namespace)));
 
             if (bodyDescription.Multiple)
                 return false;
 
             if (type == typeof(void))
                 return true;
-            if (type.IsEnum())
+            if (type.IsEnum)
                 return false;
-            switch (type.GetTypeCode())
+            switch (Type.GetTypeCode(type))
             {
                 case TypeCode.Boolean:
                 case TypeCode.DateTime:
@@ -323,11 +366,11 @@ namespace System.ServiceModel.Dispatcher
             return false;
         }
 
-        private static bool IsArrayTypeSupported(Type type)
+        static bool IsArrayTypeSupported(Type type)
         {
-            if (type.IsEnum())
+            if (type.IsEnum)
                 return false;
-            switch (type.GetTypeCode())
+            switch (Type.GetTypeCode(type))
             {
                 case TypeCode.Byte:
                 case TypeCode.Boolean:
@@ -375,9 +418,9 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (message.IsEmpty)
                 {
-                    if (_responseWrapperName == null)
+                    if (responseWrapperName == null)
                         return null;
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.SFxInvalidMessageBodyEmptyMessage));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.GetString(SR.SFxInvalidMessageBodyEmptyMessage)));
                 }
 
                 XmlDictionaryReader bodyReader = message.GetReaderAtBodyContents();
@@ -391,17 +434,17 @@ namespace System.ServiceModel.Dispatcher
             catch (XmlException xe)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorDeserializingReplyBodyMore, _operation.Name, xe.Message), xe));
+                    SR.GetString(SR.SFxErrorDeserializingReplyBodyMore, operation.Name, xe.Message), xe));
             }
             catch (FormatException fe)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorDeserializingReplyBodyMore, _operation.Name, fe.Message), fe));
+                    SR.GetString(SR.SFxErrorDeserializingReplyBodyMore, operation.Name, fe.Message), fe));
             }
             catch (SerializationException se)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorDeserializingReplyBodyMore, _operation.Name, se.Message), se));
+                    SR.GetString(SR.SFxErrorDeserializingReplyBodyMore, operation.Name, se.Message), se));
             }
         }
 
@@ -415,9 +458,9 @@ namespace System.ServiceModel.Dispatcher
             {
                 if (message.IsEmpty)
                 {
-                    if (_requestWrapperName == null)
+                    if (requestWrapperName == null)
                         return;
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.SFxInvalidMessageBodyEmptyMessage));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.GetString(SR.SFxInvalidMessageBodyEmptyMessage)));
                 }
 
                 XmlDictionaryReader bodyReader = message.GetReaderAtBodyContents();
@@ -431,30 +474,30 @@ namespace System.ServiceModel.Dispatcher
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
                     OperationFormatter.CreateDeserializationFailedFault(
-                        SR.Format(SR.SFxErrorDeserializingRequestBodyMore, _operation.Name, xe.Message),
+                        SR.GetString(SR.SFxErrorDeserializingRequestBodyMore, operation.Name, xe.Message), 
                         xe));
             }
             catch (FormatException fe)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
                     OperationFormatter.CreateDeserializationFailedFault(
-                        SR.Format(SR.SFxErrorDeserializingRequestBodyMore, _operation.Name, fe.Message),
+                        SR.GetString(SR.SFxErrorDeserializingRequestBodyMore, operation.Name, fe.Message), 
                         fe));
             }
             catch (SerializationException se)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new CommunicationException(
-                    SR.Format(SR.SFxErrorDeserializingRequestBodyMore, _operation.Name, se.Message),
+                    SR.GetString(SR.SFxErrorDeserializingRequestBodyMore, operation.Name, se.Message), 
                     se));
             }
         }
 
         void DeserializeRequest(XmlDictionaryReader reader, object[] parameters)
         {
-            if (_requestWrapperName != null)
+            if (requestWrapperName != null)
             {
-                if (!reader.IsStartElement(_requestWrapperName, _requestWrapperNamespace))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.Format(SR.SFxInvalidMessageBody, _requestWrapperName, _requestWrapperNamespace, reader.NodeType, reader.Name, reader.NamespaceURI)));
+                if (!reader.IsStartElement(requestWrapperName, requestWrapperNamespace))
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.GetString(SR.SFxInvalidMessageBody, requestWrapperName, requestWrapperNamespace, reader.NodeType, reader.Name, reader.NamespaceURI)));
                 bool isEmptyElement = reader.IsEmptyElement;
                 reader.Read();
                 if (isEmptyElement)
@@ -463,20 +506,20 @@ namespace System.ServiceModel.Dispatcher
                 }
             }
 
-            DeserializeParameters(reader, _requestParts, parameters);
+            DeserializeParameters(reader, requestParts, parameters);
 
-            if (_requestWrapperName != null)
+            if (requestWrapperName != null)
             {
                 reader.ReadEndElement();
             }
         }
 
-        private object DeserializeResponse(XmlDictionaryReader reader, object[] parameters)
+        object DeserializeResponse(XmlDictionaryReader reader, object[] parameters)
         {
-            if (_responseWrapperName != null)
+            if (responseWrapperName != null)
             {
-                if (!reader.IsStartElement(_responseWrapperName, _responseWrapperNamespace))
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.Format(SR.SFxInvalidMessageBody, _responseWrapperName, _responseWrapperNamespace, reader.NodeType, reader.Name, reader.NamespaceURI)));
+                if (!reader.IsStartElement(responseWrapperName, responseWrapperNamespace))
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new SerializationException(SR.GetString(SR.SFxInvalidMessageBody, responseWrapperName, responseWrapperNamespace, reader.NodeType, reader.Name, reader.NamespaceURI)));
                 bool isEmptyElement = reader.IsEmptyElement;
                 reader.Read();
                 if (isEmptyElement)
@@ -486,25 +529,25 @@ namespace System.ServiceModel.Dispatcher
             }
 
             object returnValue = null;
-            if (_returnPart != null)
+            if (returnPart != null)
             {
                 while (true)
                 {
-                    if (IsPartElement(reader, _returnPart))
+                    if (IsPartElement(reader, returnPart))
                     {
-                        returnValue = DeserializeParameter(reader, _returnPart);
+                        returnValue = DeserializeParameter(reader, returnPart);
                         break;
                     }
                     if (!reader.IsStartElement())
                         break;
-                    if (IsPartElements(reader, _responseParts))
+                    if (IsPartElements(reader, responseParts))
                         break;
                     OperationFormatter.TraceAndSkipElement(reader);
                 }
             }
-            DeserializeParameters(reader, _responseParts, parameters);
+            DeserializeParameters(reader, responseParts, parameters);
 
-            if (_responseWrapperName != null)
+            if (responseWrapperName != null)
             {
                 reader.ReadEndElement();
             }
@@ -513,11 +556,11 @@ namespace System.ServiceModel.Dispatcher
         }
 
 
-        private void DeserializeParameters(XmlDictionaryReader reader, PartInfo[] parts, object[] parameters)
+        void DeserializeParameters(XmlDictionaryReader reader, PartInfo[] parts, object[] parameters)
         {
             if (parts.Length != parameters.Length)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentException(SR.Format(SR.SFxParameterCountMismatch, "parts", parts.Length, "parameters", parameters.Length), "parameters"));
+                    new ArgumentException(SR.GetString(SR.SFxParameterCountMismatch, "parts", parts.Length, "parameters", parameters.Length), "parameters"));
 
             int nextPartIndex = 0;
             while (reader.IsStartElement())
@@ -547,15 +590,15 @@ namespace System.ServiceModel.Dispatcher
             return false;
         }
 
-        private bool IsPartElement(XmlDictionaryReader reader, PartInfo part)
+        bool IsPartElement(XmlDictionaryReader reader, PartInfo part)
         {
             return reader.IsStartElement(part.DictionaryName, part.DictionaryNamespace);
         }
 
-        private object DeserializeParameter(XmlDictionaryReader reader, PartInfo part)
+        object DeserializeParameter(XmlDictionaryReader reader, PartInfo part)
         {
             if (reader.AttributeCount > 0 &&
-                reader.MoveToAttribute(_xsiNilLocalName.Value, _xsiNilNamespace.Value) &&
+                reader.MoveToAttribute(xsiNilLocalName.Value, xsiNilNamespace.Value) &&
                 reader.ReadContentAsBoolean())
             {
                 reader.Skip();
@@ -564,12 +607,13 @@ namespace System.ServiceModel.Dispatcher
             return part.ReadValue(reader);
         }
 
-        private void SerializeParameter(XmlDictionaryWriter writer, PartInfo part, object graph)
+        void SerializeParameter(XmlDictionaryWriter writer, PartInfo part, object graph)
         {
+
             writer.WriteStartElement(part.DictionaryName, part.DictionaryNamespace);
             if (graph == null)
             {
-                writer.WriteStartAttribute(_xsiNilLocalName, _xsiNilNamespace);
+                writer.WriteStartAttribute(xsiNilLocalName, xsiNilNamespace);
                 writer.WriteValue(true);
                 writer.WriteEndAttribute();
             }
@@ -578,11 +622,11 @@ namespace System.ServiceModel.Dispatcher
             writer.WriteEndElement();
         }
 
-        private void SerializeParameters(XmlDictionaryWriter writer, PartInfo[] parts, object[] parameters)
+        void SerializeParameters(XmlDictionaryWriter writer, PartInfo[] parts, object[] parameters)
         {
             if (parts.Length != parameters.Length)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(
-                    new ArgumentException(SR.Format(SR.SFxParameterCountMismatch, "parts", parts.Length, "parameters", parameters.Length), "parameters"));
+                    new ArgumentException(SR.GetString(SR.SFxParameterCountMismatch, "parts", parts.Length, "parameters", parameters.Length), "parameters"));
 
 
             for (int i = 0; i < parts.Length; i++)
@@ -592,81 +636,81 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private void SerializeRequest(XmlDictionaryWriter writer, object[] parameters)
+        void SerializeRequest(XmlDictionaryWriter writer, object[] parameters)
         {
-            if (_requestWrapperName != null)
-                writer.WriteStartElement(_requestWrapperName, _requestWrapperNamespace);
+            if (requestWrapperName != null)
+                writer.WriteStartElement(requestWrapperName, requestWrapperNamespace);
 
-            SerializeParameters(writer, _requestParts, parameters);
+            SerializeParameters(writer, requestParts, parameters);
 
-            if (_requestWrapperName != null)
+            if (requestWrapperName != null)
                 writer.WriteEndElement();
         }
 
-        private void SerializeResponse(XmlDictionaryWriter writer, object returnValue, object[] parameters)
+        void SerializeResponse(XmlDictionaryWriter writer, object returnValue, object[] parameters)
         {
-            if (_responseWrapperName != null)
-                writer.WriteStartElement(_responseWrapperName, _responseWrapperNamespace);
+            if (responseWrapperName != null)
+                writer.WriteStartElement(responseWrapperName, responseWrapperNamespace);
 
-            if (_returnPart != null)
-                SerializeParameter(writer, _returnPart, returnValue);
+            if (returnPart != null)
+                SerializeParameter(writer, returnPart, returnValue);
 
-            SerializeParameters(writer, _responseParts, parameters);
+            SerializeParameters(writer, responseParts, parameters);
 
-            if (_responseWrapperName != null)
+            if (responseWrapperName != null)
                 writer.WriteEndElement();
         }
 
-        internal class PartInfo
+        class PartInfo
         {
-            private XmlDictionaryString _dictionaryName;
-            private XmlDictionaryString _dictionaryNamespace;
-            private XmlDictionaryString _itemName;
-            private XmlDictionaryString _itemNamespace;
-            private MessagePartDescription _description;
-            private TypeCode _typeCode;
-            private bool _isArray;
+            XmlDictionaryString dictionaryName;
+            XmlDictionaryString dictionaryNamespace;
+            XmlDictionaryString itemName;
+            XmlDictionaryString itemNamespace;
+            MessagePartDescription description;
+            TypeCode typeCode;
+            bool isArray;
 
             public PartInfo(MessagePartDescription description, XmlDictionaryString dictionaryName, XmlDictionaryString dictionaryNamespace, XmlDictionaryString itemName, XmlDictionaryString itemNamespace)
             {
-                _dictionaryName = dictionaryName;
-                _dictionaryNamespace = dictionaryNamespace;
-                _itemName = itemName;
-                _itemNamespace = itemNamespace;
-                _description = description;
+                this.dictionaryName = dictionaryName;
+                this.dictionaryNamespace = dictionaryNamespace;
+                this.itemName = itemName;
+                this.itemNamespace = itemNamespace;
+                this.description = description;
                 if (description.Type.IsArray)
                 {
-                    _isArray = true;
-                    _typeCode = description.Type.GetElementType().GetTypeCode();
+                    this.isArray = true;
+                    this.typeCode = Type.GetTypeCode(description.Type.GetElementType());
                 }
                 else
                 {
-                    _isArray = false;
-                    _typeCode = description.Type.GetTypeCode();
+                    this.isArray = false;
+                    this.typeCode = Type.GetTypeCode(description.Type);
                 }
             }
 
             public MessagePartDescription Description
             {
-                get { return _description; }
+                get { return description; }
             }
 
             public XmlDictionaryString DictionaryName
             {
-                get { return _dictionaryName; }
+                get { return dictionaryName; }
             }
 
             public XmlDictionaryString DictionaryNamespace
             {
-                get { return _dictionaryNamespace; }
+                get { return dictionaryNamespace; }
             }
 
             public object ReadValue(XmlDictionaryReader reader)
             {
                 object value;
-                if (_isArray)
+                if (isArray)
                 {
-                    switch (_typeCode)
+                    switch (typeCode)
                     {
                         case TypeCode.Byte:
                             value = reader.ReadElementContentAsBase64();
@@ -675,100 +719,100 @@ namespace System.ServiceModel.Dispatcher
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadBooleanArray(_itemName, _itemNamespace);
+                                value = reader.ReadBooleanArray(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<bool>();
+                                value = new bool[0];
                             }
                             break;
                         case TypeCode.DateTime:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadDateTimeArray(_itemName, _itemNamespace);
+                                value = reader.ReadDateTimeArray(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<DateTime>();
+                                value = new DateTime[0];
                             }
                             break;
                         case TypeCode.Decimal:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadDecimalArray(_itemName, _itemNamespace);
+                                value = reader.ReadDecimalArray(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<Decimal>();
+                                value = new Decimal[0];
                             }
                             break;
                         case TypeCode.Int32:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadInt32Array(_itemName, _itemNamespace);
+                                value = reader.ReadInt32Array(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<Int32>();
+                                value = new Int32[0];
                             }
                             break;
                         case TypeCode.Int64:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadInt64Array(_itemName, _itemNamespace);
+                                value = reader.ReadInt64Array(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<Int64>();
+                                value = new Int64[0];
                             }
                             break;
                         case TypeCode.Single:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadSingleArray(_itemName, _itemNamespace);
+                                value = reader.ReadSingleArray(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<Single>();
+                                value = new Single[0];
                             }
                             break;
                         case TypeCode.Double:
                             if (!reader.IsEmptyElement)
                             {
                                 reader.ReadStartElement();
-                                value = reader.ReadDoubleArray(_itemName, _itemNamespace);
+                                value = reader.ReadDoubleArray(itemName, itemNamespace);
                                 reader.ReadEndElement();
                             }
                             else
                             {
                                 reader.Read();
-                                value = Array.Empty<Double>();
+                                value = new Double[0];
                             }
                             break;
                         default:
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidUseOfPrimitiveOperationFormatter));
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidUseOfPrimitiveOperationFormatter)));
                     }
                 }
                 else
                 {
-                    switch (_typeCode)
+                    switch (typeCode)
                     {
                         case TypeCode.Boolean:
                             value = reader.ReadElementContentAsBoolean();
@@ -794,7 +838,7 @@ namespace System.ServiceModel.Dispatcher
                         case TypeCode.String:
                             return reader.ReadElementContentAsString();
                         default:
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidUseOfPrimitiveOperationFormatter));
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidUseOfPrimitiveOperationFormatter)));
                     }
                 }
                 return value;
@@ -802,9 +846,9 @@ namespace System.ServiceModel.Dispatcher
 
             public void WriteValue(XmlDictionaryWriter writer, object value)
             {
-                if (_isArray)
+                if (isArray)
                 {
-                    switch (_typeCode)
+                    switch (typeCode)
                     {
                         case TypeCode.Byte:
                             {
@@ -815,52 +859,52 @@ namespace System.ServiceModel.Dispatcher
                         case TypeCode.Boolean:
                             {
                                 bool[] arrayValue = (bool[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.DateTime:
                             {
                                 DateTime[] arrayValue = (DateTime[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.Decimal:
                             {
                                 decimal[] arrayValue = (decimal[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.Int32:
                             {
                                 Int32[] arrayValue = (Int32[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.Int64:
                             {
                                 Int64[] arrayValue = (Int64[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.Single:
                             {
                                 float[] arrayValue = (float[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         case TypeCode.Double:
                             {
                                 double[] arrayValue = (double[])value;
-                                writer.WriteArray(null, _itemName, _itemNamespace, arrayValue, 0, arrayValue.Length);
+                                writer.WriteArray(null, itemName, itemNamespace, arrayValue, 0, arrayValue.Length);
                             }
                             break;
                         default:
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidUseOfPrimitiveOperationFormatter));
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidUseOfPrimitiveOperationFormatter)));
                     }
                 }
                 else
                 {
-                    switch (_typeCode)
+                    switch (typeCode)
                     {
                         case TypeCode.Boolean:
                             writer.WriteValue((bool)value);
@@ -887,48 +931,48 @@ namespace System.ServiceModel.Dispatcher
                             writer.WriteString((string)value);
                             break;
                         default:
-                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.SFxInvalidUseOfPrimitiveOperationFormatter));
+                            throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.SFxInvalidUseOfPrimitiveOperationFormatter)));
                     }
                 }
             }
         }
 
-        internal class PrimitiveRequestBodyWriter : BodyWriter
+        class PrimitiveRequestBodyWriter : BodyWriter
         {
-            private object[] _parameters;
-            private PrimitiveOperationFormatter _primitiveOperationFormatter;
+            object[] parameters;
+            PrimitiveOperationFormatter primitiveOperationFormatter;
 
             public PrimitiveRequestBodyWriter(object[] parameters, PrimitiveOperationFormatter primitiveOperationFormatter)
                 : base(true)
             {
-                _parameters = parameters;
-                _primitiveOperationFormatter = primitiveOperationFormatter;
+                this.parameters = parameters;
+                this.primitiveOperationFormatter = primitiveOperationFormatter;
             }
 
             protected override void OnWriteBodyContents(XmlDictionaryWriter writer)
             {
-                _primitiveOperationFormatter.SerializeRequest(writer, _parameters);
+                primitiveOperationFormatter.SerializeRequest(writer, parameters);
             }
         }
 
-        internal class PrimitiveResponseBodyWriter : BodyWriter
+        class PrimitiveResponseBodyWriter : BodyWriter
         {
-            private object[] _parameters;
-            private object _returnValue;
-            private PrimitiveOperationFormatter _primitiveOperationFormatter;
+            object[] parameters;
+            object returnValue;
+            PrimitiveOperationFormatter primitiveOperationFormatter;
 
             public PrimitiveResponseBodyWriter(object[] parameters, object returnValue,
                 PrimitiveOperationFormatter primitiveOperationFormatter)
                 : base(true)
             {
-                _parameters = parameters;
-                _returnValue = returnValue;
-                _primitiveOperationFormatter = primitiveOperationFormatter;
+                this.parameters = parameters;
+                this.returnValue = returnValue;
+                this.primitiveOperationFormatter = primitiveOperationFormatter;
             }
 
             protected override void OnWriteBodyContents(XmlDictionaryWriter writer)
             {
-                _primitiveOperationFormatter.SerializeResponse(writer, _returnValue, _parameters);
+                primitiveOperationFormatter.SerializeResponse(writer, returnValue, parameters);
             }
         }
     }

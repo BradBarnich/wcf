@@ -1,40 +1,50 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
-using System.Xml;
-
-using ISignatureValueSecurityElement = System.IdentityModel.ISignatureValueSecurityElement;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Security
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel;
+    using System.ServiceModel.Description;
+    using System.IO;
+    using System.IdentityModel.Claims;
+    using System.IdentityModel.Policy;
+    using System.ServiceModel.Security.Tokens;
+    using System.Threading;
+    using System.Globalization;
+    using System.ServiceModel.Diagnostics;
+    using System.Xml;
+
+    using ISignatureValueSecurityElement = System.IdentityModel.ISignatureValueSecurityElement;
+
     public abstract class SecurityVersion
     {
-        private readonly XmlDictionaryString _headerName;
-        private readonly XmlDictionaryString _headerNamespace;
-        private readonly XmlDictionaryString _headerPrefix;
+        readonly XmlDictionaryString headerName;
+        readonly XmlDictionaryString headerNamespace;
+        readonly XmlDictionaryString headerPrefix;
 
         internal SecurityVersion(XmlDictionaryString headerName, XmlDictionaryString headerNamespace, XmlDictionaryString headerPrefix)
         {
-            _headerName = headerName;
-            _headerNamespace = headerNamespace;
-            _headerPrefix = headerPrefix;
+            this.headerName = headerName;
+            this.headerNamespace = headerNamespace;
+            this.headerPrefix = headerPrefix;
         }
 
         internal XmlDictionaryString HeaderName
         {
-            get { return _headerName; }
+            get { return this.headerName; }
         }
 
         internal XmlDictionaryString HeaderNamespace
         {
-            get { return _headerNamespace; }
+            get { return this.headerNamespace; }
         }
 
         internal XmlDictionaryString HeaderPrefix
         {
-            get { return _headerPrefix; }
+            get { return this.headerPrefix; }
         }
 
         internal abstract XmlDictionaryString FailedAuthenticationFaultCode
@@ -93,6 +103,7 @@ namespace System.ServiceModel.Security
         internal int FindIndexOfSecurityHeader(Message message, string[] actors)
         {
             return message.Headers.FindHeader(this.HeaderName.Value, this.HeaderNamespace.Value, actors);
+            
         }
 
         internal virtual bool IsReaderAtSignatureConfirmation(XmlDictionaryReader reader)
@@ -103,7 +114,7 @@ namespace System.ServiceModel.Security
         internal virtual ISignatureValueSecurityElement ReadSignatureConfirmation(XmlDictionaryReader reader)
         {
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                SR.SignatureConfirmationNotSupported));
+                SR.GetString(SR.SignatureConfirmationNotSupported)));
         }
 
         // The security always look for Empty soap role.  If not found, we will also look for Ultimate actors (next incl).
@@ -118,7 +129,7 @@ namespace System.ServiceModel.Security
             {
                 headerIndex = message.Headers.FindHeader(this.HeaderName.Value, this.HeaderNamespace.Value, message.Version.Envelope.UltimateDestinationActorValues);
             }
-
+            
             if (headerIndex < 0)
             {
                 return null;
@@ -133,7 +144,7 @@ namespace System.ServiceModel.Security
         internal virtual void WriteSignatureConfirmation(XmlDictionaryWriter writer, string id, byte[] signatureConfirmation)
         {
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                SR.SignatureConfirmationNotSupported));
+                SR.GetString(SR.SignatureConfirmationNotSupported)));
         }
 
         internal void WriteStartHeader(XmlDictionaryWriter writer)
@@ -141,9 +152,9 @@ namespace System.ServiceModel.Security
             writer.WriteStartElement(this.HeaderPrefix.Value, this.HeaderName, this.HeaderNamespace);
         }
 
-        internal class SecurityVersion10 : SecurityVersion
+        class SecurityVersion10 : SecurityVersion
         {
-            private static readonly SecurityVersion10 s_instance = new SecurityVersion10();
+            static readonly SecurityVersion10 instance = new SecurityVersion10();
 
             protected SecurityVersion10()
                 : base(XD.SecurityJan2004Dictionary.Security, XD.SecurityJan2004Dictionary.Namespace, XD.SecurityJan2004Dictionary.Prefix)
@@ -152,7 +163,7 @@ namespace System.ServiceModel.Security
 
             public static SecurityVersion10 Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             internal override XmlDictionaryString FailedAuthenticationFaultCode
@@ -199,18 +210,18 @@ namespace System.ServiceModel.Security
             }
         }
 
-        internal sealed class SecurityVersion11 : SecurityVersion10
+        sealed class SecurityVersion11 : SecurityVersion10
         {
-            private static readonly SecurityVersion11 s_instance = new SecurityVersion11();
+            static readonly SecurityVersion11 instance = new SecurityVersion11();
 
-            private SecurityVersion11()
+            SecurityVersion11()
                 : base()
             {
             }
 
             public new static SecurityVersion11 Instance
             {
-                get { return s_instance; }
+                get { return instance; }
             }
 
             internal override bool SupportsSignatureConfirmation

@@ -1,20 +1,21 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.Threading;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
+    using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
+    using System.Runtime;
+    using System.ServiceModel.Channels;
+    using System.Threading;
+
     public class MessageHeader<T>
     {
-        private string _actor;
-        private bool _mustUnderstand;
-        private bool _relay;
-        private T _content;
+        string actor;
+        bool mustUnderstand;
+        bool relay;
+        T content;
 
         public MessageHeader()
         {
@@ -27,34 +28,34 @@ namespace System.ServiceModel
 
         public MessageHeader(T content, bool mustUnderstand, string actor, bool relay)
         {
-            _content = content;
-            _mustUnderstand = mustUnderstand;
-            _actor = actor;
-            _relay = relay;
+            this.content = content;
+            this.mustUnderstand = mustUnderstand;
+            this.actor = actor;
+            this.relay = relay;
         }
 
         public string Actor
         {
-            get { return _actor; }
-            set { _actor = value; }
+            get { return this.actor; }
+            set { this.actor = value; }
         }
 
         public T Content
         {
-            get { return _content; }
-            set { _content = value; }
+            get { return this.content; }
+            set { this.content = value; }
         }
 
         public bool MustUnderstand
         {
-            get { return _mustUnderstand; }
-            set { _mustUnderstand = value; }
+            get { return this.mustUnderstand; }
+            set { this.mustUnderstand = value; }
         }
 
         public bool Relay
         {
-            get { return _relay; }
-            set { _relay = value; }
+            get { return this.relay; }
+            set { this.relay = value; }
         }
 
         internal Type GetGenericArgument()
@@ -64,7 +65,7 @@ namespace System.ServiceModel
 
         public MessageHeader GetUntypedHeader(string name, string ns)
         {
-            return MessageHeader.CreateHeader(name, ns, _content, _mustUnderstand, _actor, _relay);
+            return MessageHeader.CreateHeader(name, ns, this.content, this.mustUnderstand, this.actor, this.relay);
         }
     }
 
@@ -77,9 +78,9 @@ namespace System.ServiceModel
     // you'd still have the creation problem...).  the issue with that is you now have a new public interface
     internal abstract class TypedHeaderManager
     {
-        private static Dictionary<Type, TypedHeaderManager> s_cache = new Dictionary<Type, TypedHeaderManager>();
-        private static ReaderWriterLockSlim s_cacheLock = new ReaderWriterLockSlim();
-        private static Type s_GenericAdapterType = typeof(GenericAdapter<>);
+        static Dictionary<Type, TypedHeaderManager> cache = new Dictionary<Type, TypedHeaderManager>();
+        static ReaderWriterLock cacheLock = new ReaderWriterLock();
+        static Type GenericAdapterType = typeof(GenericAdapter<>);
 
         internal static object Create(Type t, object content, bool mustUnderstand, bool relay, string actor)
         {
@@ -97,46 +98,40 @@ namespace System.ServiceModel
         }
         internal static Type GetHeaderType(Type headerParameterType)
         {
-            if (headerParameterType.IsGenericType() && headerParameterType.GetGenericTypeDefinition() == typeof(MessageHeader<>))
+            if (headerParameterType.IsGenericType && headerParameterType.GetGenericTypeDefinition() == typeof(MessageHeader<>))
                 return headerParameterType.GetGenericArguments()[0];
             return headerParameterType;
         }
 
         [SuppressMessage(FxCop.Category.Usage, "CA2301:EmbeddableTypesInContainersRule", MessageId = "cache", Justification = "No need to support type equivalence here.")]
-        private static TypedHeaderManager GetTypedHeaderManager(Type t)
+        static TypedHeaderManager GetTypedHeaderManager(Type t)
         {
             TypedHeaderManager result = null;
 
-            bool readerLockHeld = false;
-            bool writerLockHeld = false;
+            bool lockHeld = false;
             try
             {
                 try { }
                 finally
                 {
-                    s_cacheLock.TryEnterUpgradeableReadLock(Timeout.Infinite);
-                    readerLockHeld = true;
+                    cacheLock.AcquireReaderLock(int.MaxValue);
+                    lockHeld = true;
                 }
-                if (!s_cache.TryGetValue(t, out result))
+                if (!cache.TryGetValue(t, out result))
                 {
-                    s_cacheLock.TryEnterWriteLock(Timeout.Infinite);
-                    writerLockHeld = true;
-                    if (!s_cache.TryGetValue(t, out result))
+                    cacheLock.UpgradeToWriterLock(int.MaxValue);
+                    if (!cache.TryGetValue(t, out result))
                     {
-                        result = (TypedHeaderManager)Activator.CreateInstance(s_GenericAdapterType.MakeGenericType(t));
-                        s_cache.Add(t, result);
+                        result = (TypedHeaderManager)Activator.CreateInstance(GenericAdapterType.MakeGenericType(t));
+                        cache.Add(t, result);
                     }
                 }
             }
             finally
             {
-                if (writerLockHeld)
+                if (lockHeld)
                 {
-                    s_cacheLock.ExitWriteLock();
-                }
-                if (readerLockHeld)
-                {
-                    s_cacheLock.ExitUpgradeableReadLock();
+                    cacheLock.ReleaseLock();
                 }
             }
 
@@ -147,7 +142,7 @@ namespace System.ServiceModel
         protected abstract object GetContent(object typedHeaderInstance, out bool mustUnderstand, out bool relay, out string actor);
         protected abstract Type GetMessageHeaderType();
 
-        private class GenericAdapter<T> : TypedHeaderManager
+        class GenericAdapter<T> : TypedHeaderManager
         {
             protected override object Create(object content, bool mustUnderstand, bool relay, string actor)
             {

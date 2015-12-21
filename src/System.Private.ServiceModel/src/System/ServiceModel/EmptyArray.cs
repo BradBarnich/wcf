@@ -1,16 +1,34 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Collections.Generic;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel
 {
-    internal static class EmptyArray<T>
+    using System;
+    using System.Collections.Generic;
+
+    class EmptyArray<T>
     {
+        static T[] instance;
+
+        EmptyArray()
+        {
+        }
+
+        internal static T[] Instance
+        {
+            get
+            {
+                if (instance == null)
+                    instance = new T[0];
+                return instance;
+            }
+        }
+
         internal static T[] Allocate(int n)
         {
             if (n == 0)
-                return Array.Empty<T>();
+                return Instance;
             else
                 return new T[n];
         }
@@ -19,7 +37,7 @@ namespace System.ServiceModel
         {
             if (collection.Count == 0)
             {
-                return Array.Empty<T>();
+                return EmptyArray<T>.Instance;
             }
             else
             {
@@ -35,6 +53,31 @@ namespace System.ServiceModel
             {
                 return EmptyArray<T>.ToArray((IList<T>)collection);
             }
+        }
+    }
+
+    class EmptyArray
+    {
+        static object[] instance = new object[0];
+
+        EmptyArray()
+        {
+        }
+
+        internal static object[] Instance
+        {
+            get
+            {
+                return instance;
+            }
+        }
+
+        internal static object[] Allocate(int n)
+        {
+            if (n == 0)
+                return Instance;
+            else
+                return new object[n];
         }
     }
 }

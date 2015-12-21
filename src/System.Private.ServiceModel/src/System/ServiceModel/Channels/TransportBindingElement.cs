@@ -1,33 +1,39 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.ServiceModel.Security;
-using System.Xml;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Collections.Generic;
+    using System.ServiceModel.Description;
+    using System.Runtime.Serialization;
+    using System.ServiceModel.Security;
+    using System.ServiceModel;
+    using System.Xml;
+    using WsdlNS = System.Web.Services.Description;
+    using System.Collections.ObjectModel;
+    using System.ComponentModel;
+
     public abstract class TransportBindingElement
         : BindingElement
     {
-        private bool _manualAddressing;
-        private long _maxBufferPoolSize;
-        private long _maxReceivedMessageSize;
+        bool manualAddressing;
+        long maxBufferPoolSize;
+        long maxReceivedMessageSize;
 
         protected TransportBindingElement()
         {
-            _manualAddressing = TransportDefaults.ManualAddressing;
-            _maxBufferPoolSize = TransportDefaults.MaxBufferPoolSize;
-            _maxReceivedMessageSize = TransportDefaults.MaxReceivedMessageSize;
+            this.manualAddressing = TransportDefaults.ManualAddressing;
+            this.maxBufferPoolSize = TransportDefaults.MaxBufferPoolSize;
+            this.maxReceivedMessageSize = TransportDefaults.MaxReceivedMessageSize;
         }
 
         protected TransportBindingElement(TransportBindingElement elementToBeCloned)
             : base(elementToBeCloned)
         {
-            _manualAddressing = elementToBeCloned._manualAddressing;
-            _maxBufferPoolSize = elementToBeCloned._maxBufferPoolSize;
-            _maxReceivedMessageSize = elementToBeCloned._maxReceivedMessageSize;
+            this.manualAddressing = elementToBeCloned.manualAddressing;
+            this.maxBufferPoolSize = elementToBeCloned.maxBufferPoolSize;
+            this.maxReceivedMessageSize = elementToBeCloned.maxReceivedMessageSize;
         }
 
         [DefaultValue(TransportDefaults.ManualAddressing)]
@@ -35,12 +41,12 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _manualAddressing;
+                return this.manualAddressing;
             }
 
             set
             {
-                _manualAddressing = value;
+                this.manualAddressing = value;
             }
         }
 
@@ -49,16 +55,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxBufferPoolSize;
+                return this.maxBufferPoolSize;
             }
             set
             {
                 if (value < 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.ValueMustBeNonNegative));
+                        SR.GetString(SR.ValueMustBeNonNegative)));
                 }
-                _maxBufferPoolSize = value;
+                this.maxBufferPoolSize = value;
             }
         }
 
@@ -67,16 +73,16 @@ namespace System.ServiceModel.Channels
         {
             get
             {
-                return _maxReceivedMessageSize;
+                return this.maxReceivedMessageSize;
             }
             set
             {
                 if (value <= 0)
                 {
                     throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("value", value,
-                        SR.ValueMustBePositive));
+                        SR.GetString(SR.ValueMustBePositive)));
                 }
-                _maxReceivedMessageSize = value;
+                this.maxReceivedMessageSize = value;
             }
         }
 
@@ -88,6 +94,12 @@ namespace System.ServiceModel.Channels
             return binding.BuildChannelFactory<TChannel>();
         }
 
+        internal static IChannelListener CreateChannelListener<TChannel>(TransportBindingElement transport)
+            where TChannel : class, IChannel
+        {
+            Binding binding = new CustomBinding(transport);
+            return binding.BuildChannelListener<TChannel>();
+        }
 
         public override T GetProperty<T>(BindingContext context)
         {
@@ -105,6 +117,7 @@ namespace System.ServiceModel.Channels
 
             // to cover all our bases, let's iterate through the BindingParameters to make sure
             // we haven't missed a query (since we're the Transport and we're at the bottom)
+#pragma warning suppress 56506 // [....], BindingContext.BindingParameters cannot be null
             Collection<BindingElement> bindingElements = context.BindingParameters.FindAll<BindingElement>();
 
             T result = default(T);
@@ -130,7 +143,7 @@ namespace System.ServiceModel.Channels
             return null;
         }
 
-        private ChannelProtectionRequirements GetProtectionRequirements(AddressingVersion addressingVersion)
+        ChannelProtectionRequirements GetProtectionRequirements(AddressingVersion addressingVersion)
         {
             ChannelProtectionRequirements result = new ChannelProtectionRequirements();
             result.IncomingSignatureParts.AddParts(addressingVersion.SignedMessageParts);
@@ -141,6 +154,7 @@ namespace System.ServiceModel.Channels
         internal ChannelProtectionRequirements GetProtectionRequirements(BindingContext context)
         {
             AddressingVersion addressingVersion = AddressingVersion.WSAddressing10;
+#pragma warning suppress 56506 // [....], CustomBinding.Elements can never be null
             MessageEncodingBindingElement messageEncoderBindingElement = context.Binding.Elements.Find<MessageEncodingBindingElement>();
             if (messageEncoderBindingElement != null)
             {
@@ -149,6 +163,43 @@ namespace System.ServiceModel.Channels
             return GetProtectionRequirements(addressingVersion);
         }
 
+        internal static void ExportWsdlEndpoint(WsdlExporter exporter, WsdlEndpointConversionContext endpointContext,
+            string wsdlTransportUri, AddressingVersion addressingVersion)
+        {
+            ExportWsdlEndpoint(exporter, endpointContext, wsdlTransportUri, endpointContext.Endpoint.Address, addressingVersion);
+        }
+
+        internal static void ExportWsdlEndpoint(WsdlExporter exporter, WsdlEndpointConversionContext endpointContext,
+            string wsdlTransportUri, EndpointAddress address, AddressingVersion addressingVersion)
+        {
+            if (exporter == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("context");
+            }
+
+            if (endpointContext == null)
+            {
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("endpointContext");
+            }
+
+            // Set SoapBinding Transport URI
+#pragma warning suppress 56506 // [....], these properties cannot be null in this context
+            BindingElementCollection bindingElements = endpointContext.Endpoint.Binding.CreateBindingElements();
+            if (wsdlTransportUri != null)
+            {
+                WsdlNS.SoapBinding soapBinding = SoapHelper.GetOrCreateSoapBinding(endpointContext, exporter);
+
+                if (soapBinding != null)
+                {
+                    soapBinding.Transport = wsdlTransportUri;
+                }
+            }
+
+            if (endpointContext.WsdlPort != null)
+            {
+                WsdlExporter.WSAddressingHelper.AddAddressToWsdlPort(endpointContext.WsdlPort, address, addressingVersion);
+            }
+        }
         internal override bool IsMatch(BindingElement b)
         {
             if (b == null)
@@ -160,11 +211,11 @@ namespace System.ServiceModel.Channels
             {
                 return false;
             }
-            if (_maxBufferPoolSize != transport.MaxBufferPoolSize)
+            if (this.maxBufferPoolSize != transport.MaxBufferPoolSize)
             {
                 return false;
             }
-            if (_maxReceivedMessageSize != transport.MaxReceivedMessageSize)
+            if (this.maxReceivedMessageSize != transport.MaxReceivedMessageSize)
             {
                 return false;
             }

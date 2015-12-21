@@ -1,26 +1,29 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Diagnostics;
-using System.ServiceModel.Diagnostics.Application;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Dispatcher
 {
-    internal class ErrorBehavior
+    using System;
+    using System.Runtime;
+    using System.ServiceModel;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Diagnostics;
+    using System.ServiceModel.Diagnostics.Application;
+
+    class ErrorBehavior
     {
-        private IErrorHandler[] _handlers;
-        private bool _debug;
-        private bool _isOnServer;
-        private MessageVersion _messageVersion;
+        IErrorHandler[] handlers;
+        bool debug;
+        bool isOnServer;
+        MessageVersion messageVersion;
 
         internal ErrorBehavior(ChannelDispatcher channelDispatcher)
         {
-            _handlers = EmptyArray<IErrorHandler>.ToArray(channelDispatcher.ErrorHandlers);
-            _debug = channelDispatcher.IncludeExceptionDetailInFaults;
-            _isOnServer = channelDispatcher.IsOnServer;
-            _messageVersion = channelDispatcher.MessageVersion;
+            this.handlers = EmptyArray<IErrorHandler>.ToArray(channelDispatcher.ErrorHandlers);
+            this.debug = channelDispatcher.IncludeExceptionDetailInFaults;
+            this.isOnServer = channelDispatcher.IsOnServer;
+            this.messageVersion = channelDispatcher.MessageVersion;
         }
 
         void InitializeFault(ref MessageRpc rpc)
@@ -38,6 +41,14 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        internal IErrorHandler[] Handlers
+        {
+            get
+            {
+                return handlers;
+            }
+        }
+
         internal void ProvideMessageFault(ref MessageRpc rpc)
         {
             if (rpc.Error != null)
@@ -48,7 +59,7 @@ namespace System.ServiceModel.Dispatcher
 
         void ProvideMessageFaultCore(ref MessageRpc rpc)
         {
-            if (_messageVersion != rpc.RequestVersion)
+            if (this.messageVersion != rpc.RequestVersion)
             {
                 Fx.Assert("System.ServiceModel.Dispatcher.ErrorBehavior.ProvideMessageFaultCore(): (this.messageVersion != rpc.RequestVersion)");
             }
@@ -60,23 +71,7 @@ namespace System.ServiceModel.Dispatcher
             this.ProvideMessageFaultCoreCoda(ref rpc);
         }
 
-        void ProvideMessageFaultCoreCoda(ref MessageRpc rpc)
-        {
-            if (rpc.FaultInfo.Fault.Headers.Action == null)
-            {
-                rpc.FaultInfo.Fault.Headers.Action = rpc.RequestVersion.Addressing.DefaultFaultAction;
-            }
-
-            rpc.Reply = rpc.FaultInfo.Fault;
-        }
-
-        internal void ProvideOnlyFaultOfLastResort(ref MessageRpc rpc)
-        {
-            ProvideFaultOfLastResort(rpc.Error, ref rpc.FaultInfo);
-            ProvideMessageFaultCoreCoda(ref rpc);
-        }
-
-        private void ProvideFaultOfLastResort(Exception error, ref ErrorHandlerFaultInfo faultInfo)
+        void ProvideFaultOfLastResort(Exception error, ref ErrorHandlerFaultInfo faultInfo)
         {
             if (faultInfo.Fault == null)
             {
@@ -84,18 +79,18 @@ namespace System.ServiceModel.Dispatcher
                 code = FaultCode.CreateReceiverFaultCode(code);
                 string action = FaultCodeConstants.Actions.NetDispatcher;
                 MessageFault fault;
-                if (_debug)
+                if (this.debug)
                 {
                     faultInfo.DefaultFaultAction = action;
                     fault = MessageFault.CreateFault(code, new FaultReason(error.Message), new ExceptionDetail(error));
                 }
                 else
                 {
-                    string reason = _isOnServer ? SR.SFxInternalServerError : SR.SFxInternalCallbackError;
+                    string reason = this.isOnServer ? SR.GetString(SR.SFxInternalServerError) : SR.GetString(SR.SFxInternalCallbackError);
                     fault = MessageFault.CreateFault(code, new FaultReason(reason));
                 }
                 faultInfo.IsConsideredUnhandled = true;
-                faultInfo.Fault = Message.CreateMessage(_messageVersion, fault, action);
+                faultInfo.Fault = Message.CreateMessage(this.messageVersion, fault, action);
             }
             //if this is an InternalServiceFault coming from another service dispatcher we should treat it as unhandled so that the channels are cleaned up
             else if (error != null)
@@ -110,23 +105,39 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
+        void ProvideMessageFaultCoreCoda(ref MessageRpc rpc)
+        {
+            if (rpc.FaultInfo.Fault.Headers.Action == null)
+            {
+                rpc.FaultInfo.Fault.Headers.Action = rpc.RequestVersion.Addressing.DefaultFaultAction;
+            }
+
+            rpc.Reply = rpc.FaultInfo.Fault;
+        }
+
+        internal void ProvideOnlyFaultOfLastResort(ref MessageRpc rpc)
+        {
+            this.ProvideFaultOfLastResort(rpc.Error, ref rpc.FaultInfo);
+            this.ProvideMessageFaultCoreCoda(ref rpc);
+        }
+
         internal void ProvideFault(Exception e, FaultConverter faultConverter, ref ErrorHandlerFaultInfo faultInfo)
         {
             ProvideWellKnownFault(e, faultConverter, ref faultInfo);
-            for (int i = 0; i < _handlers.Length; i++)
+            for (int i = 0; i < this.handlers.Length; i++)
             {
                 Message m = faultInfo.Fault;
-                _handlers[i].ProvideFault(e, _messageVersion, ref m);
+                handlers[i].ProvideFault(e, this.messageVersion, ref m);
                 faultInfo.Fault = m;
                 if (TD.FaultProviderInvokedIsEnabled())
                 {
-                    TD.FaultProviderInvoked(_handlers[i].GetType().FullName, e.Message);
+                    TD.FaultProviderInvoked(handlers[i].GetType().FullName, e.Message);
                 }
             }
             this.ProvideFaultOfLastResort(e, ref faultInfo);
         }
 
-        private void ProvideWellKnownFault(Exception e, FaultConverter faultConverter, ref ErrorHandlerFaultInfo faultInfo)
+        void ProvideWellKnownFault(Exception e, FaultConverter faultConverter, ref ErrorHandlerFaultInfo faultInfo)
         {
             Message faultMessage;
             if (faultConverter != null && faultConverter.TryCreateFaultMessage(e, out faultMessage))
@@ -137,14 +148,14 @@ namespace System.ServiceModel.Dispatcher
             else if (e is NetDispatcherFaultException)
             {
                 NetDispatcherFaultException ndfe = e as NetDispatcherFaultException;
-                if (_debug)
+                if (this.debug)
                 {
                     ExceptionDetail detail = new ExceptionDetail(ndfe);
-                    faultInfo.Fault = Message.CreateMessage(_messageVersion, MessageFault.CreateFault(ndfe.Code, ndfe.Reason, detail), ndfe.Action);
+                    faultInfo.Fault = Message.CreateMessage(this.messageVersion, MessageFault.CreateFault(ndfe.Code, ndfe.Reason, detail), ndfe.Action);
                 }
                 else
                 {
-                    faultInfo.Fault = Message.CreateMessage(_messageVersion, ndfe.CreateMessageFault(), ndfe.Action);
+                    faultInfo.Fault = Message.CreateMessage(this.messageVersion, ndfe.CreateMessageFault(), ndfe.Action);
                 }
             }
         }
@@ -166,7 +177,7 @@ namespace System.ServiceModel.Dispatcher
             }
         }
 
-        private bool HandleErrorCommon(Exception error, ref ErrorHandlerFaultInfo faultInfo)
+        bool HandleErrorCommon(Exception error, ref ErrorHandlerFaultInfo faultInfo)
         {
             bool handled;
             if (faultInfo.Fault != null   // there is a message
@@ -185,13 +196,13 @@ namespace System.ServiceModel.Dispatcher
                 {
                     TD.ServiceException(null, error.ToString(), error.GetType().FullName);
                 }
-                for (int i = 0; i < _handlers.Length; i++)
+                for (int i = 0; i < this.handlers.Length; i++)
                 {
-                    bool handledByThis = _handlers[i].HandleError(error);
+                    bool handledByThis = handlers[i].HandleError(error);
                     handled = handledByThis || handled;
                     if (TD.ErrorHandlerInvokedIsEnabled())
                     {
-                        TD.ErrorHandlerInvoked(_handlers[i].GetType().FullName, handledByThis, error.GetType().FullName);
+                        TD.ErrorHandlerInvoked(handlers[i].GetType().FullName, handledByThis, error.GetType().FullName);
                     }
                 }
             }
@@ -208,13 +219,18 @@ namespace System.ServiceModel.Dispatcher
 
         internal bool HandleError(Exception error)
         {
-            ErrorHandlerFaultInfo faultInfo = new ErrorHandlerFaultInfo(_messageVersion.Addressing.DefaultFaultAction);
+            ErrorHandlerFaultInfo faultInfo = new ErrorHandlerFaultInfo(this.messageVersion.Addressing.DefaultFaultAction);
             return HandleError(error, ref faultInfo);
         }
 
         internal bool HandleError(Exception error, ref ErrorHandlerFaultInfo faultInfo)
         {
             return HandleErrorCommon(error, ref faultInfo);
+        }
+
+        internal static bool ShouldRethrowExceptionAsIs(Exception e)
+        {
+            return true;
         }
 
         internal static bool ShouldRethrowClientSideExceptionAsIs(Exception e)

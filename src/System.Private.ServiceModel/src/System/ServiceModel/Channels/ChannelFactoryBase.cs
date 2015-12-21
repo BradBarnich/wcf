@@ -1,17 +1,18 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Runtime;
-using System.Threading.Tasks;
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 
 namespace System.ServiceModel.Channels
 {
+    using System.Runtime;
+    using System.ServiceModel;
+
     public abstract class ChannelFactoryBase : ChannelManagerBase, IChannelFactory
     {
-        private TimeSpan _closeTimeout = ServiceDefaults.CloseTimeout;
-        private TimeSpan _openTimeout = ServiceDefaults.OpenTimeout;
-        private TimeSpan _receiveTimeout = ServiceDefaults.ReceiveTimeout;
-        private TimeSpan _sendTimeout = ServiceDefaults.SendTimeout;
+        TimeSpan closeTimeout = ServiceDefaults.CloseTimeout;
+        TimeSpan openTimeout = ServiceDefaults.OpenTimeout;
+        TimeSpan receiveTimeout = ServiceDefaults.ReceiveTimeout;
+        TimeSpan sendTimeout = ServiceDefaults.SendTimeout;
 
         protected ChannelFactoryBase()
         {
@@ -24,22 +25,22 @@ namespace System.ServiceModel.Channels
 
         protected override TimeSpan DefaultCloseTimeout
         {
-            get { return _closeTimeout; }
+            get { return this.closeTimeout; }
         }
 
         protected override TimeSpan DefaultOpenTimeout
         {
-            get { return _openTimeout; }
+            get { return this.openTimeout; }
         }
 
         protected override TimeSpan DefaultReceiveTimeout
         {
-            get { return _receiveTimeout; }
+            get { return this.receiveTimeout; }
         }
 
         protected override TimeSpan DefaultSendTimeout
         {
-            get { return _sendTimeout; }
+            get { return this.sendTimeout; }
         }
 
         public virtual T GetProperty<T>()
@@ -62,11 +63,6 @@ namespace System.ServiceModel.Channels
             return new CompletedAsyncResult(callback, state);
         }
 
-        protected internal override Task OnCloseAsync(TimeSpan timeout)
-        {
-            return TaskHelpers.CompletedTask();
-        }
-
         protected override void OnClose(TimeSpan timeout)
         {
         }
@@ -76,21 +72,21 @@ namespace System.ServiceModel.Channels
             CompletedAsyncResult.End(result);
         }
 
-        private void InitializeTimeouts(IDefaultCommunicationTimeouts timeouts)
+        void InitializeTimeouts(IDefaultCommunicationTimeouts timeouts)
         {
             if (timeouts != null)
             {
-                _closeTimeout = timeouts.CloseTimeout;
-                _openTimeout = timeouts.OpenTimeout;
-                _receiveTimeout = timeouts.ReceiveTimeout;
-                _sendTimeout = timeouts.SendTimeout;
+                this.closeTimeout = timeouts.CloseTimeout;
+                this.openTimeout = timeouts.OpenTimeout;
+                this.receiveTimeout = timeouts.ReceiveTimeout;
+                this.sendTimeout = timeouts.SendTimeout;
             }
         }
     }
 
     public abstract class ChannelFactoryBase<TChannel> : ChannelFactoryBase, IChannelFactory<TChannel>
     {
-        private CommunicationObjectManager<IChannel> _channels;
+        CommunicationObjectManager<IChannel> channels;
 
         protected ChannelFactoryBase()
             : this(null)
@@ -100,7 +96,7 @@ namespace System.ServiceModel.Channels
         protected ChannelFactoryBase(IDefaultCommunicationTimeouts timeouts)
             : base(timeouts)
         {
-            _channels = new CommunicationObjectManager<IChannel>(this.ThisLock);
+            this.channels = new CommunicationObjectManager<IChannel>(this.ThisLock);
         }
 
         public TChannel CreateChannel(EndpointAddress address)
@@ -122,7 +118,7 @@ namespace System.ServiceModel.Channels
             return this.InternalCreateChannel(address, via);
         }
 
-        private TChannel InternalCreateChannel(EndpointAddress address, Uri via)
+        TChannel InternalCreateChannel(EndpointAddress address, Uri via)
         {
             this.ValidateCreateChannel();
             TChannel channel = this.OnCreateChannel(address, via);
@@ -131,7 +127,7 @@ namespace System.ServiceModel.Channels
 
             try
             {
-                _channels.Add((IChannel)(object)channel);
+                this.channels.Add((IChannel)(object)channel);
                 success = true;
             }
             finally
@@ -150,34 +146,34 @@ namespace System.ServiceModel.Channels
             ThrowIfDisposed();
             if (this.State != CommunicationState.Opened)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.ChannelFactoryCannotBeUsedToCreateChannels, this.GetType().ToString())));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ChannelFactoryCannotBeUsedToCreateChannels, this.GetType().ToString())));
             }
         }
 
         protected override void OnAbort()
         {
-            IChannel[] currentChannels = _channels.ToArray();
+            IChannel[] currentChannels = this.channels.ToArray();
             foreach (IChannel channel in currentChannels)
                 channel.Abort();
 
-            _channels.Abort();
+            this.channels.Abort();
         }
 
         protected override void OnClose(TimeSpan timeout)
         {
-            IChannel[] currentChannels = _channels.ToArray();
+            IChannel[] currentChannels = this.channels.ToArray();
             TimeoutHelper timeoutHelper = new TimeoutHelper(timeout);
             foreach (IChannel channel in currentChannels)
                 channel.Close(timeoutHelper.RemainingTime());
 
-            _channels.Close(timeoutHelper.RemainingTime());
+            this.channels.Close(timeoutHelper.RemainingTime());
         }
 
         protected override IAsyncResult OnBeginClose(TimeSpan timeout, AsyncCallback callback, object state)
         {
             return new ChainedCloseAsyncResult(timeout, callback, state,
-                _channels.BeginClose, _channels.EndClose,
-                _channels.ToArray());
+                this.channels.BeginClose, this.channels.EndClose,
+                this.channels.ToArray());
         }
 
         protected override void OnEndClose(IAsyncResult result)

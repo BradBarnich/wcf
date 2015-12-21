@@ -1,30 +1,32 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.Threading.Tasks;
-using System.Xml;
-
+//------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//------------------------------------------------------------
 namespace System.ServiceModel.Channels
 {
+    using System.Xml;
+    using System.Diagnostics;
+    using System.Runtime;
+    using System.Threading;
+
     public abstract class BodyWriter
     {
-        private bool _isBuffered;
-        private bool _canWrite;
-        private object _thisLock;
+        bool isBuffered;
+        bool canWrite;
+        object thisLock;
 
         protected BodyWriter(bool isBuffered)
         {
-            _isBuffered = isBuffered;
-            _canWrite = true;
-            if (!_isBuffered)
+            this.isBuffered = isBuffered;
+            this.canWrite = true;
+            if (!this.isBuffered)
             {
-                _thisLock = new object();
+                this.thisLock = new object();
             }
         }
 
         public bool IsBuffered
         {
-            get { return _isBuffered; }
+            get { return this.isBuffered; }
         }
 
         internal virtual bool IsEmpty
@@ -41,22 +43,22 @@ namespace System.ServiceModel.Channels
         {
             if (maxBufferSize < 0)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentOutOfRangeException("maxBufferSize", maxBufferSize,
-                                                    SR.ValueMustBeNonNegative));
-            if (_isBuffered)
+                                                    SR.GetString(SR.ValueMustBeNonNegative)));
+            if (this.isBuffered)
             {
                 return this;
             }
             else
             {
-                lock (_thisLock)
+                lock (this.thisLock)
                 {
-                    if (!_canWrite)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.BodyWriterCanOnlyBeWrittenOnce));
-                    _canWrite = false;
+                    if (!this.canWrite)
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.BodyWriterCanOnlyBeWrittenOnce)));
+                    this.canWrite = false;
                 }
                 BodyWriter bodyWriter = OnCreateBufferedCopy(maxBufferSize);
                 if (!bodyWriter.IsBuffered)
-                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.BodyWriterReturnedIsNotBuffered));
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.BodyWriterReturnedIsNotBuffered)));
                 return bodyWriter;
             }
         }
@@ -82,33 +84,27 @@ namespace System.ServiceModel.Channels
 
         protected abstract void OnWriteBodyContents(XmlDictionaryWriter writer);
 
-        protected virtual Task OnWriteBodyContentsAsync(XmlDictionaryWriter writer)
-        {
-            OnWriteBodyContents(writer);
-            return Task.CompletedTask;
-        }
-
         protected virtual IAsyncResult OnBeginWriteBodyContents(XmlDictionaryWriter writer, AsyncCallback callback, object state)
         {
-            throw ExceptionHelper.PlatformNotSupported();
+            return new OnWriteBodyContentsAsyncResult(writer, this, callback, state);
         }
 
         protected virtual void OnEndWriteBodyContents(IAsyncResult result)
         {
-            throw ExceptionHelper.PlatformNotSupported();
+            OnWriteBodyContentsAsyncResult.End(result);
         }
 
-        private void EnsureWriteBodyContentsState(XmlDictionaryWriter writer)
+        void EnsureWriteBodyContentsState(XmlDictionaryWriter writer)
         {
             if (writer == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new ArgumentNullException("writer"));
-            if (!_isBuffered)
+            if (!this.isBuffered)
             {
-                lock (_thisLock)
+                lock (this.thisLock)
                 {
-                    if (!_canWrite)
-                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.BodyWriterCanOnlyBeWrittenOnce));
-                    _canWrite = false;
+                    if (!this.canWrite)
+                        throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.BodyWriterCanOnlyBeWrittenOnce)));
+                    this.canWrite = false;
                 }
             }
         }
@@ -117,12 +113,6 @@ namespace System.ServiceModel.Channels
         {
             EnsureWriteBodyContentsState(writer);
             OnWriteBodyContents(writer);
-        }
-
-        internal Task WriteBodyContentsAsync(XmlDictionaryWriter writer)
-        {
-            EnsureWriteBodyContentsState(writer);
-            return OnWriteBodyContentsAsync(writer);
         }
 
         public IAsyncResult BeginWriteBodyContents(XmlDictionaryWriter writer, AsyncCallback callback, object state)
@@ -136,19 +126,19 @@ namespace System.ServiceModel.Channels
             OnEndWriteBodyContents(result);
         }
 
-        internal class BufferedBodyWriter : BodyWriter
+        class BufferedBodyWriter : BodyWriter
         {
-            private XmlBuffer _buffer;
+            XmlBuffer buffer;
 
             public BufferedBodyWriter(XmlBuffer buffer)
                 : base(true)
             {
-                _buffer = buffer;
+                this.buffer = buffer;
             }
 
             protected override void OnWriteBodyContents(XmlDictionaryWriter writer)
             {
-                XmlDictionaryReader reader = _buffer.GetReader(0);
+                XmlDictionaryReader reader = this.buffer.GetReader(0);
                 using (reader)
                 {
                     reader.ReadStartElement();
@@ -158,6 +148,28 @@ namespace System.ServiceModel.Channels
                     }
                     reader.ReadEndElement();
                 }
+            }
+        }
+
+        class OnWriteBodyContentsAsyncResult : ScheduleActionItemAsyncResult
+        {
+            BodyWriter bodyWriter;
+            XmlDictionaryWriter writer;
+
+            public OnWriteBodyContentsAsyncResult(XmlDictionaryWriter writer, BodyWriter bodyWriter, AsyncCallback callback, object state)
+                : base(callback, state)
+            {
+                Fx.Assert(bodyWriter != null, "bodyWriter should never be null");
+
+                this.writer = writer;
+                this.bodyWriter = bodyWriter;
+
+                Schedule();
+            }
+
+            protected override void OnDoWork()
+            {
+                this.bodyWriter.OnWriteBodyContents(this.writer);
             }
         }
     }

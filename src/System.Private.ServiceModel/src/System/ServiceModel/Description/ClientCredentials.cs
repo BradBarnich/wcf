@@ -1,52 +1,105 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IdentityModel.Selectors;
-using System.ServiceModel.Channels;
-using System.ServiceModel.Dispatcher;
-using System.ServiceModel.Security;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Description
 {
+    using System.Diagnostics.CodeAnalysis;
+    using System.IdentityModel.Selectors;
+    using System.Runtime;
+    using System.Runtime.CompilerServices;
+    using System.ServiceModel.Channels;
+    using System.ServiceModel.Dispatcher;
+    using System.ServiceModel.Security;
+    using System.IdentityModel.Tokens;
+
     public class ClientCredentials : SecurityCredentialsManager, IEndpointBehavior
     {
-        private UserNamePasswordClientCredential _userName;
-        private X509CertificateInitiatorClientCredential _clientCertificate;
-        private X509CertificateRecipientClientCredential _serviceCertificate;
-        private WindowsClientCredential _windows;
-        private HttpDigestClientCredential _httpDigest;
-        private bool _isReadOnly;
+        internal const bool SupportInteractiveDefault = true;
+
+        UserNamePasswordClientCredential userName;
+        X509CertificateInitiatorClientCredential clientCertificate;
+        X509CertificateRecipientClientCredential serviceCertificate;
+        WindowsClientCredential windows;
+        HttpDigestClientCredential httpDigest;
+        IssuedTokenClientCredential issuedToken;
+        PeerCredential peer;
+        bool supportInteractive;
+        bool isReadOnly;
+        GetInfoCardTokenCallback getInfoCardTokenCallback = null;
+        bool useIdentityConfiguration = false;
+        SecurityTokenHandlerCollectionManager securityTokenHandlerCollectionManager = null;
+        object handlerCollectionLock = new object();
 
         public ClientCredentials()
         {
+            this.supportInteractive = SupportInteractiveDefault;
         }
 
         protected ClientCredentials(ClientCredentials other)
         {
             if (other == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("other");
-            if (other._userName != null)
-                _userName = new UserNamePasswordClientCredential(other._userName);
-            if (other._clientCertificate != null)
-                _clientCertificate = new X509CertificateInitiatorClientCredential(other._clientCertificate);
-            if (other._serviceCertificate != null)
-                _serviceCertificate = new X509CertificateRecipientClientCredential(other._serviceCertificate);
-            if (other._httpDigest != null)
-                _httpDigest = new HttpDigestClientCredential(other._httpDigest);
-            _isReadOnly = other._isReadOnly;
+            if (other.userName != null)
+                this.userName = new UserNamePasswordClientCredential(other.userName);
+            if (other.clientCertificate != null)
+                this.clientCertificate = new X509CertificateInitiatorClientCredential(other.clientCertificate);
+            if (other.serviceCertificate != null)
+                this.serviceCertificate = new X509CertificateRecipientClientCredential(other.serviceCertificate);
+            if (other.windows != null)
+                this.windows = new WindowsClientCredential(other.windows);
+            if (other.httpDigest != null)
+                this.httpDigest = new HttpDigestClientCredential(other.httpDigest);
+            if (other.issuedToken != null)
+                this.issuedToken = new IssuedTokenClientCredential(other.issuedToken);
+            if (other.peer != null)
+                this.peer = new PeerCredential(other.peer);
+
+            this.getInfoCardTokenCallback = other.getInfoCardTokenCallback;
+            this.supportInteractive = other.supportInteractive;
+            this.securityTokenHandlerCollectionManager = other.securityTokenHandlerCollectionManager;
+            this.useIdentityConfiguration = other.useIdentityConfiguration;
+            this.isReadOnly = other.isReadOnly;
+        }
+
+        internal GetInfoCardTokenCallback GetInfoCardTokenCallback
+        {
+            get
+            {
+                if (this.getInfoCardTokenCallback == null)
+                {
+                    GetInfoCardTokenCallback gtc = new GetInfoCardTokenCallback(this.GetInfoCardSecurityToken);
+                    this.getInfoCardTokenCallback = gtc;
+                }
+                return this.getInfoCardTokenCallback;
+            }
+        }
+
+        public IssuedTokenClientCredential IssuedToken
+        {
+            get
+            {
+                if (this.issuedToken == null)
+                {
+                    this.issuedToken = new IssuedTokenClientCredential();
+                    if (isReadOnly)
+                        this.issuedToken.MakeReadOnly();
+                }
+                return this.issuedToken;
+            }
         }
 
         public UserNamePasswordClientCredential UserName
         {
             get
             {
-                if (_userName == null)
+                if (this.userName == null)
                 {
-                    _userName = new UserNamePasswordClientCredential();
-                    if (_isReadOnly)
-                        _userName.MakeReadOnly();
+                    this.userName = new UserNamePasswordClientCredential();
+                    if (isReadOnly)
+                        this.userName.MakeReadOnly();
                 }
-                return _userName;
+                return this.userName;
             }
         }
 
@@ -54,13 +107,13 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_clientCertificate == null)
+                if (this.clientCertificate == null)
                 {
-                    _clientCertificate = new X509CertificateInitiatorClientCredential();
-                    if (_isReadOnly)
-                        _clientCertificate.MakeReadOnly();
+                    this.clientCertificate = new X509CertificateInitiatorClientCredential();
+                    if (isReadOnly)
+                        this.clientCertificate.MakeReadOnly();
                 }
-                return _clientCertificate;
+                return this.clientCertificate;
             }
         }
 
@@ -68,13 +121,13 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_serviceCertificate == null)
+                if (this.serviceCertificate == null)
                 {
-                    _serviceCertificate = new X509CertificateRecipientClientCredential();
-                    if (_isReadOnly)
-                        _serviceCertificate.MakeReadOnly();
+                    this.serviceCertificate = new X509CertificateRecipientClientCredential();
+                    if (isReadOnly)
+                        this.serviceCertificate.MakeReadOnly();
                 }
-                return _serviceCertificate;
+                return this.serviceCertificate;
             }
         }
 
@@ -82,13 +135,13 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_windows == null)
+                if (this.windows == null)
                 {
-                    _windows = new WindowsClientCredential();
-                    if (_isReadOnly)
-                        _windows.MakeReadOnly();
+                    this.windows = new WindowsClientCredential();
+                    if (isReadOnly)
+                        this.windows.MakeReadOnly();
                 }
-                return _windows;
+                return this.windows;
             }
         }
 
@@ -96,16 +149,93 @@ namespace System.ServiceModel.Description
         {
             get
             {
-                if (_httpDigest == null)
+                if (this.httpDigest == null)
                 {
-                    _httpDigest = new HttpDigestClientCredential();
-                    if (_isReadOnly)
-                        _httpDigest.MakeReadOnly();
+                    this.httpDigest = new HttpDigestClientCredential();
+                    if (isReadOnly)
+                        this.httpDigest.MakeReadOnly();
                 }
-                return _httpDigest;
+                return this.httpDigest;
             }
         }
 
+        public PeerCredential Peer
+        {
+            get
+            {
+                if (this.peer == null)
+                {
+                    this.peer = new PeerCredential();
+                    if (isReadOnly)
+                        this.peer.MakeReadOnly();
+                }
+                return this.peer;
+            }
+        }
+
+        /// <summary>
+        /// The <see cref="SecurityTokenHandlerCollectionManager" /> containing the set of <see cref="SecurityTokenHandler" />
+        /// objects used for serializing and validating tokens found in WS-Trust messages.
+        /// </summary>
+        public SecurityTokenHandlerCollectionManager SecurityTokenHandlerCollectionManager
+        {
+            get
+            {
+                if (this.securityTokenHandlerCollectionManager == null)
+                {
+                    lock (this.handlerCollectionLock)
+                    {
+                        if (this.securityTokenHandlerCollectionManager == null)
+                        {
+                            this.securityTokenHandlerCollectionManager = SecurityTokenHandlerCollectionManager.CreateDefaultSecurityTokenHandlerCollectionManager();
+                        }
+                    }
+                }
+
+                return this.securityTokenHandlerCollectionManager;
+            }
+            set
+            {
+                if (this.isReadOnly)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
+                }
+
+                this.securityTokenHandlerCollectionManager = value;
+            }
+        }
+
+        public bool UseIdentityConfiguration
+        {
+            get
+            {
+                return this.useIdentityConfiguration;
+            }
+            set
+            {
+                if (this.isReadOnly)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
+                }
+                this.useIdentityConfiguration = value;
+            }
+        }
+
+        public bool SupportInteractive
+        {
+            get
+            {
+                return this.supportInteractive;
+            }
+            set
+            {
+                if (this.isReadOnly)
+                {
+                    throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.ObjectIsReadOnly)));
+                }
+                this.supportInteractive = value;
+            }
+        }
 
         internal static ClientCredentials CreateDefaultCredentials()
         {
@@ -114,7 +244,7 @@ namespace System.ServiceModel.Description
 
         public override SecurityTokenManager CreateSecurityTokenManager()
         {
-            return new ClientCredentialsSecurityTokenManager(Clone());
+            return new ClientCredentialsSecurityTokenManager(this.Clone());
         }
 
         protected virtual ClientCredentials CloneCore()
@@ -125,9 +255,9 @@ namespace System.ServiceModel.Description
         public ClientCredentials Clone()
         {
             ClientCredentials result = CloneCore();
-            if (result == null || result.GetType() != GetType())
+            if (result == null || result.GetType() != this.GetType())
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(NotImplemented.ByDesignWithMessage(SR.Format(SR.CloneNotImplementedCorrectly, GetType(), (result != null) ? result.ToString() : "null")));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new NotImplementedException(SR.GetString(SR.CloneNotImplementedCorrectly, this.GetType(), (result != null) ? result.ToString() : "null")));
             }
             return result;
         }
@@ -146,7 +276,7 @@ namespace System.ServiceModel.Description
             SecurityCredentialsManager otherCredentialsManager = bindingParameters.Find<SecurityCredentialsManager>();
             if (otherCredentialsManager != null)
             {
-                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.Format(SR.MultipleSecurityCredentialsManagersInChannelBindingParameters, otherCredentialsManager)));
+                throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(SR.GetString(SR.MultipleSecurityCredentialsManagersInChannelBindingParameters, otherCredentialsManager)));
             }
             bindingParameters.Add(this);
         }
@@ -154,12 +284,25 @@ namespace System.ServiceModel.Description
         void IEndpointBehavior.ApplyDispatchBehavior(ServiceEndpoint serviceEndpoint, EndpointDispatcher endpointDispatcher)
         {
             throw DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidOperationException(
-                SR.Format(SR.SFXEndpointBehaviorUsedOnWrongSide, typeof(ClientCredentials).Name)));
+                SR.GetString(SR.SFXEndpointBehaviorUsedOnWrongSide, typeof(ClientCredentials).Name)));
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        void AddInteractiveInitializers(ServiceEndpoint serviceEndpoint, ClientRuntime behavior)
+        {
+            CardSpacePolicyElement[] dummyPolicyElements;
+            Uri dummyRelyingPartyIssuer;
+            // we add the initializer only if infocard is required. At this point, serviceEndpoint.Address is not populated correctly but that's not needed to
+            // determine whether infocard is required or not.
+            if (InfoCardHelper.IsInfocardRequired(serviceEndpoint.Binding, this, this.CreateSecurityTokenManager(), EndpointAddress.AnonymousAddress, out dummyPolicyElements, out dummyRelyingPartyIssuer))
+            {
+                behavior.InteractiveChannelInitializers.Add(new InfocardInteractiveChannelInitializer(this, serviceEndpoint.Binding));
+            }
+        }
 
         public virtual void ApplyClientBehavior(ServiceEndpoint serviceEndpoint, ClientRuntime behavior)
         {
+
             if (serviceEndpoint == null)
             {
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("serviceEndpoint");
@@ -175,23 +318,49 @@ namespace System.ServiceModel.Description
             {
                 return;
             }
+
+            try
+            {
+                AddInteractiveInitializers(serviceEndpoint, behavior);
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+
+            }
+
         }
 
         // RC0 workaround to freeze credentials when the channel factory is opened
         internal void MakeReadOnly()
         {
-            _isReadOnly = true; 
-
-            if (_clientCertificate != null)
-                _clientCertificate.MakeReadOnly();
-            if (_serviceCertificate != null)
-                _serviceCertificate.MakeReadOnly();
-            if (_userName != null)
-                _userName.MakeReadOnly();
-            if (_windows != null)
-                _windows.MakeReadOnly();
-            if (_httpDigest != null)
-                _httpDigest.MakeReadOnly();
+            this.isReadOnly = true;
+            if (this.clientCertificate != null)
+                this.clientCertificate.MakeReadOnly();
+            if (this.serviceCertificate != null)
+                this.serviceCertificate.MakeReadOnly();
+            if (this.userName != null)
+                this.userName.MakeReadOnly();
+            if (this.windows != null)
+                this.windows.MakeReadOnly();
+            if (this.httpDigest != null)
+                this.httpDigest.MakeReadOnly();
+            if (this.issuedToken != null)
+                this.issuedToken.MakeReadOnly();
+            if (this.peer != null)
+                this.peer.MakeReadOnly();
         }
+
+        // This APTCA method calls CardSpaceSelector.GetToken(..), which is defined in a non-APTCA assembly. It would be a breaking change to add a Demand, 
+        // while we don't have an identified security vulnerability here.
+        [SuppressMessage(FxCop.Category.Security, FxCop.Rule.AptcaMethodsShouldOnlyCallAptcaMethods)]
+        internal protected virtual SecurityToken GetInfoCardSecurityToken(bool requiresInfoCard, CardSpacePolicyElement[] chain, SecurityTokenSerializer tokenSerializer)
+        {
+            if (!requiresInfoCard)
+            {
+                return null;
+            }
+            return CardSpaceSelector.GetToken(chain, tokenSerializer);
+        }
+
     }
 }

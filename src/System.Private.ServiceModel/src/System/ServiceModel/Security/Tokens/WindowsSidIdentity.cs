@@ -1,27 +1,27 @@
-// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
-
-using System.IdentityModel.Claims;
-using System.ServiceModel;
-using System.IdentityModel.Policy;
-using System.Security.Principal;
+//-----------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation.  All rights reserved.
+//-----------------------------------------------------------------------------
 
 namespace System.ServiceModel.Security.Tokens
 {
-#if !FEATURE_NETNATIVE // NegotiateStream
-    internal class WindowsSidIdentity : IIdentity
+    using System.IdentityModel.Claims;
+    using System.ServiceModel;
+    using System.IdentityModel.Policy;
+    using System.Security.Principal;
+
+    class WindowsSidIdentity : IIdentity
     {
-        SecurityIdentifier _sid;
-        string _name;
-        string _authenticationType;
+        SecurityIdentifier sid;
+        string name;
+        string authenticationType;
 
         public WindowsSidIdentity(SecurityIdentifier sid)
         {
             if (sid == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("sid");
 
-            _sid = sid;
-            _authenticationType = String.Empty;
+            this.sid = sid;
+            this.authenticationType = String.Empty;
         }
 
         public WindowsSidIdentity(SecurityIdentifier sid, string name, string authenticationType)
@@ -33,19 +33,19 @@ namespace System.ServiceModel.Security.Tokens
             if (authenticationType == null)
                 throw DiagnosticUtility.ExceptionUtility.ThrowHelperArgumentNull("authenticationType");
 
-            _sid = sid;
-            _name = name;
-            _authenticationType = authenticationType;
+            this.sid = sid;
+            this.name = name;
+            this.authenticationType = authenticationType;
         }
 
         public SecurityIdentifier SecurityIdentifier
         {
-            get { return _sid; }
+            get { return this.sid; }
         }
 
         public string AuthenticationType 
         {
-            get { return _authenticationType; }
+            get { return this.authenticationType; }
         }
         
         public bool IsAuthenticated
@@ -57,9 +57,9 @@ namespace System.ServiceModel.Security.Tokens
         {
             get
             {
-                if (_name == null)
-                    _name = ((NTAccount)_sid.Translate(typeof(NTAccount))).Value;
-                return _name;
+                if (this.name == null)
+                    this.name = ((NTAccount)this.sid.Translate(typeof(NTAccount))).Value;
+                return this.name;
             }
         }
 
@@ -72,13 +72,12 @@ namespace System.ServiceModel.Security.Tokens
             if (sidIdentity == null)
                 return false;
 
-            return _sid == sidIdentity.SecurityIdentifier;
+            return this.sid == sidIdentity.SecurityIdentifier;
         }
 
         public override int GetHashCode()
         {
-            return _sid.GetHashCode();
+            return this.sid.GetHashCode();
         }
     }
-#endif // FEATURE_NETNATIVE
 }
